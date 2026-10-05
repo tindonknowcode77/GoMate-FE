@@ -4,6 +4,34 @@ Record decisions here when they materially affect architecture, dependencies,
 security, the data model, or product behavior. Keep the newest decision at the
 top. Small implementation details belong only in `DEVELOPMENT_LOG.md`.
 
+### 2026-09-29 - Configure activity funding during creation
+
+- **Status:** Accepted
+- **Context:** Hosts need to define how members contribute before publishing,
+  while the backend and the later Fund transaction experience are not ready.
+- **Decision:** Store one financial config in the create draft with exactly two
+  modes: full prepayment or deposit. Both modes include a deadline, host-managed
+  treasury, approval threshold, and a member approval rule. Persist published
+  drafts through the local activity adapter until the creation API supports the
+  same model.
+- **Consequences:** Create Activity now has five steps. Form and financial
+  validation are intentionally deferred while the flow is used as a UI mockup
+  and must return before backend integration. Payment, contribution,
+  disbursement, settlement, and other Fund operations remain out of scope.
+- **Supersedes:** None.
+
+### 2026-09-29 - Keep successful Match requests in discovery
+
+- **Status:** Accepted
+- **Context:** Routing to a dedicated success screen interrupts rapid activity
+  discovery after every interested swipe.
+- **Decision:** Submit the join request, advance the deck, and show a temporary
+  bottom confirmation explaining that host approval is pending. Do not navigate
+  away from Match for this action.
+- **Consequences:** The dedicated Match success route and screen are removed.
+  Request persistence still depends on a future backend integration.
+- **Supersedes:** The dedicated post-match success-screen behavior.
+
 ### 2026-09-29 - Keep Match discovery separate from its management hub
 
 - **Status:** Accepted

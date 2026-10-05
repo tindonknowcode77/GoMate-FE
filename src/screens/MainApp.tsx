@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomNav, MainTab } from '../components/BottomNav';
@@ -19,7 +19,6 @@ import { HostMembersScreen } from './HostMembersScreen';
 import { ManageActivitiesScreen } from './ManageActivitiesScreen';
 import { MatchHubScreen } from './MatchHubScreen';
 import { MatchScreen } from './MatchScreen';
-import { MatchSuccessScreen } from './MatchSuccessScreen';
 import { MemberProfileScreen } from './MemberProfileScreen';
 import { Conversation, MessagesScreen } from './MessagesScreen';
 import { MyActivitiesScreen } from './MyActivitiesScreen';
@@ -49,8 +48,23 @@ type FullScreenRoute =
   | { name: 'chat'; conversation: Conversation; returnTo?: 'discover' }
   | { name: 'hostMembers'; activity: Activity; source: PeopleSource }
   | { name: 'memberProfile'; person: PersonProfile; source: 'manage' | 'hostMembers'; activity?: Activity; peopleSource?: PeopleSource }
-  | { name: 'matchSuccess'; activity: Activity }
   | null;
+
+const dayTokens: Record<string, string> = { 'Thứ Hai': 'T2', 'Thứ Ba': 'T3', 'Thứ Tư': 'T4', 'Thứ Năm': 'T5', 'Thứ Sáu': 'T6', 'Thứ Bảy': 'T7', 'Chủ Nhật': 'CN' };
+
+function activityMatchesLocation(activity: Activity, province: string, district: string) {
+  if (province === 'Tất cả') return true;
+  const provinceAliases: Record<string, string[]> = { 'TP. Hồ Chí Minh': ['TP.HCM', 'Thủ Đức'], 'Hà Nội': ['Hà Nội'], 'Đà Nẵng': ['Đà Nẵng'], 'Lâm Đồng': ['Lâm Đồng', 'Đà Lạt', 'Bảo Lộc'] };
+  const provinceMatch = (provinceAliases[province] ?? [province]).some((token) => activity.location.includes(token));
+  return provinceMatch && (district === 'Tất cả' || activity.location.includes(district));
+}
+
+function activityMatchesTime(activity: Activity, availableDays: string[], timePeriods: string[]) {
+  const day = Object.entries(dayTokens).find(([label]) => activity.time.includes(label))?.[1];
+  const hour = Number(activity.time.match(/(\d{1,2}):\d{2}/)?.[1] ?? 0);
+  const period = hour < 12 ? 'Sáng' : hour < 18 ? 'Chiều' : 'Tối';
+  return (availableDays.length === 0 || Boolean(day && availableDays.includes(day))) && (timePeriods.length === 0 || timePeriods.includes(period));
+}
 
 export function MainApp({ onLogout }: { onLogout: () => void }) {
   const [activeTab, setActiveTab] = useState<MainTab>('home');
@@ -58,16 +72,26 @@ export function MainApp({ onLogout }: { onLogout: () => void }) {
   const [filters, setFilters] = useState<ActivityFilters>();
   const filteredActivities = useMemo(() => {
     if (!filters) return activities;
-    return activities.filter((activity) => Number.parseFloat(activity.distance) <= filters.distance && (filters.categories.length === 0 || filters.categories.includes(activity.category)));
+    return activities.filter((activity) => {
+      const estimatedCost = Number(activity.estimatedCost.replace(/\D/g, ''));
+      const capacity = Number(activity.members.split('/')[1] ?? 0);
+      return Number.parseFloat(activity.distance) <= filters.distance
+        && activityMatchesLocation(activity, filters.province, filters.district)
+        && (filters.categories.length === 0 || filters.categories.includes(activity.category))
+        && activityMatchesTime(activity, filters.availableDays, filters.timePeriods)
+        && estimatedCost >= filters.minBudget
+        && (filters.maxBudget === 2000000 || estimatedCost <= filters.maxBudget)
+        && capacity >= filters.minimumCapacity;
+    });
   }, [filters]);
 
-  if (route?.name === 'discover') return <MatchScreen activityItems={filteredActivities} onBack={() => setRoute(null)} onFilterPress={() => setRoute({ name: 'filter' })} onMatched={(activity) => setRoute({ name: 'matchSuccess', activity })} />;
+  if (route?.name === 'discover') return <MatchScreen activityItems={filteredActivities} onBack={() => setRoute(null)} onFilterPress={() => setRoute({ name: 'filter' })} />;
   if (route?.name === 'filter') return <FilterScreen initialFilters={filters} onApply={(next) => { setFilters(next); setRoute({ name: 'discover' }); }} onClose={() => setRoute({ name: 'discover' })} />;
   if (route?.name === 'pending') return <PendingActivitiesScreen onBack={() => setRoute(null)} onOpen={(activity) => setRoute({ name: 'activityDetail', activity, source: 'pending' })} />;
   if (route?.name === 'manage') return <ManageActivitiesScreen onBack={() => setRoute(null)} onViewProfile={(person) => setRoute({ name: 'memberProfile', person, source: 'manage' })} />;
   if (route?.name === 'activityDetail') {
     const current = route;
-    return <ActivityDetailScreen activity={current.activity} onBack={() => setRoute(current.source === 'discover' ? { name: 'discover' } : current.source === 'pending' ? { name: 'pending' } : null)} onPrimary={() => setRoute({ name: 'matchSuccess', activity: current.activity })} onViewPeople={() => setRoute({ name: 'hostMembers', activity: current.activity, source: { name: 'detail', activity: current.activity } })} />;
+    return <ActivityDetailScreen activity={current.activity} onBack={() => setRoute(current.source === 'discover' ? { name: 'discover' } : current.source === 'pending' ? { name: 'pending' } : null)} onPrimary={() => Alert.alert('Đã gửi yêu cầu', 'Host sẽ xem hồ sơ và phản hồi sau khi duyệt.')} onViewPeople={() => setRoute({ name: 'hostMembers', activity: current.activity, source: { name: 'detail', activity: current.activity } })} />;
   }
   if (route?.name === 'hostMembers') {
     const { activity, source } = route;
@@ -86,7 +110,6 @@ export function MainApp({ onLogout }: { onLogout: () => void }) {
   }
   if (route?.name === 'settings') return <SettingsScreen onBack={() => setRoute(null)} onLogout={onLogout} />;
   if (route?.name === 'chat') { const current = route; return <ChatScreen conversation={current.conversation} onBack={() => setRoute(current.returnTo === 'discover' ? { name: 'discover' } : null)} />; }
-  if (route?.name === 'matchSuccess') { const activity = route.activity; return <MatchSuccessScreen activity={activity} onContinue={() => setRoute({ name: 'discover' })} onMessageHost={() => setRoute({ name: 'chat', conversation: { id: activity.id, name: activity.host, activity: activity.title, message: 'Bắt đầu cuộc trò chuyện', time: '', unread: 0 }, returnTo: 'discover' })} />; }
   if (route?.name === 'group') { const current = route; return <GroupScreen activity={current.activity} onBack={() => setRoute(current.source === 'myActivities' ? { name: 'myActivities' } : null)} onStart={() => setRoute({ name: 'progress', activity: current.activity })} />; }
   if (route?.name === 'progress') return <ActivityProgressScreen activity={route.activity} onBack={() => setRoute({ name: 'group', activity: route.activity, source: 'myActivities' })} onEnd={() => setRoute({ name: 'summary', activity: route.activity })} />;
   if (route?.name === 'summary') return <ActivitySummaryScreen activity={route.activity} onBack={() => setRoute({ name: 'progress', activity: route.activity })} onRate={() => setRoute({ name: 'rating', activity: route.activity })} />;

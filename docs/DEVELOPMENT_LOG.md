@@ -3,6 +3,108 @@
 This file records completed development work. Keep the newest entry at the top
 and follow `templates/development-log-entry.md`.
 
+## 2026-09-29 - Allow unrestricted Create Activity mockup navigation
+
+### Summary
+
+- Removed all field validation that blocked advancing or publishing in the
+  Create Activity flow so every UI step can be reviewed with empty mock data.
+- Kept only operational image-picker feedback such as permission denial and the
+  six-image limit.
+
+### Files changed
+
+- `src/screens/CreateActivityScreen.tsx`
+- `docs/DECISIONS.md`
+- `docs/DEVELOPMENT_LOG.md`
+
+### Verification
+
+- `npm run typecheck`: Passed.
+- `npm run lint`: Passed with no warnings.
+
+### Remaining work
+
+- Restore production form and financial validation before connecting the flow
+  to a real creation API.
+
+## 2026-09-29 - Expand Match confirmation, filters, and activity creation
+
+### Summary
+
+- Replaced the dedicated post-Match success route with an in-place bottom
+  confirmation; interested swipes now send the request and advance the deck.
+- Rebuilt Match filters with shared expanded categories, province/city and
+  district selection, draggable distance and cost controls, availability, and
+  minimum group-capacity filtering. Applied every new field to discovery data.
+- Expanded Create Activity to five steps with up to six square-cropped photos,
+  preset or custom categories, detailed scheduling and location fields, group
+  setup, and a review step with direct financial editing.
+- Added the Activity Fund configuration requested by the product brief: full
+  prepayment or deposit, mode-specific values and deadlines, host treasury,
+  approval threshold/rule, expected-fund summary, validation, and local draft
+  persistence while the backend API is unavailable.
+- Removed the obsolete Match success screen and documented the resulting
+  product and data-model decisions.
+
+### Files changed
+
+- `src/data/activityOptions.ts`
+- `src/screens/CreateActivityScreen.tsx`
+- `src/screens/FilterScreen.tsx`
+- `src/screens/MainApp.tsx`
+- `src/screens/MatchScreen.tsx`
+- `src/screens/MatchSuccessScreen.tsx` (removed)
+- `src/services/activityService.ts`
+- `docs/DECISIONS.md`
+- `docs/DEVELOPMENT_LOG.md`
+
+### Verification
+
+- `npm run typecheck`: Passed.
+- `npm run lint`: Passed with no warnings.
+- `npx expo-doctor`: Passed all 21 checks.
+- `npx expo export --platform android --output-dir .tmp-create-filter-export`:
+  Passed; generated the Android bundle successfully and the temporary output
+  was removed afterward.
+
+### Remaining work
+
+- Connect activity creation, join requests, uploaded photos, and financial
+  configuration to backend persistence when the corresponding APIs exist.
+- Implement the later Fund lifecycle (contributions, payments, approvals,
+  disbursement, reconciliation, refunds, settlement, disputes, and history).
+- Validate slider feel, image cropping, and long location/category layouts on
+  representative physical Android and iOS devices.
+
+## 2026-09-29 - Improve Match swipe reliability on mobile
+
+### Summary
+
+- Moved the horizontal pan responder above the card's vertical `ScrollView` so
+  horizontal intent is captured before native scrolling can claim the gesture.
+- Reduced the initial direction-lock distance and allowed slightly diagonal
+  swipes while preserving normal vertical detail scrolling.
+- Added velocity-aware flick detection, a responsive completion threshold, and
+  an animation guard to make short fast swipes reliable without double actions.
+
+### Files changed
+
+- `src/screens/MatchScreen.tsx`
+- `docs/DEVELOPMENT_LOG.md`
+
+### Verification
+
+- `npm run typecheck`: Passed.
+- `npm run lint`: Passed with no warnings.
+- `npx expo-doctor`: Passed all 21 checks.
+- `npx expo export --platform android --output-dir .tmp-match-swipe-smooth-export`:
+  Passed; generated the Android bundle successfully.
+
+### Remaining work
+
+- Confirm the gesture feel on representative physical Android and iOS devices.
+
 ## 2026-09-29 - Replace the find-companion onboarding visual
 
 ### Summary
