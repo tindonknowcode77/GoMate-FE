@@ -11,13 +11,15 @@ type SheetName = 'more' | 'report' | 'safety' | 'undo' | 'notInterested' | null;
 
 type MatchScreenProps = {
   activityItems?: Activity[];
+  distanceLabel?: string;
+  onRetry?: () => void;
   onFilterPress: () => void;
   onMatched: (activity: Activity) => void;
   onBack: () => void;
   state?: 'ready' | 'loading' | 'location-required' | 'network-error' | 'activity-unavailable';
 };
 
-export function MatchScreen({ activityItems = activities, onFilterPress, onMatched, onBack, state = 'ready' }: MatchScreenProps) {
+export function MatchScreen({ activityItems = activities, onFilterPress, onMatched, onBack, distanceLabel, onRetry, state = 'ready' }: MatchScreenProps) {
   const { width } = useWindowDimensions();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [lastSkippedIndex, setLastSkippedIndex] = useState<number | null>(null);
@@ -75,7 +77,7 @@ export function MatchScreen({ activityItems = activities, onFilterPress, onMatch
     const currentState = states[state];
     return (
       <SafeAreaView style={styles.safeArea}>
-        <View style={styles.page}><MatchHeader onBack={onBack} onFilter={onFilterPress} /><MatchState action={currentState.action} icon={currentState.icon} message={currentState.message} onAction={currentState.action ? onFilterPress : undefined} title={currentState.title} /></View>
+        <View style={styles.page}><MatchHeader distance={distanceLabel} onBack={onBack} onFilter={onFilterPress} /><MatchState action={currentState.action} icon={currentState.icon} message={currentState.message} onAction={state === 'network-error' ? onRetry : currentState.action ? onFilterPress : undefined} title={currentState.title} /></View>
       </SafeAreaView>
     );
   }
@@ -84,7 +86,7 @@ export function MatchScreen({ activityItems = activities, onFilterPress, onMatch
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.page}>
-          <MatchHeader onBack={onBack} onFilter={onFilterPress} />
+          <MatchHeader distance={distanceLabel} onBack={onBack} onFilter={onFilterPress} />
           <MatchState action={canUndo ? 'Quay lại hoạt động vừa bỏ qua' : 'Điều chỉnh bộ lọc'} icon="calendar-outline" message="Hãy mở rộng khoảng cách, thời gian rảnh hoặc danh mục để tiếp tục Match." onAction={canUndo ? () => setSheet('undo') : onFilterPress} title="Không còn hoạt động phù hợp" />
         </View>
         <UndoSheet onCancel={() => setSheet(null)} onConfirm={undoSkip} visible={sheet === 'undo'} />
@@ -95,7 +97,7 @@ export function MatchScreen({ activityItems = activities, onFilterPress, onMatch
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.page}>
-        <MatchHeader onBack={onBack} onFilter={onFilterPress} />
+        <MatchHeader distance={distanceLabel} onBack={onBack} onFilter={onFilterPress} />
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <Animated.View {...panResponder.panHandlers} style={{ transform: [...position.getTranslateTransform(), { rotate }] }}>
             <ActivityMatchCard activity={currentActivity} canUndo={canUndo} onMore={() => setSheet('more')} onUndo={() => setSheet('undo')} />

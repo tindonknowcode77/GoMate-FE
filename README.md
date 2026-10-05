@@ -1,5 +1,21 @@
 # GoMate Mobile
 
+Sau khi gộp `fe-ui2`, app dùng `index.ts` và `App.tsx`. Code web cũ được
+sao lưu tại `C:\GoMate\backups\fe-stash-20261003`; stash vẫn được giữ nguyên.
+Đã nối API đăng ký, xác minh email 6 số, gửi lại mã, đăng nhập và đăng xuất.
+Sau xác minh, FE tự gọi đăng nhập rồi mở bước hoàn thiện hồ sơ.
+
+- `npm.cmd run dev`: chạy Expo.
+- `npm.cmd run build`: xuất bản web vào `dist` cho lệnh build ở thư mục gốc.
+- `npm.cmd run build:mobile`: xuất bundle Android/iOS vào `dist-native`.
+- Cấu hình `EXPO_PUBLIC_API_BASE_URL` trong `.env` thành URL BE có đuôi `/api`,
+  rồi khởi động lại Expo. Điện thoại thật dùng IP LAN của máy chạy BE;
+  Android emulator dùng `http://10.0.2.2:3000/api`. Web cần BE cho phép origin qua CORS.
+- Token chỉ giữ trong bộ nhớ; mở lại app cần đăng nhập lại. Google/Apple và
+  quên mật khẩu chưa được nối. Hồ sơ cá nhân đã nối API lấy/sửa và upload ảnh;
+  tạo/sửa/xóa, danh sách hoạt động tổ chức, chi tiết và Match đã nối API.
+  Nhóm/chat và các mục hoạt động mẫu trên trang chủ vẫn chưa nối đầy đủ.
+
 Ứng dụng tìm người cùng tham gia một hoạt động cụ thể, được xây dựng bằng React
 Native, Expo SDK 57 và TypeScript. Luồng hiện tại gồm đăng nhập/đăng ký, xác minh
 email, hoàn thiện hồ sơ và khu vực ứng dụng chính với năm tab: Trang chủ, Match,

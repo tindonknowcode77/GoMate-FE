@@ -10,10 +10,19 @@ import { OnboardingPermissionsScreen } from './src/screens/OnboardingPermissions
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { VerifyEmailScreen } from './src/screens/VerifyEmailScreen';
 
+import { Credentials, logout } from './src/services/authService';
+import { Alert } from 'react-native';
+
 type Screen = 'onboarding' | 'auth' | 'verify' | 'profile' | 'permissions' | 'main';
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>('onboarding');
+
+  const [pending, setPending] = useState<Credentials | null>(null);
+  const handleLogout = async () => {
+    try { await logout(); setScreen('auth'); }
+    catch (error) { Alert.alert('Đăng xuất thất bại', error instanceof Error ? error.message : 'Vui lòng thử lại.'); }
+  };
 
   return (
     <SafeAreaProvider>
@@ -23,11 +32,11 @@ export default function App() {
         {screen === 'auth' && (
           <AuthScreen
             onLogin={() => setScreen('main')}
-            onRegister={() => setScreen('verify')}
+            onRegister={(credentials) => { setPending(credentials); setScreen('verify'); }}
           />
         )}
-        {screen === 'verify' && (
-          <VerifyEmailScreen onBack={() => setScreen('auth')} onVerified={() => setScreen('profile')} />
+        {screen === 'verify' && pending && (
+          <VerifyEmailScreen credentials={pending} onBack={() => { setPending(null); setScreen('auth'); }} onVerified={() => { setPending(null); setScreen('profile'); }} />
         )}
         {screen === 'profile' && (
           <ProfileScreen
@@ -36,7 +45,7 @@ export default function App() {
           />
         )}
         {screen === 'permissions' && <OnboardingPermissionsScreen onDone={() => setScreen('main')} />}
-        {screen === 'main' && <MainApp onLogout={() => setScreen('auth')} />}
+        {screen === 'main' && <MainApp onLogout={() => void handleLogout()} />}
       </LanguageProvider>
     </SafeAreaProvider>
   );

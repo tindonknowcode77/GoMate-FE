@@ -25,6 +25,12 @@
           "cameraPermission": false,
           "microphonePermission": false
         }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow GoMate to find nearby activities."
+        }
       ]
     ]
   }

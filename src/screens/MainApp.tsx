@@ -1,13 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomNav, MainTab } from '../components/BottomNav';
-import { Activity, activities } from '../data/activities';
-import { currentUserProfile, PersonProfile } from '../data/people';
+import { Activity } from '../data/activities';
+import { PersonProfile } from '../data/people';
 import { colors } from '../theme';
 import { ActivityDetailScreen } from './ActivityDetailScreen';
-import { ActivityFilters, FilterScreen } from './FilterScreen';
+import { ActivityFilters, defaultActivityFilters, FilterScreen } from './FilterScreen';
 import { ActivityProgressScreen } from './ActivityProgressScreen';
 import { ActivitySummaryScreen } from './ActivitySummaryScreen';
 import { ChatScreen } from './ChatScreen';
@@ -16,13 +16,12 @@ import { EditProfileScreen } from './EditProfileScreen';
 import { GroupScreen } from './GroupScreen';
 import { HomeScreen } from './HomeScreen';
 import { HostMembersScreen } from './HostMembersScreen';
-import { ManageActivitiesScreen } from './ManageActivitiesScreen';
+import { ActivityManagerScreen } from './ActivityManagerScreen';
 import { MatchHubScreen } from './MatchHubScreen';
-import { MatchScreen } from './MatchScreen';
+import { DiscoverScreen, DiscoveryContext } from './DiscoverScreen';
 import { MatchSuccessScreen } from './MatchSuccessScreen';
 import { MemberProfileScreen } from './MemberProfileScreen';
 import { Conversation, MessagesScreen } from './MessagesScreen';
-import { MyActivitiesScreen } from './MyActivitiesScreen';
 import { NotificationsScreen } from './NotificationsScreen';
 import { PendingActivitiesScreen } from './PendingActivitiesScreen';
 import { RatingScreen } from './RatingScreen';
@@ -55,16 +54,13 @@ type FullScreenRoute =
 export function MainApp({ onLogout }: { onLogout: () => void }) {
   const [activeTab, setActiveTab] = useState<MainTab>('home');
   const [route, setRoute] = useState<FullScreenRoute>(null);
-  const [filters, setFilters] = useState<ActivityFilters>();
-  const filteredActivities = useMemo(() => {
-    if (!filters) return activities;
-    return activities.filter((activity) => Number.parseFloat(activity.distance) <= filters.distance && (filters.categories.length === 0 || filters.categories.includes(activity.category)));
-  }, [filters]);
+  const [filters, setFilters] = useState<ActivityFilters>(defaultActivityFilters);
+  const [discoveryContext, setDiscoveryContext] = useState<DiscoveryContext>({ query: '' });
 
-  if (route?.name === 'discover') return <MatchScreen activityItems={filteredActivities} onBack={() => setRoute(null)} onFilterPress={() => setRoute({ name: 'filter' })} onMatched={(activity) => setRoute({ name: 'matchSuccess', activity })} />;
+  if (route?.name === 'discover') return <DiscoverScreen key={JSON.stringify(filters)} context={discoveryContext} onContextChange={setDiscoveryContext} filters={filters} onBack={() => setRoute(null)} onFilterPress={() => setRoute({ name: 'filter' })} />;
   if (route?.name === 'filter') return <FilterScreen initialFilters={filters} onApply={(next) => { setFilters(next); setRoute({ name: 'discover' }); }} onClose={() => setRoute({ name: 'discover' })} />;
   if (route?.name === 'pending') return <PendingActivitiesScreen onBack={() => setRoute(null)} onOpen={(activity) => setRoute({ name: 'activityDetail', activity, source: 'pending' })} />;
-  if (route?.name === 'manage') return <ManageActivitiesScreen onBack={() => setRoute(null)} onViewProfile={(person) => setRoute({ name: 'memberProfile', person, source: 'manage' })} />;
+  if (route?.name === 'manage') return <ActivityManagerScreen onBack={() => setRoute(null)} />;
   if (route?.name === 'activityDetail') {
     const current = route;
     return <ActivityDetailScreen activity={current.activity} onBack={() => setRoute(current.source === 'discover' ? { name: 'discover' } : current.source === 'pending' ? { name: 'pending' } : null)} onPrimary={() => setRoute({ name: 'matchSuccess', activity: current.activity })} onViewPeople={() => setRoute({ name: 'hostMembers', activity: current.activity, source: { name: 'detail', activity: current.activity } })} />;
@@ -77,9 +73,9 @@ export function MainApp({ onLogout }: { onLogout: () => void }) {
     const current = route;
     return <MemberProfileScreen person={current.person} onBack={() => current.source === 'manage' ? setRoute({ name: 'manage' }) : current.activity && current.peopleSource ? setRoute({ name: 'hostMembers', activity: current.activity, source: current.peopleSource }) : setRoute(null)} />;
   }
-  if (route?.name === 'ownProfilePreview') return <MemberProfileScreen mode="own-preview" onBack={() => setRoute(null)} onEdit={() => setRoute({ name: 'editProfile', source: 'ownProfilePreview' })} person={currentUserProfile} />;
+  if (route?.name === 'ownProfilePreview') return <UserProfileScreen onBack={() => setRoute(null)} onEdit={() => setRoute({ name: 'editProfile', source: 'ownProfilePreview' })} onMyActivities={() => setRoute({ name: 'myActivities' })} onNotifications={() => setRoute({ name: 'notifications' })} onSettings={() => setRoute({ name: 'settings' })} />;
   if (route?.name === 'notifications') return <NotificationsScreen onBack={() => setRoute(null)} />;
-  if (route?.name === 'myActivities') return <MyActivitiesScreen onBack={() => setRoute(null)} onOpenGroup={(activity) => setRoute({ name: 'group', activity, source: 'myActivities' })} />;
+  if (route?.name === 'myActivities') return <ActivityManagerScreen onBack={() => setRoute(null)} />;
   if (route?.name === 'editProfile') {
     const returnRoute = route.source === 'ownProfilePreview' ? { name: 'ownProfilePreview' } as const : null;
     return <EditProfileScreen onBack={() => setRoute(returnRoute)} onSaved={() => setRoute(returnRoute)} />;
@@ -97,7 +93,7 @@ export function MainApp({ onLogout }: { onLogout: () => void }) {
       <View style={styles.content}>
         {activeTab === 'home' && <HomeScreen onMatchPress={() => { setActiveTab('match'); setRoute({ name: 'discover' }); }} onMyActivitiesPress={() => setRoute({ name: 'myActivities' })} onNotificationsPress={() => setRoute({ name: 'notifications' })} onOpenActivity={(activity) => setRoute({ name: 'activityDetail', activity, source: 'home' })} onOpenGroup={(activity) => setRoute({ name: 'group', activity, source: 'home' })} onPendingPress={() => setRoute({ name: 'pending' })} />}
         {activeTab === 'match' && <MatchHubScreen onDiscover={() => setRoute({ name: 'discover' })} onManage={() => setRoute({ name: 'manage' })} onNotifications={() => setRoute({ name: 'notifications' })} onPending={() => setRoute({ name: 'pending' })} onPreviewProfile={() => setRoute({ name: 'ownProfilePreview' })} />}
-        {activeTab === 'create' && <CreateActivityScreen onCreated={() => setRoute({ name: 'myActivities' })} />}
+        {activeTab === 'create' && <CreateActivityScreen onCreated={() => setRoute({ name: 'manage' })} onCancel={() => setRoute({ name: 'manage' })} />}
         {activeTab === 'messages' && <MessagesScreen onOpenChat={(conversation) => setRoute({ name: 'chat', conversation })} />}
         {activeTab === 'profile' && <UserProfileScreen onEdit={() => setRoute({ name: 'editProfile' })} onMyActivities={() => setRoute({ name: 'myActivities' })} onNotifications={() => setRoute({ name: 'notifications' })} onSettings={() => setRoute({ name: 'settings' })} />}
       </View>

@@ -9,6 +9,11 @@ lerna-debug.log*
 
 node_modules
 .expo/
+dist-native/
+android/
+ios/
+test-results/
+playwright-report/
 dist/
 dist
 dist-ssr

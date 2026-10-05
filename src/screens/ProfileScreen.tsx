@@ -1,4 +1,4 @@
-import { ComponentProps, useState } from 'react';
+import { ComponentProps, useRef, useState } from 'react';
 import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -9,6 +9,8 @@ import { GradientButton } from '../components/GradientButton';
 import { Text } from '../components/LocalizedText';
 import { useLanguage } from '../i18n/LanguageContext';
 import { colors, layout, radii, typography } from '../theme';
+import { Profile, updateProfile, uploadAvatar } from '../services/profileService';
+import { useProfile } from '../hooks/useProfile';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 
@@ -21,19 +23,56 @@ const interests: { icon: IconName; label: string }[] = [
   { icon: 'game-controller-outline', label: 'Gaming' }, { icon: 'camera-outline', label: 'Photography' },
 ];
 
-export function ProfileScreen({ onFinish, onSkip }: { onFinish: () => void; onSkip: () => void }) {
+type Props = { onFinish: () => void; onSkip: () => void; editing?: boolean };
+
+export function ProfileScreen(props: Props) {
+  const { profile, error, retry } = useProfile();
+  if (!profile) return <SafeAreaView style={styles.safeArea}><View style={styles.page}>
+    <Text accessibilityRole="alert">{error || 'Đang tải hồ sơ…'}</Text>
+    {!!error && <Pressable onPress={retry}><Text>Thử lại</Text></Pressable>}
+    <Pressable onPress={props.onSkip}><Text>Quay lại / Bỏ qua</Text></Pressable>
+  </View></SafeAreaView>;
+  return <ProfileForm {...props} initial={profile} />;
+}
+
+function ProfileForm({ onFinish, onSkip, editing, initial }: Props & { initial: Profile }) {
   const { language } = useLanguage();
   const [step, setStep] = useState<1 | 2>(1);
-  const [name, setName] = useState('');
-  const [username, setUsername] = useState('');
-  const [bio, setBio] = useState('');
-  const [location, setLocation] = useState('Ho Chi Minh City');
-  const [selected, setSelected] = useState<Set<string>>(() => new Set(['Coffee', 'Travel']));
-  const [avatarUri, setAvatarUri] = useState<string>();
+  const [name, setName] = useState(initial.name);
+  const [username, setUsername] = useState(initial.username);
+  const [bio, setBio] = useState(initial.bio);
+  const [location, setLocation] = useState(initial.location);
+  const [selected, setSelected] = useState<Set<string>>(() => new Set(initial.interests));
+  const [avatarUri, setAvatarUri] = useState<string | undefined>(initial.avatarUrl ?? undefined);
+  const [avatarData, setAvatarData] = useState<string>();
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const saving = useRef(false);
+
+  const save = async () => {
+    if (saving.current) return;
+    saving.current = true; setBusy(true); setError('');
+    try {
+      await updateProfile({ name, username, bio, location, interests: [...selected] });
+      if (avatarData) {
+        try { await uploadAvatar(avatarData); }
+        catch (reason) { throw new Error(`Đã lưu thông tin, nhưng ảnh chưa được lưu. ${reason instanceof Error ? reason.message : 'Vui lòng thử lại.'}`); }
+      }
+      onFinish();
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Không thể lưu hồ sơ.'); }
+    finally { saving.current = false; setBusy(false); }
+  };
 
   const pickAvatar = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({ allowsEditing: true, aspect: [1, 1], mediaTypes: ['images'], quality: 0.85 });
-    if (!result.canceled) setAvatarUri(result.assets[0].uri);
+    if (saving.current) return;
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({ allowsEditing: true, aspect: [1, 1], mediaTypes: ['images'], quality: 0.7, base64: true });
+      if (!result.canceled) {
+        const asset = result.assets[0];
+        if (!asset.base64 || asset.base64.length > 2796204) throw new Error('Vui lòng chọn ảnh JPEG, PNG hoặc WebP tối đa 2 MB.');
+        setAvatarUri(asset.uri); setAvatarData(asset.base64); setError('');
+      }
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Không thể chọn ảnh.'); }
   };
 
   const toggle = (label: string) => setSelected((current) => { const next = new Set(current); if (next.has(label)) next.delete(label); else next.add(label); return next; });
@@ -41,13 +80,14 @@ export function ProfileScreen({ onFinish, onSkip }: { onFinish: () => void; onSk
   return (
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
-        <View style={styles.header}>
+        <View pointerEvents={busy ? 'none' : 'auto'} style={styles.header}>
           <View style={styles.headerSide}>{step === 2 && <Pressable onPress={() => setStep(1)} style={styles.iconButton}><Ionicons color={colors.text} name="chevron-back" size={24} /></Pressable>}</View>
-          <Text style={styles.headerTitle}>{step === 1 ? 'Create profile' : 'Your interests'}</Text>
-          <Pressable onPress={onSkip} style={styles.headerSide}><Text style={styles.skip}>Skip</Text></Pressable>
+          <Text style={styles.headerTitle}>{step === 1 ? (editing ? 'Chỉnh sửa hồ sơ' : 'Create profile') : 'Your interests'}</Text>
+          <Pressable onPress={onSkip} style={styles.headerSide}><Text style={styles.skip}>{editing ? 'Hủy' : 'Skip'}</Text></Pressable>
         </View>
 
-        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        {!!error && <Text accessibilityRole="alert" style={{ paddingHorizontal: 16 }}>{error}</Text>}
+        <ScrollView pointerEvents={busy ? 'none' : 'auto'} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <View style={styles.page}>
             {step === 1 ? (
               <>
@@ -70,13 +110,13 @@ export function ProfileScreen({ onFinish, onSkip }: { onFinish: () => void; onSk
                 <Text style={styles.sectionLabel}>INTERESTS</Text>
                 <View style={styles.chips}>{interests.map((item) => { const active = selected.has(item.label); return <Pressable key={item.label} onPress={() => toggle(item.label)} style={[styles.chip, active && styles.activeChip]}><Ionicons color={active ? colors.white : colors.textSecondary} name={item.icon} size={14} /><Text style={[styles.chipText, active && styles.activeChipText]}>{item.label}</Text></Pressable>; })}</View>
                 <Text style={styles.sectionLabel}>LOCATION</Text>
-                <View style={styles.locationCard}><Ionicons color={colors.primary} name="location" size={20} /><View style={styles.locationCopy}><Text style={styles.locationLabel}>Current area</Text><Text style={styles.locationValue}>{location}</Text></View><Pressable onPress={() => setLocation(location === 'Ho Chi Minh City' ? 'Ha Noi' : 'Ho Chi Minh City')}><Text style={styles.change}>Change</Text></Pressable></View>
+                <FormField label="Khu vực" onChangeText={setLocation} value={location} placeholder="Thành phố / khu vực" />
               </>
             )}
           </View>
         </ScrollView>
 
-        <View style={styles.footer}><GradientButton label={step === 1 ? 'Continue' : language === 'vi' ? `Hoàn tất · đã chọn ${selected.size}` : `Finish · ${selected.size} selected`} onPress={() => step === 1 ? setStep(2) : onFinish()} trailing={null} /></View>
+        <View pointerEvents={busy ? 'none' : 'auto'} style={styles.footer}><GradientButton label={busy ? 'Đang lưu…' : step === 1 ? 'Continue' : language === 'vi' ? `Lưu hồ sơ · đã chọn ${selected.size}` : `Save · ${selected.size} selected`} onPress={() => step === 1 ? setStep(2) : void save()} trailing={null} /></View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

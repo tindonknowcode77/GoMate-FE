@@ -5,6 +5,9 @@
   "main": "index.ts",
   "scripts": {
     "start": "expo start",
+    "dev": "expo start",
+    "build": "expo export --platform web --output-dir dist",
+    "build:mobile": "expo export --platform android --platform ios --output-dir dist-native",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
@@ -13,10 +16,11 @@
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
-    "expo": "~57.0.25",
+    "expo": "~57.0.26",
     "expo-font": "~57.0.4",
     "expo-image-picker": "~57.0.20",
     "expo-linear-gradient": "~57.0.2",
+    "expo-location": "~57.0.20",
     "expo-status-bar": "~57.0.1",
     "react": "19.2.3",
     "react-dom": "19.2.3",

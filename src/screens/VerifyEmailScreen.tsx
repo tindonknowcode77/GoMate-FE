@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -6,16 +6,45 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Text } from '../components/LocalizedText';
 import { colors, control, layout, typography } from '../theme';
 
-const CODE_LENGTH = 5;
+import { Credentials, login, resendVerification, verifyEmail } from '../services/authService';
 
-export function VerifyEmailScreen({ onVerified, onBack }: { onVerified: () => void; onBack: () => void }) {
-  const [code, setCode] = useState(['4', '9', '', '', '']);
+const CODE_LENGTH = 6;
+
+export function VerifyEmailScreen({ credentials, onVerified, onBack }: { credentials: Credentials; onVerified: () => void; onBack: () => void }) {
+  const [code, setCode] = useState<string[]>(Array(CODE_LENGTH).fill(''));
   const inputs = useRef<(TextInput | null)[]>([]);
 
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+  const [cooldown, setCooldown] = useState(0);
+  const [verified, setVerified] = useState(false);
+  const submitting = useRef(false);
+  useEffect(() => {
+    if (!cooldown) return;
+    const timer = setTimeout(() => setCooldown((seconds) => seconds - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [cooldown]);
+  const submit = async (resend = false) => {
+    if (submitting.current || (resend && cooldown > 0)) return;
+    submitting.current = true; setBusy(true); setMessage('');
+    try {
+      if (resend) {
+        await resendVerification(credentials.email); setCooldown(60);
+        setMessage('Nếu tài khoản cần xác minh, mã mới sẽ được gửi. Kiểm tra cả thư rác.');
+      } else {
+        if (!verified) { await verifyEmail(credentials.email, code.join('')); setVerified(true); }
+        await login(credentials); onVerified();
+      }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Vui lòng thử lại.');
+    } finally { submitting.current = false; setBusy(false); }
+  };
+
   const updateDigit = (value: string, index: number) => {
-    const digit = value.replace(/\D/g, '').slice(-1);
-    setCode((current) => current.map((item, itemIndex) => itemIndex === index ? digit : item));
-    if (digit && index < CODE_LENGTH - 1) inputs.current[index + 1]?.focus();
+    const digits = value.replace(/\D/g, '').slice(0, CODE_LENGTH);
+    const start = digits.length === CODE_LENGTH ? 0 : index;
+    setCode((current) => current.map((item, i) => i >= start && i < start + Math.max(1, digits.length) ? (digits[i - start] || '') : item));
+    if (digits) inputs.current[Math.min(start + digits.length, CODE_LENGTH - 1)]?.focus();
   };
 
   const handleKeyPress = (key: string, index: number) => {
@@ -26,20 +55,21 @@ export function VerifyEmailScreen({ onVerified, onBack }: { onVerified: () => vo
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.page}>
         <View style={styles.header}>
-          <Pressable accessibilityLabel="Back" hitSlop={8} onPress={onBack} style={styles.headerButton}><Ionicons color={colors.textSecondary} name="chevron-back" size={24} /></Pressable>
+          <Pressable accessibilityLabel="Back" hitSlop={8} disabled={busy} onPress={onBack} style={styles.headerButton}><Ionicons color={colors.textSecondary} name="chevron-back" size={24} /></Pressable>
           <Pressable accessibilityLabel="More options" hitSlop={8} style={styles.headerButton}><Ionicons color={colors.text} name="ellipsis-horizontal" size={22} /></Pressable>
         </View>
         <View style={styles.body}>
           <View>
             <Text style={styles.title}>Check your email</Text>
-            <Text style={styles.subtitle}>We sent a 5-digit code to noah@gomate.app. Enter it below to verify.</Text>
+            <Text style={styles.subtitle}>{`Nhập mã 6 số gửi đến ${credentials.email} để xác minh email.`}</Text>
             <View style={styles.codeRow}>
               {code.map((digit, index) => (
                 <TextInput
                   accessibilityLabel={`Verification digit ${index + 1}`}
                   key={index}
                   keyboardType="number-pad"
-                  maxLength={1}
+                  maxLength={CODE_LENGTH}
+                  editable={!busy && !verified}
                   onChangeText={(value) => updateDigit(value, index)}
                   onKeyPress={({ nativeEvent }) => handleKeyPress(nativeEvent.key, index)}
                   ref={(input) => { inputs.current[index] = input; }}
@@ -49,9 +79,11 @@ export function VerifyEmailScreen({ onVerified, onBack }: { onVerified: () => vo
                 />
               ))}
             </View>
-            <View style={styles.resendRow}><Text style={styles.resendHint}>Did not get it?</Text><Pressable><Text style={styles.resend}>Resend code</Text></Pressable></View>
+            <View style={styles.resendRow}><Text style={styles.resendHint}>Did not get it?</Text><Pressable disabled={busy || cooldown > 0 || verified} onPress={() => void submit(true)}><Text style={styles.resend}>{cooldown > 0 ? `Gửi lại sau ${cooldown}s` : "Resend code"}</Text></Pressable></View>
+            {verified && <Text style={{ marginTop: 16 }}>Email đã xác minh. Bạn có thể thử đăng nhập lại nếu kết nối thất bại.</Text>}
+            {!!message && <Text accessibilityRole="alert" style={{ marginTop: 16 }}>{message}</Text>}
           </View>
-          <Pressable onPress={onVerified} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}><Text style={styles.primaryButtonLabel}>Verify email</Text></Pressable>
+          <Pressable disabled={busy || (!verified && code.join('').length !== CODE_LENGTH)} onPress={() => void submit()} style={({ pressed }) => [styles.primaryButton, (busy || (!verified && code.join('').length !== CODE_LENGTH)) && { opacity: 0.5 }, pressed && styles.pressed]}><Text style={styles.primaryButtonLabel}>{busy ? "Đang xử lý…" : verified ? "Đăng nhập" : "Verify email"}</Text></Pressable>
         </View>
       </View>
     </SafeAreaView>

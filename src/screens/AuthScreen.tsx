@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -8,21 +8,43 @@ import { FormField } from '../components/FormField';
 import { Text } from '../components/LocalizedText';
 import { colors, control, layout, typography } from '../theme';
 
+import { ApiError, Credentials, login, register } from '../services/authService';
+
 type AuthStage = 'welcome' | 'login' | 'signup' | 'forgot' | 'reset' | 'success';
 
 type AuthScreenProps = {
   onLogin: () => void;
-  onRegister: () => void;
+  onRegister: (credentials: Credentials) => void;
 };
 
 export function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
   const [stage, setStage] = useState<AuthStage>('welcome');
-  const [name, setName] = useState('Noah Elhadedly');
-  const [email, setEmail] = useState('noah@gomate.app');
-  const [loginPassword, setLoginPassword] = useState('gomate2026');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
   const [newPassword, setNewPassword] = useState('GoMate2026!');
   const [confirmPassword, setConfirmPassword] = useState('GoMate2026!');
+
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const submitting = useRef(false);
+  const unavailable = () => setError('Tính năng này chưa được kết nối. Vui lòng dùng email và mật khẩu.');
+  const submit = async (signup: boolean) => {
+    if (submitting.current) return;
+    const credentials = { email: email.trim().toLowerCase(), password: signup ? signupPassword : loginPassword };
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(credentials.email) || credentials.password.length < 12 || credentials.password.length > 128 || (signup && (name.trim().length < 2 || name.trim().length > 100))) {
+      setError('Nhập email hợp lệ, mật khẩu 12–128 ký tự và tên 2–100 ký tự khi đăng ký.'); return;
+    }
+    submitting.current = true; setBusy(true); setError('');
+    try {
+      if (signup) { await register({ ...credentials, name: name.trim() }); onRegister(credentials); }
+      else { await login(credentials); onLogin(); }
+    } catch (error) {
+      if (!signup && error instanceof ApiError && error.status === 403) onRegister(credentials);
+      else setError(error instanceof Error ? error.message : 'Đã xảy ra lỗi. Vui lòng thử lại.');
+    } finally { submitting.current = false; setBusy(false); }
+  };
 
   if (stage === 'welcome') {
     return (
@@ -34,9 +56,10 @@ export function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
             <Text style={styles.welcomeSubtitle}>Create your account and find activities worth showing up for.</Text>
           </View>
           <View style={styles.welcomeActions}>
+            {!!error && <Text accessibilityRole="alert">{error}</Text>}
             <MethodButton icon="mail-outline" label="Continue with email" onPress={() => setStage('signup')} primary />
-            <MethodButton icon="logo-google" label="Continue with Google" onPress={onRegister} />
-            <MethodButton icon="logo-apple" label="Continue with Apple" onPress={onRegister} />
+            <MethodButton icon="logo-google" label="Continue with Google" onPress={unavailable} />
+            <MethodButton icon="logo-apple" label="Continue with Apple" onPress={unavailable} />
             <InlinePrompt action="Log in" label="Already have an account?" onPress={() => setStage('login')} />
           </View>
           <Text style={styles.legal}>By continuing you agree to our Terms of Service and Privacy Policy.</Text>
@@ -69,8 +92,9 @@ export function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
   return (
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
-        <AuthHeader onBack={goBack} />
-        <ScrollView bounces={false} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <AuthHeader onBack={() => { if (!busy) { setError(''); goBack(); } }} />
+        {!!error && <Text accessibilityRole="alert" style={{ padding: 20 }}>{error}</Text>}
+        <ScrollView pointerEvents={busy ? "none" : "auto"} bounces={false} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           {stage === 'login' && (
             <View style={styles.screenPage}>
               <View>
@@ -79,12 +103,12 @@ export function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
                   <FormField keyboardType="email-address" label="Email" onChangeText={setEmail} value={email} />
                   <FormField label="Password" onChangeText={setLoginPassword} secureTextEntry value={loginPassword} />
                 </View>
-                <Pressable onPress={() => setStage('forgot')} style={styles.forgotLink}><Text style={styles.linkText}>Forgot password?</Text></Pressable>
-                <PrimaryButton label="Log in" onPress={onLogin} />
+                <Pressable onPress={unavailable} style={styles.forgotLink}><Text style={styles.linkText}>Forgot password?</Text></Pressable>
+                <PrimaryButton label={busy ? "Đang đăng nhập…" : "Log in"} disabled={busy} onPress={() => void submit(false)} />
                 <Text style={styles.orText}>or</Text>
                 <View style={styles.socialButtons}>
-                  <MethodButton icon="logo-google" label="Continue with Google" onPress={onLogin} />
-                  <MethodButton icon="logo-apple" label="Continue with Apple" onPress={onLogin} />
+                  <MethodButton icon="logo-google" label="Continue with Google" onPress={unavailable} />
+                  <MethodButton icon="logo-apple" label="Continue with Apple" onPress={unavailable} />
                 </View>
               </View>
               <InlinePrompt action="Sign up" label="New to GoMate?" onPress={() => setStage('signup')} />
@@ -103,7 +127,7 @@ export function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
                 <View style={styles.checkbox}><Ionicons color={colors.white} name="checkmark" size={14} /></View>
                 <Text style={styles.consentText}>I agree to the Terms of Service and Privacy Policy.</Text>
               </Pressable>
-              <PrimaryButton label="Create account" onPress={onRegister} />
+              <PrimaryButton label={busy ? "Đang đăng ký…" : "Create account"} disabled={busy} onPress={() => void submit(true)} />
               <View style={styles.signupPrompt}><InlinePrompt action="Log in" label="Already have an account?" onPress={() => setStage('login')} /></View>
             </View>
           )}
@@ -151,8 +175,8 @@ function AuthHeading({ title, subtitle }: { title: string; subtitle: string }) {
   return <View><Text style={styles.formTitle}>{title}</Text><Text style={styles.formSubtitle}>{subtitle}</Text></View>;
 }
 
-function PrimaryButton({ label, onPress }: { label: string; onPress: () => void }) {
-  return <Pressable onPress={onPress} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}><Text style={styles.primaryButtonLabel}>{label}</Text></Pressable>;
+function PrimaryButton({ label, onPress, disabled = false }: { label: string; onPress: () => void; disabled?: boolean }) {
+  return <Pressable disabled={disabled} onPress={onPress} style={({ pressed }) => [styles.primaryButton, disabled && { opacity: 0.5 }, pressed && styles.pressed]}><Text style={styles.primaryButtonLabel}>{label}</Text></Pressable>;
 }
 
 function InlinePrompt({ action, label, onPress }: { action: string; label: string; onPress: () => void }) {

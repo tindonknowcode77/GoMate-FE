@@ -1,5 +1,192 @@
 # Development log
 
+## 2026-10-04 - Real activity creation and host CRUD screens
+
+### Summary
+
+- Replaced local activity publishing with API POST/PATCH, UTC+7 date conversion
+  and optional cover upload. Shared the four-step form for creation and editing;
+  added multi-day end date, optional coordinates, busy/error states.
+- Added paginated hosted-activity list and API detail with owner edit/delete and
+  explicit delete confirmation. Match selections now open API details.
+
+### Files changed
+
+- `src/services/activityService.ts`, `src/screens/CreateActivityScreen.tsx`,
+  `ActivityManagerScreen.tsx`, `MainApp.tsx`, `DiscoverScreen.tsx`
+- `tests/activityService.test.cjs`, README and project documentation
+
+### Verification
+
+- Typecheck and lint passed. Service tests: 3/3 passed, including multi-day dates,
+  UTC+7 conversion, malformed input, auth headers, CRUD routes and 204 handling.
+- Backend suite: 46/46 passed on isolated MongoDB with cloud mocked.
+- Physical-device UI and real Cloudinary cover upload not tested.
+
+### Remaining work
+
+- Joined activities and host approval are not implemented. Some home/group/chat
+  screens still use demo data. FE session persistence remains separate work.
+
+## 2026-10-04 - Connect Match discovery and filters
+
+### Summary
+
+- Replaced discovery sample filtering with authenticated activity search,
+  keyword input, pagination, retry and optional foreground location lookup.
+- Connected categories, VND budget and ISO weekday/hour filters; retain search
+  and location when returning from filters. Added the Expo location dependency.
+- Removed false match success from API discovery; join requests remain future
+  work. Hide unavailable host ratings and fabricated extra photos on match cards.
+
+### Files changed
+
+- `src/services/discoveryService.ts`, `src/screens/DiscoverScreen.tsx`,
+  `MainApp.tsx`, `MatchScreen.tsx`, `FilterScreen.tsx`
+- `src/components/match/MatchPrimitives.tsx`, `tests/discoveryService.test.cjs`
+- `app.json`, package/lockfile, documentation
+
+### Verification
+
+- Typecheck and lint passed. FE discovery/profile service tests: 2/2 passed.
+- BE suite: 40/40 passed with isolated MongoDB, including geospatial filtering.
+- Expo Doctor: 21/21 passed. `git diff --check`: Passed.
+- No real-device GPS/UI test or production data changes.
+
+### Remaining work
+
+- Activity creation and join/approval APIs remain separate work. Database without
+  published future activities shows an empty list. Other activity screens remain
+  prototypes; skip/undo state is not persisted.
+
+## 2026-10-04 - Document Cloudinary avatar storage
+
+### Summary
+
+- Recorded the switch to backend Cloudinary storage; existing ImagePicker and
+  base64 API calls already support local image selection and absolute image URLs.
+
+### Files changed
+
+- `docs/DECISIONS.md`, `docs/DEVELOPMENT_LOG.md`
+
+### Verification
+
+- Backend tests: 35/35 passed with a fake Cloudinary provider.
+- No FE source changes; no live cloud test because credentials are missing.
+
+### Remaining work
+
+- Configure Cloudinary on BE and test local image upload end to end.
+
+## 2026-10-04 - Connect profile editing and avatar upload
+
+### Summary
+
+- Load and save the signed-in user's name, username, bio, location and interests
+  through the profile API. Share the profile form between onboarding and editing.
+- Upload selected image data, display the persisted avatar and real profile in
+  the profile tab/own preview. Removed fabricated reviews/stats from own profile.
+- Show loading, retry, save errors and partial-success feedback when photo upload
+  fails after profile fields are saved; prevent repeated save submissions.
+
+### Files changed
+
+- `src/services/profileService.ts`, `src/hooks/useProfile.ts`
+- `src/screens/ProfileScreen.tsx`, `EditProfileScreen.tsx`,
+  `UserProfileScreen.tsx`, `MainApp.tsx`
+- `tests/profileService.test.cjs`, README and profile-related docs
+
+### Verification
+
+- `npm.cmd run typecheck`, `npm.cmd run lint`: Passed.
+- `npx.cmd expo-doctor`: 21/21 passed.
+- `node --test tests/profileService.test.cjs`: Passed request/response smoke test.
+- Backend integration suite: 32/32 passed using isolated MongoDB 8.3.
+- `git diff --check`: Passed. Physical-device image selection not tested.
+
+### Remaining work
+
+- Avatar deletion and public member profiles are not part of this API.
+- Other activity/community screens still use sample data. Persistent login on
+  FE remains separate work; backend support is already documented.
+
+## 2026-10-03 - Connect email authentication to the backend
+
+### Summary
+
+- Connected registration, six-digit email verification, resend, automatic login
+  after verification, password login and logout. Added validation, busy states,
+  API errors and recovery for unverified accounts and failed automatic login.
+- Replaced mock authentication shortcuts with unavailable-feature feedback.
+- Added Expo API URL configuration; kept credentials and sessions in memory.
+
+### Files changed
+
+- `src/services/authService.ts`, `src/screens/AuthScreen.tsx`,
+  `src/screens/VerifyEmailScreen.tsx`, `App.tsx`
+- `.env` (local URL setting), `.env.example`, `README.md`,
+  `docs/BACKEND_GAPS.md`, `docs/DECISIONS.md`, `docs/DEVELOPMENT_LOG.md`
+
+### Verification
+
+- `npm.cmd run typecheck`, `npm.cmd run lint`: Passed.
+- `npx.cmd expo-doctor`: Passed, 21/21 checks after retry with network access.
+- Node/TypeScript service smoke checks with mocked fetch: Passed registration
+  payload/password preservation, leading-zero OTP, API errors, session creation,
+  failed logout retention, bearer token and session clearing on successful logout.
+- `git diff --check`: Passed. Reviewed changed application files.
+- Live SMTP and device end-to-end tests not run; require a reachable configured
+  backend and an email inbox. No real registration/email was sent during testing.
+
+### Remaining work
+
+- Sessions do not survive app restarts. Google/Apple, password recovery and
+  profile persistence remain unconnected. Configure a reachable API URL for the
+  target device, restart Expo and verify the full flow against SMTP.
+
+## 2026-10-03 - Resolve mobile migration conflicts and review backend gaps
+
+### Summary
+
+- Resolved stash conflicts using the upstream Expo/TypeScript application.
+- Archived tracked/untracked stash snapshots and moved legacy web auth code,
+  tests and the previous native starter to `C:\GoMate\backups\fe-stash-20261003`.
+  Preserved the original stash and `.env`; no commit or push was made.
+- Kept root build compatibility through Expo web export and added mobile
+  export/dev scripts. Updated Expo to 57.0.26 as required by Expo Doctor.
+- Documented UI/backend gaps, including the five-digit versus six-digit OTP
+  mismatch and mock authentication/activity flows.
+
+### Files changed
+
+- `.gitignore`, `package.json`, `package-lock.json`, `README.md`
+- Removed conflicted legacy paths from the active tree: `src/App.jsx`,
+  `src/App.css`, `src/index.css`, `src/services/http.js`, `vite.config.js`.
+  Their contents remain in the backup and stash.
+- `docs/BACKEND_GAPS.md`, `docs/README.md`, `docs/DECISIONS.md`,
+  `docs/DEVELOPMENT_LOG.md`
+
+### Verification
+
+- `npm ci`: Passed before the Expo patch update; update via `expo install` passed.
+- `npm run typecheck`: Passed.
+- `npm run lint`: Passed.
+- `npm run build:mobile` and `npm run build`: Passed.
+- After the patch update, `npx expo-doctor`: Passed all 21 checks;
+  `npx expo export --platform all --output-dir dist-native`: Passed Android,
+  iOS and web export.
+- `git diff --name-only --diff-filter=U`: Empty; no unresolved conflicts.
+- Device runtime and backend integration: Not tested; this task resolves the
+  merge and reviews source code, without implementing API integration.
+
+### Remaining work
+
+- Connect the new mobile UI to backend APIs; see `BACKEND_GAPS.md`.
+- npm reports 23 dependency advisories (7 moderate, 16 high); no unrelated
+  forced dependency upgrades were applied.
+- Existing staged `.env.example` edits and placeholder deletions were preserved.
+
 This file records completed development work. Keep the newest entry at the top
 and follow `templates/development-log-entry.md`.
 

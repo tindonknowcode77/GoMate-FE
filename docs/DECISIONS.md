@@ -1,5 +1,67 @@
 # Decision log
 
+### 2026-10-04 - Activity host CRUD with soft deletion
+
+- **Status:** Accepted.
+- **Decision:** Publish real activities directly, deriving ownership and initial
+  membership on BE. Share the create/edit form; show only server-loaded hosted
+  activities in management. Soft-delete records and remove them from discovery.
+- **Consequences:** Date entry uses UTC+7 and supports multi-day activities.
+  Cloudinary is required only for a cover image. Started activities cannot be
+  edited. Joined-activity lists and approval UI await their APIs; no fake approval.
+
+### 2026-10-04 - Search published activities through the backend
+
+- **Status:** Accepted.
+- **Decision:** Discovery queries `/api/activities` with explicit structured
+  filters, paging and opt-in location. Availability matches start time in UTC+7.
+  Keep API creation and join approval outside this search change.
+- **Consequences:** Empty DB means an empty Match screen; no sample fallback or
+  fake successful join. Other prototype screens still use existing local data.
+
+### 2026-10-04 - Store new avatars in Cloudinary
+
+- **Status:** Accepted; supersedes MongoDB binary storage for new avatars below.
+- **Decision:** Keep ImagePicker/base64 FE requests; BE validates and uploads to
+  Cloudinary with server-only credentials. FE displays the returned HTTPS URL.
+- **Consequences:** No client API secret or upload preset needed. Legacy avatar
+  URLs still work. BE now requires Cloudinary configuration for new uploads.
+
+### 2026-10-04 - Persist own profile and avatar through the backend
+
+- **Status:** Accepted.
+- **Decision:** Use a shared create/edit form and authenticated `/api/profile/me`
+  endpoints. Upload base64 image data separately; BE validates and converts it
+  to a small WebP stored in MongoDB. Avatar URLs are public and versioned.
+- **Consequences:** No new cloud storage credentials or local server disk are
+  needed. Profile fields can save even if the subsequent image upload fails;
+  the UI explicitly reports that case. Own profile no longer shows fake reviews
+  or activity statistics. Larger media/storage needs will require a separate design.
+
+### 2026-10-03 - Email authentication with an in-memory session
+
+- **Status:** Accepted for the current integration.
+- **Decision:** Follow BE's register → verify-email → login contract. Keep the
+  password only in component state while verification is pending; clear pending
+  credentials on success/back. Keep the bearer session in the auth service's
+  memory, with no disk/browser storage of credentials or tokens.
+- **Consequences:** Automatic login happens only after successful verification;
+  reopening the app requires login. Secure persistent storage and session
+  restoration are future work. Social buttons cannot bypass authentication.
+
+### 2026-10-03 - Resolve the stash against the mobile application
+
+- **Status:** Accepted.
+- **Context:** Applying the local Vite/auth stash after pulling `fe-ui2`
+  conflicted with its Expo/TypeScript migration.
+- **Decision:** Keep `index.ts`, `App.tsx` and the upstream mobile dependency
+  set. Preserve the previous web implementation outside the app in
+  `C:\GoMate\backups\fe-stash-20261003`, including ZIP snapshots of the tracked
+  and untracked stash contents; retain the original stash.
+- **Consequences:** The mobile UI remains a prototype awaiting API integration.
+  Web export now uses Expo rather than Vite. The legacy web auth implementation
+  and tests are reference material, not part of the active mobile build.
+
 Record decisions here when they materially affect architecture, dependencies,
 security, the data model, or product behavior. Keep the newest decision at the
 top. Small implementation details belong only in `DEVELOPMENT_LOG.md`.

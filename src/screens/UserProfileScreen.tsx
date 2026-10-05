@@ -4,21 +4,30 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { colors, layout } from '../theme';
 import { LanguageSwitcher } from '../components/LanguageSwitcher';
+import { useProfile } from '../hooks/useProfile';
 
-const avatar = require('../assets/profile-avatar.png');
 
 type UserProfileScreenProps = {
   onEdit: () => void;
   onMyActivities: () => void;
   onNotifications: () => void;
   onSettings: () => void;
+  onBack?: () => void;
 };
 
-export function UserProfileScreen({ onEdit, onMyActivities, onNotifications, onSettings }: UserProfileScreenProps) {
+export function UserProfileScreen({ onEdit, onMyActivities, onNotifications, onSettings, onBack }: UserProfileScreenProps) {
+  const { profile, error, retry } = useProfile();
+  if (!profile) return <View style={styles.page}>
+    <Text accessibilityRole="alert">{error || 'Đang tải hồ sơ…'}</Text>
+    {!!error && <Pressable onPress={retry}><Text>Thử lại</Text></Pressable>}
+    <Pressable onPress={onSettings}><Text>Cài đặt</Text></Pressable>
+    {onBack && <Pressable onPress={onBack}><Text>Quay lại</Text></Pressable>}
+  </View>;
   return (
     <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
       <View style={styles.page}>
         <View style={styles.header}>
+          {onBack && <Pressable onPress={onBack}><Ionicons name="chevron-back" size={24} color={colors.ink} /></Pressable>}
           <Text style={styles.headerTitle}>Hồ sơ</Text>
           <View style={styles.headerActions}>
             <LanguageSwitcher />
@@ -29,32 +38,21 @@ export function UserProfileScreen({ onEdit, onMyActivities, onNotifications, onS
           <View style={styles.coverGlow} />
         </View>
         <View style={styles.profileCard}>
-          <Image source={avatar} style={styles.avatar} />
+          {profile.avatarUrl ? <Image source={{ uri: profile.avatarUrl }} style={styles.avatar} /> : <View style={styles.avatar}><Ionicons name="person-circle-outline" size={68} color={colors.primary} /></View>}
           <View style={styles.nameRow}>
-            <Text style={styles.name}>Minh Phan</Text>
-            <Ionicons color={colors.success} name="checkmark-circle" size={19} />
+            <Text style={styles.name}>{profile.name}</Text>
           </View>
-          <Text style={styles.location}>Ho Chi Minh City • 22 tuổi</Text>
-          <Text style={styles.bio}>Coffee, badminton và những chuyến đi ngẫu hứng ✈️</Text>
+          {!!profile.username && <Text style={styles.location}>@{profile.username}</Text>}
+          <Text style={styles.location}>{profile.location}</Text>
+          <Text style={styles.bio}>{profile.bio}</Text>
           <Pressable onPress={onEdit} style={styles.editButton}>
             <Ionicons color={colors.primary} name="create-outline" size={17} />
             <Text style={styles.editText}>Chỉnh sửa hồ sơ</Text>
           </Pressable>
           <View style={styles.interests}>
-            {['Coffee', 'Travel', 'Running'].map((item) => <View key={item} style={styles.interest}><Text style={styles.interestText}>{item}</Text></View>)}
+            {profile.interests.map((item) => <View key={item} style={styles.interest}><Text style={styles.interestText}>{item}</Text></View>)}
           </View>
         </View>
-
-        <View style={styles.statsCard}>
-          <ProfileStat label="Đánh giá" value="4.9 ★" />
-          <View style={styles.divider} />
-          <ProfileStat label="Đã hoàn thành" value="18" />
-          <View style={styles.divider} />
-          <ProfileStat label="Đi đúng hẹn" value="96%" />
-        </View>
-
-        <View style={styles.sectionCard}><View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Đánh giá gần đây</Text><Text style={styles.rating}>4.9 ★</Text></View><Text style={styles.review}>“Minh rất thân thiện, đúng giờ và luôn hỗ trợ mọi người trong nhóm.”</Text><Text style={styles.reviewAuthor}>— Tuấn Kiệt · Giao lưu cầu lông</Text></View>
-        <View style={styles.sectionCard}><Text style={styles.sectionTitle}>Hoạt động gần đây</Text><View style={styles.recentRow}><View style={styles.recentIcon}><Ionicons color={colors.primary} name="cafe-outline" size={20} /></View><View><Text style={styles.recentTitle}>Cà phê cuối tuần</Text><Text style={styles.recentMeta}>Đã hoàn thành · 5 thành viên</Text></View></View><View style={styles.photoRow}>{[1,2,3].map((item) => <Image key={item} source={avatar} style={styles.activityPhoto} />)}</View></View>
 
         <View style={styles.menuCard}>
           <MenuRow icon="calendar-outline" label="Hoạt động của tôi" onPress={onMyActivities} />
@@ -65,10 +63,6 @@ export function UserProfileScreen({ onEdit, onMyActivities, onNotifications, onS
       </View>
     </ScrollView>
   );
-}
-
-function ProfileStat({ label, value }: { label: string; value: string }) {
-  return <View style={styles.stat}><Text style={styles.statValue}>{value}</Text><Text style={styles.statLabel}>{label}</Text></View>;
 }
 
 function MenuRow({ icon, label, onPress, last = false }: { icon: 'calendar-outline' | 'notifications-outline' | 'shield-checkmark-outline' | 'help-circle-outline'; label: string; onPress?: () => void; last?: boolean }) {

@@ -3,7 +3,6 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { AvailabilityPicker } from '../components/match/MatchSheets';
 import { Text } from '../components/LocalizedText';
 import { colors, control, layout, radii } from '../theme';
 
@@ -13,14 +12,18 @@ export type ActivityFilters = {
   distance: number;
   categories: string[];
   budget: string;
-  availability: string;
+  days: number[];
+  fromHour: number;
+  toHour: number;
 };
 
 export const defaultActivityFilters: ActivityFilters = {
   distance: 10,
   categories: [],
   budget: 'Tất cả',
-  availability: 'Thứ 2, Thứ 3, Thứ 7 • 18:00 – 22:00',
+  days: [],
+  fromHour: 0,
+  toHour: 24,
 };
 
 type FilterScreenProps = {
@@ -48,7 +51,6 @@ export function FilterScreen(props: FilterScreenProps) {
 
 export function FilterSheet({ initialFilters = defaultActivityFilters, onApply, onClose }: FilterScreenProps) {
   const [filters, setFilters] = useState<ActivityFilters>(initialFilters);
-  const [showAvailability, setShowAvailability] = useState(false);
   const distanceIndex = distances.indexOf(filters.distance);
   const selectedAll = filters.categories.length === 0;
 
@@ -76,6 +78,7 @@ export function FilterSheet({ initialFilters = defaultActivityFilters, onApply, 
         <View style={styles.page}>
           <View style={styles.section}>
             <View style={styles.sectionHeading}><Text style={styles.sectionTitle}>Vị trí</Text><Text style={styles.sectionValue}>Trong {filters.distance} km</Text></View>
+            <Text>Áp dụng khi bật “Dùng vị trí của tôi” ở màn Match.</Text>
             <View style={styles.sliderArea}>
               <View style={styles.sliderTrack}><View style={[styles.sliderFill, { width: `${Math.max(distanceIndex, 0) * 25}%` }]} /><View style={[styles.sliderThumb, { left: `${Math.max(distanceIndex, 0) * 25}%` }]} /></View>
               <View style={styles.distanceLabels}>{distances.map((distance) => <Pressable key={distance} onPress={() => setFilters((current) => ({ ...current, distance }))} style={styles.distancePress}><Text style={[styles.distanceText, filters.distance === distance && styles.distanceTextActive]}>{distance} km</Text></Pressable>)}</View>
@@ -94,7 +97,9 @@ export function FilterSheet({ initialFilters = defaultActivityFilters, onApply, 
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Thời gian rảnh</Text>
-            <Pressable onPress={() => setShowAvailability(true)} style={styles.availabilityRow}><Ionicons color={colors.primary} name="time-outline" size={21} /><Text numberOfLines={1} style={styles.availabilityText}>{filters.availability}</Text><Ionicons color={colors.textMuted} name="chevron-forward" size={20} /></Pressable>
+            <Text>Giờ Việt Nam (UTC+7). Không chọn ngày nghĩa là mọi ngày.</Text>
+            <View style={styles.budgetRow}>{['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'].map((day, index) => <Pressable key={day} onPress={() => setFilters(current => ({ ...current, days: current.days.includes(index + 1) ? current.days.filter(value => value !== index + 1) : [...current.days, index + 1] }))} style={[styles.budgetChip, filters.days.includes(index + 1) && styles.budgetChipActive]}><Text>{day}</Text></Pressable>)}</View>
+            <View style={styles.budgetRow}>{[[0, 24, 'Cả ngày'], [6, 12, 'Sáng'], [12, 18, 'Chiều'], [18, 24, 'Tối']].map(([from, to, label]) => <Pressable key={label} onPress={() => setFilters(current => ({ ...current, fromHour: Number(from), toHour: Number(to) }))} style={[styles.budgetChip, filters.fromHour === from && filters.toHour === to && styles.budgetChipActive]}><Text>{label}</Text></Pressable>)}</View>
           </View>
 
           <View style={[styles.section, styles.lastSection]}>
@@ -105,7 +110,6 @@ export function FilterSheet({ initialFilters = defaultActivityFilters, onApply, 
       </ScrollView>
 
       <View style={styles.footer}><Pressable onPress={() => onApply(filters)} style={({ pressed }) => [styles.applyButton, pressed && styles.pressed]}><Text style={styles.applyText}>Áp dụng bộ lọc</Text></Pressable></View>
-      <AvailabilityPicker onClose={() => setShowAvailability(false)} visible={showAvailability} />
     </SafeAreaView>
   );
 }

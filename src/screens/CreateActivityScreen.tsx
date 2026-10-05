@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -6,38 +6,55 @@ import * as ImagePicker from 'expo-image-picker';
 import { Text } from '../components/LocalizedText';
 import { FormField } from '../components/FormField';
 import { GradientButton } from '../components/GradientButton';
-import { ActivityDraft, publishActivityDraft } from '../services/activityService';
+import { ActivityDraft, ActivityRecord, publishActivityDraft, recordDraft, updateActivity } from '../services/activityService';
 import { colors, layout, radii } from '../theme';
 
-const categories = ['Ăn uống', 'Thể thao', 'Du lịch', 'Giải trí', 'Học tập'];
-const initialDraft: ActivityDraft = { name: '', category: categories[0], description: '', date: 'Thứ Bảy, 05/10', startTime: '09:00', endTime: '11:00', location: '', maxParticipants: '6', estimatedCost: '', requirements: '' };
+const categories = ['Ăn uống', 'Thể thao', 'Du lịch', 'Giải trí', 'Học tập', 'Gaming', 'Khác'];
+const initialDraft: ActivityDraft = { name: '', category: categories[0], description: '', date: '', startTime: '09:00', endTime: '11:00', location: '', maxParticipants: '6', estimatedCost: '0', requirements: '' };
 
-export function CreateActivityScreen({ onCreated }: { onCreated: () => void }) {
+export function CreateActivityScreen({ onCreated, editing, onCancel }: { onCreated: () => void; editing?: ActivityRecord; onCancel?: () => void }) {
   const [step, setStep] = useState(1);
-  const [draft, setDraft] = useState(initialDraft);
-  const [photoUri, setPhotoUri] = useState<string>();
+  const [draft, setDraft] = useState(() => editing ? recordDraft(editing) : initialDraft);
+  const [photoUri, setPhotoUri] = useState<string | undefined>(editing?.imageUrl);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const saving = useRef(false);
   const setField = <K extends keyof ActivityDraft>(key: K, value: ActivityDraft[K]) => setDraft((current) => ({ ...current, [key]: value }));
 
   const pickPhoto = async () => {
+    try {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) return;
-    const result = await ImagePicker.launchImageLibraryAsync({ allowsEditing: true, aspect: [4, 3], mediaTypes: ['images'], quality: 0.85 });
-    if (!result.canceled) setPhotoUri(result.assets[0].uri);
+    if (!permission.granted) throw new Error('Cần cho phép truy cập ảnh.');
+    const result = await ImagePicker.launchImageLibraryAsync({ allowsEditing: true, aspect: [4, 3], mediaTypes: ['images'], quality: 0.7, base64: true });
+    if (!result.canceled) {
+      const image = result.assets[0];
+      if (!image.base64 || image.base64.length > 2796204) throw new Error('Chọn ảnh tối đa 2 MB.');
+      setPhotoUri(image.uri); setField('coverBase64', image.base64); setError('');
+    }
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Không chọn được ảnh.'); }
   };
 
   const next = async () => {
+    if (saving.current) return;
     if (step < 4) { setStep((current) => current + 1); return; }
-    await publishActivityDraft({ ...draft, cover: photoUri ? { uri: photoUri } : undefined });
+    saving.current = true; setBusy(true); setError('');
+    try {
+    if (editing) await updateActivity(editing.id, draft);
+    else await publishActivityDraft(draft);
     onCreated();
     setStep(1);
     setDraft(initialDraft);
     setPhotoUri(undefined);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Không lưu được hoạt động.'); }
+    finally { saving.current = false; setBusy(false); }
   };
 
   return (
-    <View style={styles.screen}>
+    <View pointerEvents={busy ? 'none' : 'auto'} style={styles.screen}>
+      {onCancel && <Pressable onPress={onCancel} style={{ padding: 12 }}><Text>Hủy / Quay lại</Text></Pressable>}
+      {!!error && <Text accessibilityRole="alert" style={{ padding: 12 }}>{error}</Text>}
       <View style={styles.header}>
-        <View><Text style={styles.title}>Tạo hoạt động</Text><Text style={styles.subtitle}>Bước {step}/4 · {['Thông tin cơ bản', 'Thời gian & địa điểm', 'Nhóm', 'Xem lại'][step - 1]}</Text></View>
+        <View><Text style={styles.title}>{editing ? 'Sửa hoạt động' : 'Tạo hoạt động'}</Text><Text style={styles.subtitle}>Bước {step}/4 · {['Thông tin cơ bản', 'Thời gian & địa điểm', 'Nhóm', 'Xem lại'][step - 1]}</Text></View>
         <View style={styles.stepBadge}><Text style={styles.stepBadgeText}>{step}</Text></View>
       </View>
       <View style={styles.progress}><View style={[styles.progressFill, { width: `${step * 25}%` }]} /></View>
@@ -45,13 +62,16 @@ export function CreateActivityScreen({ onCreated }: { onCreated: () => void }) {
         <View style={styles.page}>
           {step === 1 && <BasicStep draft={draft} photoUri={photoUri} onPickPhoto={pickPhoto} setField={setField} />}
           {step === 2 && <WhenWhereStep draft={draft} setField={setField} />}
+          {step === 2 && <View style={styles.card}><Text>Giờ Việt Nam (UTC+7). Tọa độ tùy chọn giúp tìm theo khoảng cách.</Text><FormField label="Ngày kết thúc (bỏ trống nếu cùng ngày)" placeholder="DD/MM/YYYY" value={draft.endDate ?? ''} onChangeText={value => setField('endDate', value)} /><FormField label="Vĩ độ" value={draft.latitude ?? ''} onChangeText={value => setField('latitude', value)} /><FormField label="Kinh độ" value={draft.longitude ?? ''} onChangeText={value => setField('longitude', value)} /></View>}
+          {step === 3 && <Text>Chi phí nhập số VND nguyên, không có dấu chấm; 0 là miễn phí. Sức chứa đã bao gồm host.</Text>}
+          {step === 4 && !!draft.endDate && <Text>Kết thúc: {draft.endDate} · {draft.endTime}</Text>}
           {step === 3 && <GroupStep draft={draft} setField={setField} />}
           {step === 4 && <ReviewStep draft={draft} photoUri={photoUri} />}
         </View>
       </ScrollView>
       <View style={styles.footer}>
         {step > 1 && <Pressable onPress={() => setStep((current) => current - 1)} style={styles.backButton}><Text style={styles.backText}>Quay lại</Text></Pressable>}
-        <GradientButton label={step === 4 ? 'Đăng hoạt động' : 'Tiếp tục'} onPress={next} style={styles.nextButton} trailing={<Ionicons color={colors.white} name={step === 4 ? 'checkmark' : 'arrow-forward'} size={19} />} />
+        <GradientButton label={busy ? 'Đang lưu…' : step === 4 ? (editing ? 'Lưu thay đổi' : 'Đăng hoạt động') : 'Tiếp tục'} onPress={next} style={styles.nextButton} trailing={<Ionicons color={colors.white} name={step === 4 ? 'checkmark' : 'arrow-forward'} size={19} />} />
       </View>
     </View>
   );
@@ -64,11 +84,11 @@ function BasicStep({ draft, photoUri, onPickPhoto, setField }: StepProps & { pho
 }
 
 function WhenWhereStep({ draft, setField }: StepProps) {
-  return <View><StepHeading icon="calendar-outline" title="Khi nào & ở đâu?" note="Thành viên sẽ dùng thông tin này để sắp xếp lịch." /><View style={styles.card}><FormField icon="calendar-outline" label="Ngày" onChangeText={(value) => setField('date', value)} placeholder="DD/MM/YYYY" value={draft.date} /><View style={styles.twoColumns}><View style={styles.column}><FormField icon="time-outline" label="Bắt đầu" onChangeText={(value) => setField('startTime', value)} placeholder="09:00" value={draft.startTime} /></View><View style={styles.column}><FormField icon="time-outline" label="Kết thúc" onChangeText={(value) => setField('endTime', value)} placeholder="11:00" value={draft.endTime} /></View></View><FormField icon="location-outline" label="Địa điểm" onChangeText={(value) => setField('location', value)} placeholder="Khu vực hoặc địa chỉ cụ thể" value={draft.location} /></View><View style={styles.note}><Ionicons color={colors.primary} name="location" size={18} /><Text style={styles.noteText}>Địa điểm chi tiết có thể chỉ hiển thị sau khi host duyệt yêu cầu.</Text></View></View>;
+  return <View><StepHeading icon="calendar-outline" title="Khi nào & ở đâu?" note="Thành viên sẽ dùng thông tin này để sắp xếp lịch." /><View style={styles.card}><FormField icon="calendar-outline" label="Ngày" onChangeText={(value) => setField('date', value)} placeholder="DD/MM/YYYY" value={draft.date} /><View style={styles.twoColumns}><View style={styles.column}><FormField icon="time-outline" label="Bắt đầu" onChangeText={(value) => setField('startTime', value)} placeholder="09:00" value={draft.startTime} /></View><View style={styles.column}><FormField icon="time-outline" label="Kết thúc" onChangeText={(value) => setField('endTime', value)} placeholder="11:00" value={draft.endTime} /></View></View><FormField icon="location-outline" label="Địa điểm" onChangeText={(value) => setField('location', value)} placeholder="Khu vực hoặc địa chỉ cụ thể" value={draft.location} /></View><View style={styles.note}><Text style={styles.noteText}>Location is visible to people viewing this activity.</Text></View></View>;
 }
 
 function GroupStep({ draft, setField }: StepProps) {
-  return <View><StepHeading icon="people-outline" title="Thiết lập nhóm" note="Đặt kỳ vọng rõ ràng để có một nhóm phù hợp." /><View style={styles.card}><FormField icon="people-outline" keyboardType="number-pad" label="Số người tối đa" onChangeText={(value) => setField('maxParticipants', value)} placeholder="6" value={draft.maxParticipants} /><FormField icon="wallet-outline" label="Chi phí dự kiến" onChangeText={(value) => setField('estimatedCost', value)} placeholder="Ví dụ: 120.000đ/người" value={draft.estimatedCost} /><FormField icon="checkmark-circle-outline" label="Yêu cầu" multiline onChangeText={(value) => setField('requirements', value)} placeholder="Trang phục, kinh nghiệm, vật dụng cần mang..." value={draft.requirements} /></View><View style={styles.note}><Ionicons color={colors.success} name="shield-checkmark" size={19} /><Text style={styles.noteText}>Bạn sẽ xem profile và duyệt từng yêu cầu trước khi nhóm được xác nhận.</Text></View></View>;
+  return <View><StepHeading icon="people-outline" title="Thiết lập nhóm" note="Đặt kỳ vọng rõ ràng để có một nhóm phù hợp." /><View style={styles.card}><FormField icon="people-outline" keyboardType="number-pad" label="Số người tối đa" onChangeText={(value) => setField('maxParticipants', value)} placeholder="6" value={draft.maxParticipants} /><FormField icon="wallet-outline" label="Chi phí dự kiến" onChangeText={(value) => setField('estimatedCost', value)} placeholder="Ví dụ: 120000đ/người" value={draft.estimatedCost} /><FormField icon="checkmark-circle-outline" label="Yêu cầu" multiline onChangeText={(value) => setField('requirements', value)} placeholder="Trang phục, kinh nghiệm, vật dụng cần mang..." value={draft.requirements} /></View><View style={styles.note}><Text style={styles.noteText}>Cost: enter whole VND, 0 for free. Host is included in capacity.</Text></View></View>;
 }
 
 function ReviewStep({ draft, photoUri }: { draft: ActivityDraft; photoUri?: string }) {

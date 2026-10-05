@@ -15,7 +15,7 @@ export function MatchHeader({ distance = 'Trong 5 km', onBack, onFilter }: { dis
         <Pressable accessibilityLabel="Mở bộ lọc" onPress={onFilter} style={styles.headerButton}><Ionicons color={colors.primary} name="options-outline" size={23} /></Pressable>
       </View>
       <View style={styles.contextRow}>
-        <ContextChip icon="location-outline" label="Quận 1, TP.HCM" />
+        <ContextChip icon="location-outline" label="Khám phá hoạt động" />
         <ContextChip icon="navigate" label={distance} />
       </View>
     </View>
@@ -56,14 +56,14 @@ export function ActivityMatchCard({ activity, canUndo, onMore, onUndo }: { activ
         <DetailSection title="Host hoạt động">
           <View style={styles.hostDetail}>
             <View style={styles.hostAvatarLarge}><Text style={styles.hostInitialLarge}>{activity.host.charAt(0)}</Text></View>
-            <View style={styles.hostDetailCopy}><Text style={styles.hostDetailName}>{activity.host}</Text><Text style={styles.hostDetailMeta}>★ {activity.hostRating} • {activity.hostCompletedActivities} hoạt động đã tổ chức</Text></View>
+            <View style={styles.hostDetailCopy}><Text style={styles.hostDetailName}>{activity.host}</Text>{activity.hostRating > 0 && <Text style={styles.hostDetailMeta}>★ {activity.hostRating} • {activity.hostCompletedActivities} hoạt động đã tổ chức</Text>}</View>
             <Ionicons color={colors.textMuted} name="chevron-forward" size={19} />
           </View>
         </DetailSection>
         <DetailSection title="Yêu cầu tham gia">{activity.requirements.map((item) => <Bullet key={item} text={item} />)}</DetailSection>
         <DetailSection title="Kế hoạch dự kiến">{activity.plan.map((item) => <Bullet key={item} text={item} timeline />)}</DetailSection>
         <DetailSection title="Ảnh hoạt động">
-          <View style={styles.photoRow}>{[0, 1, 2].map((item) => <ImageBackground imageStyle={styles.photoImage} key={item} resizeMode="cover" source={activity.image} style={styles.photo} />)}<View style={styles.photoMore}><Text style={styles.photoMoreText}>+3</Text></View></View>
+          <View style={styles.photoRow}><ImageBackground imageStyle={styles.photoImage} resizeMode="cover" source={activity.image} style={styles.photo} /></View>
         </DetailSection>
       </View>
     </View>
