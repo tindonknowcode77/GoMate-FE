@@ -1,3 +1,4 @@
+import { useFeedbackState } from '../services/feedback';
 import { useCallback, useRef, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -15,7 +16,7 @@ import { colors, layout } from '../theme';
 export function ActivityProgressScreen({ activity, onBack, onEnd }: { activity: Activity; onBack: () => void; onEnd: (activity: Activity) => void }) {
   const loader = useCallback(async () => { const [current, attendance, updates] = await Promise.all([getActivity(activity.id), listAttendance(activity.id), listUpdates(activity.id)]); return { current, attendance, updates }; }, [activity.id]);
   const remote = useRemote(loader, null);
-  const [error, setError] = useState('');
+  const [error, setError] = useFeedbackState('');
   const [busy, setBusy] = useState(false);
   const [confirmEnd, setConfirmEnd] = useState(false);
   const [note, setNote] = useState('');
@@ -35,8 +36,8 @@ export function ActivityProgressScreen({ activity, onBack, onEnd }: { activity: 
       <RemoteState {...remote} onRetry={remote.reload} />
       {error ? <Text style={{ color: colors.danger }}>{error}</Text> : null}
       {remote.data && !remote.error && <>
-        {canChange && <View style={styles.card}><Text style={styles.title}>Điểm danh trước khi kết thúc</Text><Text>Đánh dấu Có mặt hoặc Đến muộn cho từng người, kể cả host, để mở đánh giá sau hoạt động.</Text><ActionButton disabled={busy} label="Kết thúc hoạt động" onPress={() => setConfirmEnd(true)} /></View>}
-        {canChange && confirmEnd && <View style={styles.card}><Text>Xác nhận kết thúc? Sau khi kết thúc sẽ không thể thay đổi điểm danh.</Text>{remote.data.attendance.some(item => item.status === 'unmarked') && <Text style={{ color: colors.warningText }}>Còn {remote.data.attendance.filter(item => item.status === 'unmarked').length} người chưa điểm danh. Họ sẽ không thể đánh giá hoạt động.</Text>}<ActionButton disabled={busy} label="Tiếp tục hoạt động" onPress={() => setConfirmEnd(false)} /><ActionButton disabled={busy} label="Xác nhận kết thúc" onPress={() => void run(async () => { const row = await transitionActivity(activity.id, 'complete'); onEnd(toActivity(row)); })} /></View>}
+        {canChange && <View style={styles.card}><Text style={styles.title}>Điểm danh trước khi kết thúc</Text><Text>Đánh dấu Có mặt hoặc Đến muộn cho từng người, kể cả host, để mở đánh giá sau hoạt động.</Text><ActionButton disabled={busy || remote.data.attendance.some(item => item.status === 'unmarked')} label="Kết thúc hoạt động" onPress={() => setConfirmEnd(true)} /></View>}
+        {canChange && confirmEnd && <View style={styles.card}><Text>Xác nhận kết thúc? Sau khi kết thúc sẽ không thể thay đổi điểm danh.</Text>{remote.data.attendance.some(item => item.status === 'unmarked') && <Text style={{ color: colors.warningText }}>Còn {remote.data.attendance.filter(item => item.status === 'unmarked').length} người chưa điểm danh. Họ sẽ không thể đánh giá hoạt động.</Text>}<ActionButton disabled={busy} label="Tiếp tục hoạt động" onPress={() => setConfirmEnd(false)} /><ActionButton disabled={busy || remote.data.attendance.some(item => item.status === 'unmarked')} label="Xác nhận kết thúc" onPress={() => void run(async () => { const row = await transitionActivity(activity.id, 'complete'); onEnd(toActivity(row)); })} /></View>}
         <AttendanceRoster people={remote.data.attendance} hostId={remote.data.current.hostId} editable={Boolean(canChange)} busy={busy} onMark={(userId, status) => void run(async () => { await markAttendance(activity.id, userId, status); await remote.reload(); })} />
         {canChange && <View style={styles.card}><FormField label="Cập nhật cho nhóm" multiline value={note} onChangeText={setNote} /><ActionButton disabled={busy} label="Đăng cập nhật" onPress={() => void run(async () => { if (!note.trim()) throw new Error('Nhập nội dung cập nhật.'); await addActivityUpdate(activity.id, note.trim()); setNote(''); await remote.reload(); })} /></View>}
         <Text style={styles.title}>Lịch sử hoạt động</Text>

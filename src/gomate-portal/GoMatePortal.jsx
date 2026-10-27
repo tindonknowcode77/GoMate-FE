@@ -1,3 +1,4 @@
+import { usePortalText } from './usePortalText';
 import './gomate-portal.css';
 
 function Icon({ name, size = 18, strokeWidth = 1.8 }) {
@@ -74,13 +75,14 @@ function Avatar({ initials, tone = 'purple', size = 'md' }) {
 }
 
 function AuthShell({ children, asideTitle, asideText }) {
+  const t = usePortalText();
   return (
     <div className="gm-auth-page">
       <aside className="gm-auth-aside">
         <div className="gm-auth-aside-inner">
           <Logo />
           <div className="gm-auth-copy">
-            <span className="gm-eyebrow gm-eyebrow--light">The social home for your community</span>
+            <span className="gm-eyebrow gm-eyebrow--light">{t('The social home for your community')}</span>
             <h1>{asideTitle}</h1>
             <p>{asideText}</p>
           </div>
@@ -88,13 +90,13 @@ function AuthShell({ children, asideTitle, asideText }) {
             <div className="gm-orbit gm-orbit--one" />
             <div className="gm-orbit gm-orbit--two" />
             <div className="gm-visual-card gm-visual-card--main">
-              <div className="gm-visual-topline"><span className="gm-visual-dot" /><span>Community pulse</span><span className="gm-visual-menu"><Icon name="dots" size={14} /></span></div>
+              <div className="gm-visual-topline"><span className="gm-visual-dot" /><span>{t('Community pulse')}</span><span className="gm-visual-menu"><Icon name="dots" size={14} /></span></div>
               <div className="gm-visual-rings"><div className="gm-ring gm-ring--one"><Avatar initials="LM" tone="pink" size="sm" /></div><div className="gm-ring gm-ring--two"><Avatar initials="NT" tone="blue" size="sm" /></div><div className="gm-ring gm-ring--three"><Avatar initials="AR" tone="lime" size="sm" /></div><div className="gm-ring gm-ring--four"><Avatar initials="SK" tone="orange" size="sm" /></div><span className="gm-ring-center"><Icon name="users" size={20} /></span></div>
-              <div className="gm-visual-caption"><strong>GoMate</strong><span>Kết nối cộng đồng</span></div>
+              <div className="gm-visual-caption"><strong>GoMate</strong><span>{t('Kết nối cộng đồng')}</span></div>
             </div>
-            <div className="gm-visual-card gm-visual-card--floating"><span className="gm-floating-icon"><Icon name="activity" size={15} /></span><span><strong>Sự kiện</strong><small>Trải nghiệm cùng nhau</small></span></div>
+            <div className="gm-visual-card gm-visual-card--floating"><span className="gm-floating-icon"><Icon name="activity" size={15} /></span><span><strong>{t('Sự kiện')}</strong><small>{t('Trải nghiệm cùng nhau')}</small></span></div>
           </div>
-          <div className="gm-auth-footer"><span>Không gian dành cho đối tác GoMate</span></div>
+          <div className="gm-auth-footer"><span>{t('Không gian dành cho đối tác GoMate')}</span></div>
         </div>
       </aside>
       <main className="gm-auth-main">{children}</main>

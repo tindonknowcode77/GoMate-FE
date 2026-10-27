@@ -1,4 +1,5 @@
 import { ComponentProps, useRef, useState } from 'react';
+import { useFeedbackState } from '../services/feedback';
 import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -45,7 +46,7 @@ function ProfileForm({ onFinish, onSkip, editing, initial }: Props & { initial: 
   const [selected, setSelected] = useState<Set<string>>(() => new Set(initial.interests));
   const [avatarUri, setAvatarUri] = useState<string | undefined>(initial.avatarUrl ?? undefined);
   const [avatarData, setAvatarData] = useState<string>();
-  const [error, setError] = useState('');
+  const [error, setError] = useFeedbackState('');
   const [busy, setBusy] = useState(false);
   const saving = useRef(false);
 
@@ -66,13 +67,13 @@ function ProfileForm({ onFinish, onSkip, editing, initial }: Props & { initial: 
   const pickAvatar = async () => {
     if (saving.current) return;
     try {
-      const result = await ImagePicker.launchImageLibraryAsync({ allowsEditing: true, aspect: [1, 1], mediaTypes: ['images'], quality: 0.7, base64: true });
+      const result = await ImagePicker.launchImageLibraryAsync({ allowsEditing: true, aspect: [1, 1], mediaTypes: ['images'], quality: 0.85, base64: true });
       if (!result.canceled) {
-        const asset = result.assets[0];
-        if (!asset.base64 || asset.base64.length > 2796204) throw new Error('Vui lòng chọn ảnh JPEG, PNG hoặc WebP tối đa 2 MB.');
-        setAvatarUri(asset.uri); setAvatarData(asset.base64); setError('');
+        const asset = result.assets[0], value = asset.base64;
+        if (!value || (asset.fileSize ?? 0) > 10 * 1024 * 1024 || value.length * 3 / 4 - (value.endsWith('==') ? 2 : value.endsWith('=') ? 1 : 0) > 10 * 1024 * 1024) throw new Error('Mỗi ảnh tối đa 10 MB.');
+        setAvatarUri(asset.uri); setAvatarData(value); setError('');
       }
-    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Không thể chọn ảnh.'); }
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Không chọn được ảnh.'); }
   };
 
   const toggle = (label: string) => setSelected((current) => { const next = new Set(current); if (next.has(label)) next.delete(label); else next.add(label); return next; });

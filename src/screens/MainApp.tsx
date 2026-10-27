@@ -1,3 +1,5 @@
+import { JoinConfirmationProvider, useJoinConfirmation } from '../components/JoinConfirmation';
+import { useFeedbackState } from '../services/feedback';
 import { createConversation, getConversation } from '../services/chatService';
 import { FriendsScreen } from './FriendsScreen';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -10,7 +12,7 @@ import { PersonProfile } from '../data/people';
 import { ProfileProvider, useProfile } from '../services/ProfileContext';
 import { getMatchPreferences, matchFeedback, saveMatchFilters, setFavorite } from '../services/matchService';
 import { FavoriteActivitiesScreen } from './FavoriteActivitiesScreen';
-import { normalizeRegion, searchKey } from '../data/profileOptions';
+import { searchKey } from '../data/profileOptions';
 import { activityQuery } from '../services/filterService';
 import { Text } from '../components/LocalizedText';
 import { getSession, logout } from '../services/api';
@@ -115,12 +117,13 @@ function activityMatchesTime(activity: Activity, availableDays: string[], timePe
 }
 
 export function MainApp({ onLogout }: { onLogout: () => void }) {
-  return <ProfileProvider><MainAppContent onLogout={onLogout} /></ProfileProvider>;
+  return <ProfileProvider><JoinConfirmationProvider><MainAppContent onLogout={onLogout} /></JoinConfirmationProvider></ProfileProvider>;
 }
 
 function MainAppContent({ onLogout }: { onLogout: () => void }) {
   const userProfile = useProfile();
-  const [actionError, setActionError] = useState('');
+  const confirmJoin = useJoinConfirmation();
+  const [actionError, setActionError] = useFeedbackState('');
 
   const [navigation, navigate] = useWebNavigation(initialNavigation, encodeNavigation, decodeNavigation, getSession()?.user.id || 'guest', restoreNavigation);
   const { activeTab, route } = navigation;
@@ -133,7 +136,7 @@ function MainAppContent({ onLogout }: { onLogout: () => void }) {
     let alive = true;
     void getConversation(route.id).then(conversation => { if (alive) setRoute({ name: 'chat', conversation }, true); }).catch(reason => { if (alive) { setActionError(reason instanceof Error ? reason.message : 'Không mở được chat'); setRoute(null, true); } });
     return () => { alive = false; };
-  }, [route, setRoute]);
+  }, [route, setRoute, setActionError]);
   useEffect(() => {
     if (route?.name !== 'activityLink') return;
     let alive = true;
@@ -144,10 +147,10 @@ function MainAppContent({ onLogout }: { onLogout: () => void }) {
       setRoute(target === 'activityDetail' ? { name: 'activityDetail', activity, source: 'home' } : target === 'group' ? { name: 'group', activity, source: 'myActivities' } : { name: target, activity }, true);
     }).catch(reason => { if (alive) { setActionError(reason instanceof Error ? reason.message : 'Không tải được hoạt động'); setRoute(null, true); } });
     return () => { alive = false; };
-  }, [route, setRoute]);
+  }, [route, setRoute, setActionError]);
   const preferences = useRemote(getMatchPreferences, { filters: null, favoriteIds: [] });
   const [sessionFilters, setFilters] = useState<ActivityFilters | null>(null);
-  const filters = useMemo(() => sessionFilters ?? { ...defaultActivityFilters, province: normalizeRegion(userProfile.profile?.location || '') || 'Tất cả', ...preferences.data.filters, coordinates: null }, [sessionFilters, preferences.data.filters, userProfile.profile?.location]);
+  const filters = useMemo(() => sessionFilters ?? { ...defaultActivityFilters, province: 'Tất cả', ...preferences.data.filters, minBudget: 0, maxBudget: 2000000, coordinates: null }, [sessionFilters, preferences.data.filters]);
   const [filterSaving, setFilterSaving] = useState(false);
   const applyFilters = async (next: ActivityFilters) => {
     if (mutation.current) return;
@@ -174,12 +177,19 @@ function MainAppContent({ onLogout }: { onLogout: () => void }) {
     return rows.map(row => toActivity(row, requests.find(request => request.activityId === row.id)?.status));
   }, [filters]);
   const discovery = useRemote(loadDiscovery, []);
+  const refreshDiscovery = discovery.reload;
+  useEffect(() => {
+    if (route?.name !== 'discover') return;
+    void refreshDiscovery(true);
+    const timer = setInterval(() => void refreshDiscovery(true), 10000);
+    return () => clearInterval(timer);
+  }, [route?.name, refreshDiscovery]);
   const activities = discovery.data;
   const mutation = useRef(false);
   const submitJoin = async (activity: Activity) => {
     if (mutation.current) return false;
     mutation.current = true; setActionError('');
-    try { await joinActivity(activity.id); void matchFeedback(activity.id, 'interested').catch(() => {}); return true; }
+    try { if (!await confirmJoin(activity)) return false; await joinActivity(activity.id); void matchFeedback(activity.id, 'interested').catch(() => {}); return true; }
     catch (reason) { setActionError(reason instanceof Error ? reason.message : 'Không gửi được yêu cầu. Vui lòng thử lại.'); return false; }
     finally { mutation.current = false; }
   };
@@ -197,7 +207,7 @@ function MainAppContent({ onLogout }: { onLogout: () => void }) {
   };
   const handleLogout = async () => { try { await logout(); } catch { /* Local session is cleared even when offline. */ } onLogout(); };
   const filteredActivities = useMemo(() => {
-    if (!filters) return activities.filter(item => !['pending', 'approved'].includes(item.requestStatus ?? ''));
+    if (!filters) return activities.filter(item => item.hostId !== getSession()?.user.id && !['pending', 'approved'].includes(item.requestStatus ?? ''));
     return activities.filter(item => !['pending', 'approved'].includes(item.requestStatus ?? '')).filter((activity) => {
       const estimatedCost = Number(activity.estimatedCost.replace(/\D/g, ''));
       const capacity = Number(activity.members.split('/')[1] ?? 0);
@@ -240,6 +250,7 @@ function MainAppContent({ onLogout }: { onLogout: () => void }) {
   if (route?.name === 'verification') return <VerificationStatusScreen onBack={() => setRoute(null)} />;
   if (route?.name === 'myReviews') return <MyReviewsScreen onBack={() => setRoute(null)} />;
   if (route?.name === 'notifications') return <NotificationsScreen onBack={() => setRoute(null)} onOpen={async notice => {
+    if (notice.type === 'activity-invitation') { setRoute({ name: 'friends' }); return; }
     if (notice.conversationId) { setRoute({ name: 'chat', conversation: await getConversation(notice.conversationId) }); return; }
     if (notice.activityId) { const [row, requests] = await Promise.all([getActivity(notice.activityId), listMyRequests()]); const member = requests.some(request => request.activityId === row.id && request.status === 'approved'); setRoute(row.hostId === getSession()?.user.id || member ? { name: 'group', activity: toActivity(row), source: 'myActivities', initialTab: row.hostId === getSession()?.user.id ? 'manage' : 'chat' } : { name: 'activityDetail', activity: toActivity(row), source: 'home' }); return; }
     setRoute({ name: 'friends' });
@@ -270,7 +281,7 @@ function MainAppContent({ onLogout }: { onLogout: () => void }) {
         {activeTab === 'match' && <MatchHubScreen onProfile={() => setActiveTab('profile')} onFavorites={() => setRoute({ name: 'favorites' })} onDiscover={() => setRoute({ name: 'discover' })} onManage={() => setRoute({ name: 'manage' })} onNotifications={() => setRoute({ name: 'notifications' })} onPending={() => setRoute({ name: 'pending' })} onPreviewProfile={() => setRoute({ name: 'ownProfilePreview' })} />}
         {activeTab === 'create' && <CreateActivityScreen onCreated={() => { void discovery.reload(); setRoute({ name: 'manage' }); }} />}
         {activeTab === 'messages' && <MessagesScreen onFriends={() => setRoute({ name: 'friends' })} onOpenChat={(conversation) => setRoute({ name: 'chat', conversation })} />}
-        {activeTab === 'profile' && <UserProfileScreen onPreview={() => setRoute({ name: 'ownProfilePreview' })} onVerification={() => setRoute({ name: 'verification' })} onReviews={() => setRoute({ name: 'myReviews' })} onEdit={() => setRoute({ name: 'editProfile' })} onMyActivities={() => setRoute({ name: 'myActivities' })} onNotifications={() => setRoute({ name: 'notifications' })} onSettings={() => setRoute({ name: 'settings' })} />}
+        {activeTab === 'profile' && <UserProfileScreen onFriends={() => setRoute({ name: 'friends' })} onPreview={() => setRoute({ name: 'ownProfilePreview' })} onVerification={() => setRoute({ name: 'verification' })} onReviews={() => setRoute({ name: 'myReviews' })} onEdit={() => setRoute({ name: 'editProfile' })} onMyActivities={() => setRoute({ name: 'myActivities' })} onNotifications={() => setRoute({ name: 'notifications' })} onSettings={() => setRoute({ name: 'settings' })} />}
       </View>
       <BottomNav activeTab={activeTab} onChange={(tab) => { const next: Navigation = { activeTab: tab, route: tab === 'match' ? { name: 'discover' } : null }; navRef.current = next; navigate(next); }} />
 

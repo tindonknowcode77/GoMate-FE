@@ -1,7 +1,8 @@
 import PortalEntry from './src/PortalEntry';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
+import { AppFeedback } from './src/components/AppFeedback';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import { api, getSession, initializeSession, setUnauthorizedHandler } from './src/services/api';
+import { api, getSession, initializeSession, setUnauthorizedHandler, subscribeSession } from './src/services/api';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -19,15 +20,30 @@ function pendingEmail() { try { return sessionStorage.getItem('gomate.verificati
 type Screen = 'onboarding' | 'auth' | 'verify' | 'profile' | 'permissions' | 'main';
 
 export default function App() {
+  const owner = useSyncExternalStore(subscribeSession, () => getSession()?.user.id ?? 'guest');
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const asset = require('./src/assets/logo-app.png') as string | { uri: string };
+    const href = typeof asset === 'string' ? asset : asset.uri;
+    if (!href) return;
+    const link = document.querySelector<HTMLLinkElement>('link[rel~="icon"]') ?? document.createElement('link');
+    link.rel = 'icon'; link.type = 'image/png'; link.href = href;
+    document.head.appendChild(link);
+  }, []);
+
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
     const pathname = window.location.pathname.replace(/\/$/, '');
-    if (['/portal', '/business'].includes(pathname)) return <WebWorkspace mode="portal" />;
-    if (/^\/(portal|admin|staff|business)(\/|$)/.test(window.location.pathname)) return <PortalEntry />;
+    if (['/portal', '/business', '/demo'].includes(pathname)) {
+      return <WebWorkspace key={owner} mode={pathname === '/demo' ? 'demo' : 'portal'} />;
+    }
+    if (/^\/(portal|admin|staff|business)(\/|$)/.test(window.location.pathname)) {
+      return <PortalEntry key={owner} />;
+    }
   }
-  return <UserApp />;
+  return <UserApp owner={owner} />;
 }
 
-function UserApp() {
+function UserApp({ owner }: { owner: string }) {
   const [booting, setBooting] = useState(Platform.OS !== 'web');
   const [bootError, setBootError] = useState('');
   const [retry, setRetry] = useState(0);
@@ -48,11 +64,10 @@ function UserApp() {
   }, []);
   useEffect(() => { setUnauthorizedHandler(() => setScreen('auth')); return () => setUnauthorizedHandler(); }, []);
 
-  if (Platform.OS === 'web' && ['/portal', '/demo'].includes(window.location.pathname.replace(/\/$/, ''))) return <WebWorkspace mode={window.location.pathname.startsWith('/portal') ? 'portal' : 'demo'} />;
-
   return (
     <SafeAreaProvider>
       <LanguageProvider>
+        <AppFeedback key={owner} />
         <StatusBar style="dark" />
         <View style={styles.app}>
         {booting ? <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16 }}>{bootError ? <><Text>{bootError}</Text><Pressable onPress={() => setRetry(value => value + 1)}><Text>Thử lại</Text></Pressable></> : <ActivityIndicator color="#6C5CE7" />}</View> : <>
@@ -77,7 +92,7 @@ function UserApp() {
           />
         )}
         {screen === 'permissions' && <OnboardingPermissionsScreen onDone={() => setScreen('main')} />}
-        {screen === 'main' && <RoleGate onLogout={() => setScreen('auth')} />}
+        {screen === 'main' && <RoleGate key={owner} owner={owner} onLogout={() => setScreen('auth')} />}
         </>}
         </View>
       </LanguageProvider>
@@ -85,7 +100,7 @@ function UserApp() {
   );
 }
 
-function RoleGate({ onLogout }: { onLogout: () => void }) {
+function RoleGate({ owner, onLogout }: { owner: string; onLogout: () => void }) {
   const [ready, setReady] = useState(false), [error, setError] = useState(''), [retry, setRetry] = useState(0);
   useEffect(() => {
     let alive = true;
@@ -99,7 +114,7 @@ function RoleGate({ onLogout }: { onLogout: () => void }) {
     }).catch(reason => { if (alive) setError(reason.message); });
     return () => { alive = false; };
   }, [retry]);
-  if (ready) return <MainApp onLogout={onLogout} />;
+  if (ready) return <MainApp key={owner} onLogout={onLogout} />;
   return <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', gap: 16 }}>{error ? <><Text>{error}</Text><Pressable onPress={() => { setError(''); setRetry(v => v + 1); }}><Text>Thử lại</Text></Pressable><Pressable onPress={onLogout}><Text>Về đăng nhập</Text></Pressable></> : <ActivityIndicator accessibilityLabel="Đang kiểm tra quyền truy cập" />}</View>;
 }
 
