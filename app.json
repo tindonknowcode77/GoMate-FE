@@ -1,0 +1,43 @@
+{
+  "expo": {
+    "name": "GoMate",
+    "slug": "gomate-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./src/assets/logo-app.png",
+    "web": { "favicon": "./src/assets/logo-app.png" },
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./src/assets/logo-nobackground.png",
+        "backgroundColor": "#ffffff"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "plugins": [
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "GoMate uses your photos to build your profile and share your favorite moments.",
+          "cameraPermission": "GoMate dùng camera khi bạn chọn chụp ảnh để gửi trong cuộc trò chuyện.",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "GoMate dùng vị trí để tìm hoạt động gần bạn.",
+          "isIosBackgroundLocationEnabled": false,
+          "isAndroidBackgroundLocationEnabled": false
+        }
+      ],
+      "expo-sharing",
+      "expo-video"
+    ],
+    "scheme": "gomate"
+  }
+}

@@ -1,26 +1,52 @@
 {
-  "name": "gomate-fe",
+  "name": "gomate-mobile",
+  "version": "1.0.0",
   "private": true,
-  "version": "0.0.0",
-  "type": "module",
-  "engines": {
-    "node": "^22.12.0 || >=24.0.0"
-  },
+  "main": "index.ts",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "lint": "oxlint",
-    "preview": "vite preview"
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "lint": "expo lint",
+    "typecheck": "tsc --noEmit",
+    "test:integration": "node --test tests/backend.integration.cjs",
+    "test:web": "node tests/web.smoke.cjs",
+    "test:trip:web": "node tests/trip-social.web.cjs",
+    "test:lifecycle:web": "node tests/activity-lifecycle.web.cjs",
+    "test:business:web": "node tests/business-demo.web.cjs",
+    "demo:seed": "npm --prefix ../GoMate-BE run db:seed-workshop",
+    "test:community:web": "node tests/community.web.cjs",
+    "test:maps:web": "node tests/mapbox-maps.web.cjs",
+    "test:maps:live": "node tests/mapbox-live.web.cjs"
   },
   "dependencies": {
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "@expo/vector-icons": "^15.0.2",
+    "@react-native-google-signin/google-signin": "^16.1.5",
+    "expo": "~57.0.30",
+    "expo-constants": "~57.0.22",
+    "expo-document-picker": "~57.0.3",
+    "expo-file-system": "~57.0.7",
+    "expo-font": "~57.0.4",
+    "expo-image-picker": "~57.0.20",
+    "expo-linear-gradient": "~57.0.2",
+    "expo-location": "~57.0.21",
+    "expo-secure-store": "~57.0.4",
+    "expo-sharing": "~57.0.23",
+    "expo-status-bar": "~57.0.1",
+    "expo-video": "~57.0.5",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-web": "^0.21.2",
+    "react-native-webview": "13.16.1"
   },
   "devDependencies": {
-    "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.2.7",
-    "@vitejs/plugin-react": "^6.1.1",
-    "oxlint": "^1.81.0",
-    "vite": "^8.3.0"
+    "@types/react": "~19.2.2",
+    "eslint": "^9.39.5",
+    "eslint-config-expo": "~57.0.2",
+    "playwright": "^1.64.1",
+    "typescript": "~6.0.3"
   }
 }
