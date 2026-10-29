@@ -20,7 +20,7 @@ export default function BusinessVerificationForm({
 }) {
   const t = usePortalText();
   const patch = key => event => setApplication(value => ({ ...value, [key]: event.target.value }));
-  const submittedDetails = applicationDetails;
+  const submittedDetails = currentApplication ? {...currentApplication,licenseName:currentApplication.license?.name} : applicationDetails;
 
   return (
     <section className="gm-panel gm-live-panel gm-verification-panel">
@@ -54,14 +54,14 @@ export default function BusinessVerificationForm({
         </Field>
         <div className="gm-field-grid">
           <Field label={t("Mã số thuế")}>
-            <input className={fieldStyle} inputMode="numeric" minLength={8} maxLength={20} value={application.taxId} required onChange={patch('taxId')} placeholder={t("Nhập mã số thuế")} />
+            <input className={fieldStyle} inputMode="numeric" minLength={10} maxLength={20} pattern="[0-9]{10}(-?[0-9]{3})?" value={application.taxId} required onChange={patch('taxId')} placeholder={t("Nhập mã số thuế")} />
           </Field>
           <Field label={t("Lĩnh vực hoạt động")}>
             <input className={fieldStyle} maxLength={100} value={application.category} required onChange={patch('category')} placeholder={t("Ví dụ: Sự kiện, nhà hàng")} />
           </Field>
         </div>
         <Field label={t("Địa chỉ chi tiết")}>
-          <textarea className={fieldStyle + ' gm-textarea'} maxLength={500} value={application.address} required onChange={patch('address')} placeholder={t("Số nhà, đường, phường/xã, quận/huyện, tỉnh/thành phố")} />
+          <textarea aria-label={t("Địa chỉ chi tiết")} className={fieldStyle + ' gm-textarea'} maxLength={500} value={application.address} required onChange={patch('address')} placeholder={t("Số nhà, đường, phường/xã, quận/huyện, tỉnh/thành phố")} />
         </Field>
         <Field label={t("Website (không bắt buộc)")}>
           <input type="url" className={fieldStyle} autoComplete="url" value={application.website} onChange={patch('website')} placeholder={t("https://")} />
@@ -88,10 +88,10 @@ export default function BusinessVerificationForm({
         <div className="gm-verification-section-title"><span>03</span><strong>{t("Giấy phép kinh doanh")}</strong></div>
         <label className="gm-upload-field gm-license-upload">
           <span>{t("Hồ sơ xác minh")}</span>
-          <input type="file" accept="application/pdf,image/png,image/jpeg" required onChange={event => setDocument(event.target.files?.[0] || null)} />
+          <input aria-label={t("Hồ sơ xác minh")} type="file" accept="application/pdf,image/png,image/jpeg" required={!currentApplication?.license} onChange={event => setDocument(event.target.files?.[0] || null)} />
           <span className="gm-upload-box">
             <span className="gm-upload-icon"><Icon name="upload" size={18} /></span>
-            <strong>{t(document?.name || 'Tải giấy phép kinh doanh')}</strong>
+            <strong>{t(document?.name || currentApplication?.license?.name || 'Tải giấy phép kinh doanh')}</strong>
             <small>{t("Business License Upload · PDF, JPG hoặc PNG · tối đa 10 MB")}</small>
           </span>
         </label>

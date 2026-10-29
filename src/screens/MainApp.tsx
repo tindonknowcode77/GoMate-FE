@@ -3,7 +3,7 @@ import { useFeedbackState } from '../services/feedback';
 import { createConversation, getConversation } from '../services/chatService';
 import { FriendsScreen } from './FriendsScreen';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomNav, MainTab } from '../components/BottomNav';
@@ -15,7 +15,7 @@ import { FavoriteActivitiesScreen } from './FavoriteActivitiesScreen';
 import { searchKey } from '../data/profileOptions';
 import { activityQuery } from '../services/filterService';
 import { Text } from '../components/LocalizedText';
-import { getSession, logout } from '../services/api';
+import { apiBaseUrl, getSession, logout } from '../services/api';
 import { getActivity, cancelRequest, joinActivity, listActivities, listMyRequests, toActivity } from '../services/activityApi';
 import { useRemote } from '../services/useRemote';
 import { useWebNavigation } from '../services/webNavigation';
@@ -194,6 +194,7 @@ function MainAppContent({ onLogout }: { onLogout: () => void }) {
     finally { mutation.current = false; }
   };
   const handlePrimary = async (activity: Activity) => {
+    if (activity.isBusinessManager) { setRoute({ name: 'group', activity, source: 'myActivities' }); return; }
     if (activity.hostId === getSession()?.user.id) { setRoute({ name: 'manage' }); return; }
     if (activity.requestStatus === 'approved') { setRoute({ name: 'group', activity, source: 'myActivities' }); return; }
     if (activity.requestStatus === 'pending') {
@@ -250,6 +251,7 @@ function MainAppContent({ onLogout }: { onLogout: () => void }) {
   if (route?.name === 'verification') return <VerificationStatusScreen onBack={() => setRoute(null)} />;
   if (route?.name === 'myReviews') return <MyReviewsScreen onBack={() => setRoute(null)} />;
   if (route?.name === 'notifications') return <NotificationsScreen onBack={() => setRoute(null)} onOpen={async notice => {
+    if (notice.type.startsWith('business-')) { if (Platform.OS === 'web') window.location.assign('/portal'); else await Linking.openURL(apiBaseUrl.replace(/\/api\/?$/, '') + '/portal'); return; }
     if (notice.type === 'activity-invitation') { setRoute({ name: 'friends' }); return; }
     if (notice.conversationId) { setRoute({ name: 'chat', conversation: await getConversation(notice.conversationId) }); return; }
     if (notice.activityId) { const [row, requests] = await Promise.all([getActivity(notice.activityId), listMyRequests()]); const member = requests.some(request => request.activityId === row.id && request.status === 'approved'); setRoute(row.hostId === getSession()?.user.id || member ? { name: 'group', activity: toActivity(row), source: 'myActivities', initialTab: row.hostId === getSession()?.user.id ? 'manage' : 'chat' } : { name: 'activityDetail', activity: toActivity(row), source: 'home' }); return; }

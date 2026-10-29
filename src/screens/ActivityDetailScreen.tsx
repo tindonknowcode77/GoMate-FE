@@ -17,7 +17,7 @@ export function ActivityDetailScreen({ activity, error, isHost = false, onBack, 
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 60000); return () => clearInterval(timer); }, []);
   const unavailable = activity.backendStatus === 'completed' || activity.backendStatus === 'in-progress' || Boolean(activity.startsAt && new Date(activity.startsAt).getTime() <= now) || Number(activity.members.split('/')[0]) >= Number(activity.members.split('/')[1]);
-  const blocked = unavailable && !isHost && activity.requestStatus !== 'approved' && activity.requestStatus !== 'pending';
+  const blocked = unavailable && !isHost && !activity.isBusinessManager && activity.requestStatus !== 'approved' && activity.requestStatus !== 'pending';
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScreenHeader onBack={onBack} title="Chi tiết hoạt động" />
@@ -63,7 +63,7 @@ export function ActivityDetailScreen({ activity, error, isHost = false, onBack, 
           <Section title="Yêu cầu">
             {activity.requirements.map((item) => <Bullet key={item} text={item} />)}
           </Section>
-          <GradientButton disabled={blocked} label={blocked ? 'Hoạt động không còn nhận thành viên' : activity.requestStatus === 'pending' ? 'Hủy yêu cầu tham gia' : activity.requestStatus === 'approved' ? 'Mở nhóm hoạt động' : isHost ? 'Quản lý hoạt động' : 'Gửi yêu cầu tham gia'} onPress={onPrimary} style={styles.cta} trailing={<Ionicons color={colors.white} name={isHost ? 'settings-outline' : 'heart'} size={19} />} />
+          <GradientButton disabled={blocked} label={activity.isBusinessManager ? 'Mở nhóm được phân công' : blocked ? 'Hoạt động không còn nhận thành viên' : activity.requestStatus === 'pending' ? 'Hủy yêu cầu tham gia' : activity.requestStatus === 'approved' ? 'Mở nhóm hoạt động' : isHost ? 'Quản lý hoạt động' : 'Gửi yêu cầu tham gia'} onPress={onPrimary} style={styles.cta} trailing={<Ionicons color={colors.white} name={isHost ? 'settings-outline' : 'heart'} size={19} />} />
         </View>
       </ScrollView>
     </SafeAreaView>

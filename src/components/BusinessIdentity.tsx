@@ -11,6 +11,7 @@ export function BusinessIdentity({ activity, details = false, showOffer = false 
     <View style={styles.row}><View style={styles.verified}><Ionicons name={business?.verified ? 'shield-checkmark' : 'business-outline'} color="#147D68" size={14} /><Text style={styles.label}>{business?.verified ? 'Doanh nghiệp đã xác minh' : 'Doanh nghiệp tổ chức'}</Text></View>{Boolean(business?.discountPercent) && <View style={styles.discount}><Text style={styles.discountText}>−{business!.discountPercent}%</Text></View>}</View>
     {details && <Text style={styles.name}>{business?.name || activity.host}</Text>}
     {(details || showOffer) && business?.offer ? <View style={styles.row}><Ionicons name="gift-outline" color="#147D68" size={18} /><Text numberOfLines={details ? undefined : 2} style={styles.offer}>{business.offer}</Text></View> : null}
+    {details && Boolean(business?.depositAmount) && <Text style={styles.terms}>{'Tiền cọc / người: ' + business!.depositAmount!.toLocaleString('vi-VN') + ' VND · Liên hệ doanh nghiệp để được hướng dẫn.'}</Text>}
     {details && <>{business?.terms ? <Text style={styles.terms}>{business.terms}</Text> : null}<Text style={styles.terms}>Ưu đãi do doanh nghiệp cung cấp. GoMate chưa thu tiền hoặc xử lý thanh toán.</Text></>}
   </View>;
 }

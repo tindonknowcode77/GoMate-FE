@@ -4,6 +4,37 @@ Record decisions here when they materially affect architecture, dependencies,
 security, the data model, or product behavior. Keep the newest decision at the
 top. Small implementation details belong only in `DEVELOPMENT_LOG.md`.
 
+### 2026-10-29 - Business staff assignments are visible in app activities and chat
+
+- **Status:** Accepted, correcting approved staff assignments missing from the app.
+- **Decision:** Derive app activity visibility and read authority from current accepted/admin-approved staff grants plus a currently verified business, scoped to the exact owner/group pair. Return a viewer-specific isBusinessManager flag; do not persist it on public activities.
+- **Decision:** Reconcile missing conversations on staff chat-list reads, using the existing unique activity key. Existing grants work without migration and revocation still removes access at request time.
+- **Decision:** Staff remain delegated managers, with no automatic participant seat, deposit, join request or attendance entry. Management writes continue through the existing scoped business portal.
+
+### 2026-10-29 - Manual deposit evidence is not a wallet balance
+
+- **Status:** Payment integration excluded at the user's explicit request; retain manual reconciliation only.
+- **Decision:** Expose wallet reconciliation to verified owners only; group staff retain deposit operations but cannot view the business wallet. Derive provisional fees at 10% per paid participant receipt, rounded to whole VND. Count each approved participant once; exclude pending/rejected receipts and invalid amounts.
+- **Decision:** Manual receipts never create verified held funds or available balance, even after activity completion. No payout action exists. Display the limitation on the wallet screen.
+- **Follow-up:** Real collection, signed/idempotent webhooks, immutable fee snapshots, refunds, disputes, release eligibility and controlled payouts require a separate payment integration. These safeguards are not claimed by the current ledger.
+
+### 2026-10-27 - Multiple enterprise managers and canonical saved locations
+
+- **Status:** Accepted at the user's request for enterprise staff reviewed by Minh/admin and shared group operations.
+- **Decision:** Any number of independently consented/admin-approved staff assignments may reference the same group. Queue notifications target platform admins by role, without hardcoding a personal account or converting employees into platform staff/participants.
+- **Decision:** Staff may read saved locations of the verified businesses that assigned them, allowing itinerary quick selection beyond the group's original branch. Writes still require owner role; group itinerary saves verify the selected location's owner.
+- **Decision:** Keep location references in separate business plan metadata so canonical itineraries remain compatible with the consumer plan editor. Preserve dates and resolve canonical addresses; publish GeoJSON coordinates from the business location.
+- **Decision:** Editing an offer updates the persisted campaign offer and existing recipient notification, with a version guard and audit event. It creates no duplicate notifications.
+
+### 2026-10-27 - Real business groups and consented delegated operations
+
+- **Status:** Accepted at the user's request to complete the business backend/web flow.
+- **Decision:** Store complete business applications and reserve active tax IDs. Documents remain private to owner/platform reviewers. Use versions for review and edits, preserving legacy records as version 0.
+- **Decision:** Approved campaign groups become ordinary business activities; private staging, stable IDs and reconciliation handle publication interruptions. The activity repository remains authoritative for participation, planning, chat, attendance and rating.
+- **Decision:** Delegate only named groups after recipient consent and platform admin approval. Editing an assignment requires renewed consent/review; revocation applies to portal and chat immediately. Employees are administrators of assigned groups, not implicit participants or platform staff.
+- **Decision:** Record deposits manually with actor/time/amount; do not imply payment processing. Required unpaid deposits block schedule confirmation/start in both APIs. Existing participant minimum/outside-member and attendance rules also apply to business groups.
+- **Validation:** Backend and isolated browser workflow tests cover ownership, approval, retries and the participant journey; see DEVELOPMENT_LOG.md for results and remaining limits.
+
 ### 2026-10-26 - Recipient-approved activity invitations and qualified lifecycle transitions
 
 - **Status:** Accepted at the user's explicit request to bind the complete user-to-user journey. Supersedes immediate friend membership and permissive lifecycle rules below.

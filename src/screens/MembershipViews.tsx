@@ -34,7 +34,7 @@ function Button({ label, onPress, disabled = false }: { label: string; onPress: 
 
 function ActivityRow({ activity, onPress, children }: { activity: Activity; onPress: () => void; children?: React.ReactNode }) {
   return <View style={styles.card}><Pressable onPress={onPress} style={styles.row}>
-    <Image source={activity.image} style={styles.image} /><View style={styles.copy}><Text style={styles.title}>{activity.title}</Text><Text>{activity.time}</Text><Text>{activity.location}</Text><Text>Host: {activity.host} · {activity.members}</Text></View>
+    <Image source={activity.image} style={styles.image} /><View style={styles.copy}><Text style={styles.title}>{activity.title}</Text><Text>{activity.time}</Text><Text>{activity.location}</Text>{activity.isBusinessManager && <Text>Nhân sự quản lý · Được phân công</Text>}<Text>Host: {activity.host} · {activity.members}</Text></View>
   </Pressable>{children}</View>;
 }
 
@@ -92,7 +92,7 @@ export function MembersPanel({ activity, onLeft }: { activity: Activity; onLeft:
       </Pressable>
       {canChange && isHost && member.role !== 'host' && <Button disabled={action.busy} label="Loại thành viên" onPress={() => setTarget(member.userId)} />}
     </View>)}
-    {canChange && !isHost && !remote.loading && !remote.error && <Button disabled={action.busy} label="Rời nhóm" onPress={() => setTarget('me')} />}
+    {canChange && !isHost && !activity.isBusinessManager && !remote.loading && !remote.error && <Button disabled={action.busy} label="Rời nhóm" onPress={() => setTarget('me')} />}
     {target && <View style={styles.card}><Text>{target === 'me' ? 'Bạn muốn rời nhóm?' : 'Loại thành viên này khỏi nhóm?'}</Text><View style={styles.tabs}>
       <Button disabled={action.busy} label="Giữ lại" onPress={() => setTarget(null)} />
       <Button disabled={action.busy} label="Xác nhận" onPress={() => void action.run(async () => {

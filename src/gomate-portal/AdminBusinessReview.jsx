@@ -3,43 +3,7 @@ import { useMemo, useState } from 'react';
 import { Icon, PillButton, StatusPill } from './GoMatePortal';
 
 const fieldStyle = 'gm-simple-input';
-const staffApprovalLabel = 'Pending Admin (Minh) Approval';
-const initialStaffRequests = [
-  {
-    id: 'staff-review-001',
-    name: 'Nguyen Quoc Bao',
-    email: 'bao.nguyen@lumasocial.vn',
-    phone: '+84 909 123 456',
-    title: 'Group host',
-    businessName: 'Luma Social Club',
-    submittedAt: '2026-10-21T09:20:00+07:00',
-    groupNames: ['Saturday Social · District 1', 'Sunday Social · Thao Dien'],
-    status: 'pending',
-  },
-  {
-    id: 'staff-review-002',
-    name: 'Tran Minh Chau',
-    email: 'chau.tran@lumasocial.vn',
-    phone: '+84 938 111 290',
-    title: 'Event coordinator',
-    businessName: 'Luma Social Club',
-    submittedAt: '2026-10-22T14:05:00+07:00',
-    groupNames: ['Saturday Social · District 1'],
-    status: 'pending',
-  },
-  {
-    id: 'staff-review-003',
-    name: 'Vo Hoang Minh',
-    email: 'minh.vo@kindred.vn',
-    phone: '+84 905 442 810',
-    title: 'Community manager',
-    businessName: 'Kindred Wellness',
-    submittedAt: '2026-10-20T16:40:00+07:00',
-    groupNames: ['Morning reset workshop'],
-    status: 'pending',
-  },
-];
-
+const staffApprovalLabel = 'Chờ quản trị viên duyệt';
 function valueOrFallback(value) {
   return value === undefined || value === null || String(value).trim() === ''
     ? 'Not provided'
@@ -67,6 +31,8 @@ function Detail({ label, children }) {
 
 export default function AdminBusinessReview({
   applications,
+  staffRequests = [],
+  onStaffDecision,
   busy,
   notes,
   setNotes,
@@ -76,7 +42,6 @@ export default function AdminBusinessReview({
   const t = usePortalText();
   const [view, setView] = useState('businesses');
   const [selectedApplication, setSelectedApplication] = useState(null);
-  const [staffRequests, setStaffRequests] = useState(initialStaffRequests);
   const [query, setQuery] = useState('');
   const [staffFilter, setStaffFilter] = useState('pending');
   const [staffFeedback, setStaffFeedback] = useState('');
@@ -92,21 +57,15 @@ export default function AdminBusinessReview({
     [staffRequests, staffFilter],
   );
 
-  const decideStaff = (id, status) => {
-    const request = staffRequests.find(row => row.id === id);
-    if (!request) return;
-    setStaffRequests(current => current.map(row => row.id === id ? { ...row, status, reviewedAt: new Date().toISOString() } : row));
-    setStaffFeedback(`${request.name}'s staff request was ${status}.`);
-  };
-
+  const decideStaff = (id,status) => { const row=staffRequests.find(item=>item.id===id); if(!row) return; if(status==='rejected'&&!notes[id]?.trim()) {setStaffFeedback('Nhập lý do từ chối.');return;} void onStaffDecision?.(row,status); };
   const representativeName = row => row.representativeName || row.representative?.name;
   const representativeTitle = row => row.representativeTitle || row.representative?.title;
   const representativeEmail = row => row.representativeEmail || row.representative?.email;
   const representativePhone = row => row.representativePhone || row.representative?.phone;
   const taxId = row => row.taxId || row.taxID || row.taxCode;
   const address = row => row.address || row.detailedAddress || row.businessAddress;
-  const documentName = row => row.documentName || row.document?.name || row.licenseName || 'Business license document';
-  const documentType = row => row.documentMime || row.document?.mime || row.documentType || 'PDF / PNG / JPEG';
+  const documentName = row => row.license?.name || row.documentName || row.document?.name || row.licenseName || 'Business license document';
+  const documentType = row => row.license?.mime || row.documentMime || row.document?.mime || row.documentType || 'PDF / PNG / JPEG';
 
   return (
     <div className="gm-admin-business-review">
@@ -128,7 +87,7 @@ export default function AdminBusinessReview({
       {view === 'staff' && <section className="gm-panel gm-live-panel gm-admin-review-panel">
         <div className="gm-admin-table-toolbar"><div><h3>{t("Business Staff accounts")}</h3><p>{t("Approve or reject staff access requests submitted by businesses.")}</p></div><label className="gm-admin-filter"><span>{t("Status")}</span><select className={fieldStyle} value={staffFilter} onChange={event => setStaffFilter(event.target.value)}><option value="pending">{t("Pending")}</option><option value="approved">{t("Approved")}</option><option value="rejected">{t("Rejected")}</option><option value="all">{t("All requests")}</option></select></label></div>
         {staffFeedback && <div className="gm-admin-feedback" role="status"><Icon name="check" size={15} />{t(staffFeedback)}</div>}
-        {!filteredStaff.length ? <div className="gm-admin-review-empty"><Icon name="users" size={20} /><strong>{t("No staff requests in this view")}</strong><span>{t("New requests will appear here for Admin review.")}</span></div> : <div className="gm-table-wrap"><table className="gm-table gm-admin-staff-table"><thead><tr><th>{t("Staff member")}</th><th>{t("Business")}</th><th>{t("Group assignments")}</th><th>{t("Submitted")}</th><th>{t("Status")}</th><th>{t("Decision")}</th></tr></thead><tbody>{filteredStaff.map(row => <tr key={row.id}><td><div className="gm-admin-business-cell"><span>{t(initials(row.name))}</span><div><strong>{row.name}</strong><small>{row.title} {t(" · ")}{row.email}<br />{t(row.phone)}</small></div></div></td><td>{row.businessName}</td><td><div className="gm-admin-group-tags">{row.groupNames.map(name => <span key={name}>{t(name)}</span>)}</div></td><td>{t(new Date(row.submittedAt).toLocaleDateString('vi-VN'))}</td><td><StatusPill tone={statusTone(row.status)}>{t(row.status === 'pending' ? staffApprovalLabel : labelForStatus(row.status))}</StatusPill></td><td>{row.status === 'pending' ? <div className="gm-admin-decision-actions"><PillButton variant="secondary" disabled={busy} onClick={() => decideStaff(row.id, 'approved')}>{t("Approve")}</PillButton><button type="button" className="gm-admin-reject-button" disabled={busy} onClick={() => decideStaff(row.id, 'rejected')}>{t("Reject")}</button></div> : <span className="gm-admin-reviewed-label">{t("Reviewed ")}{t(row.reviewedAt ? new Date(row.reviewedAt).toLocaleDateString('vi-VN') : '')}</span>}</td></tr>)}</tbody></table></div>}
+        {!filteredStaff.length ? <div className="gm-admin-review-empty"><Icon name="users" size={20} /><strong>{t("No staff requests in this view")}</strong><span>{t("New requests will appear here for Admin review.")}</span></div> : <div className="gm-table-wrap"><table className="gm-table gm-admin-staff-table"><thead><tr><th>{t("Staff member")}</th><th>{t("Business")}</th><th>{t("Group assignments")}</th><th>{t("Submitted")}</th><th>{t("Status")}</th><th>{t("Decision")}</th></tr></thead><tbody>{filteredStaff.map(row => <tr key={row.id}><td><div className="gm-admin-business-cell"><span>{t(initials(row.name))}</span><div><strong>{row.name}</strong><small>{row.title} {t(" · ")}{row.email}<br />{t(row.phone)}</small></div></div></td><td>{row.businessName}</td><td><div className="gm-admin-group-tags">{(row.groupNames || row.groupIds || []).map(name => <span key={name}>{t(name)}</span>)}</div></td><td>{t(new Date(row.createdAt || row.submittedAt).toLocaleDateString('vi-VN'))}</td><td><StatusPill tone={statusTone(row.status)}>{t(row.status === 'pending' ? staffApprovalLabel : labelForStatus(row.status))}</StatusPill></td><td>{row.status === 'pending' ? <div className="gm-admin-decision-actions"><input aria-label={'Ghi chú nhân sự '+row.name} placeholder="Lý do từ chối" value={notes[row.id] || ''} onChange={event=>setNotes(current=>({...current,[row.id]:event.target.value}))} /><PillButton variant="secondary" disabled={busy || !row.acceptedAt} onClick={() => decideStaff(row.id, 'approved')}>{t("Approve")}</PillButton><button type="button" className="gm-admin-reject-button" disabled={busy} onClick={() => decideStaff(row.id, 'rejected')}>{t("Reject")}</button></div> : <span className="gm-admin-reviewed-label">{t("Reviewed ")}{t(row.reviewedAt ? new Date(row.reviewedAt).toLocaleDateString('vi-VN') : '')}</span>}</td></tr>)}</tbody></table></div>}
       </section>}
 
       {selectedApplication && <div className="gm-admin-modal-backdrop" role="presentation" onClick={() => setSelectedApplication(null)}><section className="gm-admin-verification-modal" role="dialog" aria-modal="true" aria-labelledby="gm-admin-modal-title" onClick={event => event.stopPropagation()}>
