@@ -3,6 +3,24 @@
 This file records completed development work. Keep the newest entry at the top
 and follow `templates/development-log-entry.md`.
 
+## 2026-10-30 - Copy-ready input data for two HCMC demo flows
+
+### Summary
+
+- Add the requested input values rather than presenter instructions: personal activity and business workshop in Ho Chi Minh City, with descriptions, locations, schedules, capacities, offers, verification fields, itinerary and chat text. Clearly label fictional business data and future-date requirements.
+
+### Files changed
+
+- `docs/DU_LIEU_NHAP_DEMO_HCM.txt`, `docs/DEVELOPMENT_LOG.md`.
+
+### Verification
+
+- Compared field names, lengths and sample values with the current composer and verification form. Documentation only; no application checks rerun.
+
+### Remaining work
+
+- Use an existing verified account for staff email and matching demo documents for verification; choose future dates if reusing later.
+
 ## 2026-10-30 - Plain-text demo script and current-branch delivery
 
 ### Summary
