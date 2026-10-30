@@ -3,6 +3,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Animated, Easing, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
+import { UnreadDot } from '../components/UnreadDot';
+import { getActivityCounts } from '../services/activityApi';
+import { useRemote } from '../services/useRemote';
 import { useProfile } from '../services/ProfileContext';
 import { UserAvatar } from '../components/UserAvatar';
 import { BrandLogo } from '../components/BrandLogo';
@@ -30,9 +33,12 @@ export function MatchHubScreen({
   onNotifications,
   onPreviewProfile,
   onProfile,
-  pendingCount = 2,
-  hostRequestCount = 3,
+  pendingCount,
+  hostRequestCount,
 }: MatchHubScreenProps) {
+  const counts = useRemote(getActivityCounts, { pending: 0, hostRequests: 0 });
+  const effectivePending = pendingCount ?? counts.data.pending;
+  const effectiveHostRequests = hostRequestCount ?? counts.data.hostRequests;
   return (
     <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
       <View style={styles.page}>
@@ -45,18 +51,18 @@ export function MatchHubScreen({
         <Text style={styles.sectionTitle}>Hoạt động của bạn</Text>
         <View style={styles.managementCard}>
           <ManagementRow
-            badgeCount={pendingCount}
+            badgeCount={effectivePending}
             icon="time-outline"
             onPress={onPending}
-            subtitle={pendingCount > 0 ? 'Đang chờ' : 'Không có yêu cầu'}
+            subtitle={effectivePending > 0 ? 'Đang chờ' : 'Không có yêu cầu'}
             title="Yêu cầu tham gia"
           />
           <View style={styles.rowDivider} />
           <ManagementRow
-            badgeCount={hostRequestCount}
+            badgeCount={effectiveHostRequests}
             icon="people-outline"
             onPress={onManage}
-            subtitle={hostRequestCount > 0 ? 'Yêu cầu mới' : 'Không có yêu cầu'}
+            subtitle={effectiveHostRequests > 0 ? 'Yêu cầu mới' : 'Không có yêu cầu'}
             title="Tôi tổ chức"
           />
         </View>
@@ -75,7 +81,7 @@ function MatchHubHeader({ onNotifications, onProfile }: { onNotifications: () =>
       <View style={styles.headerActions}>
         <Pressable accessibilityLabel="Thông báo" onPress={onNotifications} style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}>
           <Ionicons color={colors.textSecondary} name="notifications-outline" size={23} />
-          <View style={styles.notificationDot} />
+          <UnreadDot kind="notifications" style={styles.notificationDot} />
         </Pressable>
         <UserAvatar onPress={onProfile} />
       </View>

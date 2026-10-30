@@ -28,7 +28,7 @@ export function ActivityLifecyclePanel({ activity, compact = false, showTimeline
   const [now, setNow] = useState(Date.now);
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 10000); return () => clearInterval(timer); }, []);
   const locked = useRef(false);
-  const isHost = activity.hostId === getSession()?.user.id;
+  const isHost = activity.hostId === getSession()?.user.id || Boolean(activity.isBusinessManager);
   const completed = activity.status === 'completed', running = activity.status === 'in-progress';
   const phase = completed ? 3 : running ? 2 : activity.scheduleConfirmedAt ? 1 : 0;
   const canConfirm = !completed && !running && new Date(activity.startsAt).getTime() > now;
@@ -58,6 +58,7 @@ export function ActivityLifecyclePanel({ activity, compact = false, showTimeline
     else if (isHost) openConfirmation(scheduleFirst ? 'schedule' : 'start');
     else onPlan?.();
   };
+  if (activity.status === 'cancelled') return <View style={styles.card}><Text style={styles.title}>Hoạt động đã hủy</Text><Text style={styles.description}>Hoạt động đã bị hủy bởi người tổ chức.</Text></View>;
   if (activity.status === 'expired') return <View style={styles.card}><Text style={styles.title}>Hoạt động đã hết hạn</Text><Text style={styles.description}>Hoạt động chưa được bắt đầu trước khi hết lịch. Không mở điểm danh hoặc đánh giá.</Text></View>;
   return <View style={[styles.card, compact && styles.compact]}>
     {showTimeline && <View accessibilityLabel={`${translate('Tiến trình hoạt động')}: ${translate(stages[phase])}`} style={styles.timeline}>

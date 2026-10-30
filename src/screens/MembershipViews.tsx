@@ -1,7 +1,8 @@
 import { useFeedbackState } from '../services/feedback';
+import { JoinRequestsPanel } from '../components/JoinRequestsPanel';
 import { GroupCompanions } from '../components/CompanionCards';
 import { AddActivityFriends } from '../components/AddActivityFriends';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Text } from '../components/LocalizedText';
@@ -42,9 +43,9 @@ export function PendingActivitiesScreen({ onBack, onOpen }: { onBack: () => void
   const loader = useCallback(() => listMyRequests('pending'), []);
   const remote = useRemote(loader, []);
   const action = useAction();
-  return <SafeAreaView style={styles.safe}><ScreenHeader onBack={onBack} title="Yêu cầu tham gia" subtitle="Đang chờ host duyệt" />
+  return <SafeAreaView style={styles.safe}><ScreenHeader onBack={onBack} title="Yêu cầu tham gia"  />
     <ScrollView refreshControl={<RefreshControl refreshing={remote.loading} onRefresh={remote.reload} />} contentContainerStyle={styles.page}>
-      <RemoteState {...remote} empty={!remote.data.length} onRetry={remote.reload} />
+      <RemoteState {...remote} empty={!remote.data.length} emptyMessage="Hiện chưa có yêu cầu nào." onRetry={remote.reload} />
       {action.error ? <Text>{action.error}</Text> : null}
       {!remote.loading && !remote.error && remote.data.map(request => request.activity && <ActivityRow key={request.id} activity={toActivity(request.activity, request.status)} onPress={() => onOpen(toActivity(request.activity!, request.status))}>
         <Button disabled={action.busy} label="Hủy yêu cầu" onPress={() => void action.run(async () => { await cancelRequest(request.activityId!); await remote.reload(); })} />
@@ -57,7 +58,7 @@ export function MyActivitiesScreen({ onBack, onOpenGroup, onOpenPending }: { onB
   const [tab, setTab] = useState<'joined' | 'owned' | 'past'>('joined');
   const loader = useCallback(async () => { const [joined, owned] = await Promise.all([listJoined(), listOwned()]); return { joined, owned }; }, []);
   const remote = useRemote(loader, { joined: [], owned: [] });
-  const isPast = (item: typeof remote.data.joined[number]) => item.status === 'completed' || Boolean(item.endsAt && new Date(item.endsAt).getTime() <= now);
+  const isPast = (item: typeof remote.data.joined[number]) => ['completed', 'expired', 'cancelled'].includes(item.status || '') || Boolean(item.endsAt && new Date(item.endsAt).getTime() <= now);
   const rows = tab === 'past' ? [...remote.data.joined, ...remote.data.owned].filter(isPast) : remote.data[tab].filter(item => !isPast(item));
   return <SafeAreaView style={styles.safe}><ScreenHeader onBack={onBack} title="Hoạt động của tôi" />
     <ScrollView refreshControl={<RefreshControl refreshing={remote.loading} onRefresh={remote.reload} />} contentContainerStyle={styles.page}>
@@ -68,36 +69,44 @@ export function MyActivitiesScreen({ onBack, onOpenGroup, onOpenPending }: { onB
     </ScrollView></SafeAreaView>;
 }
 
-export function MembersPanel({ activity, onLeft }: { activity: Activity; onLeft: () => void }) {
-  const [now] = useState(Date.now);
+export function MembersPanel({ activity, onLeft, onChanged }: { activity: Activity; onLeft: () => void; onChanged?: () => void }) {
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 10000); return () => clearInterval(timer); }, []);
   const loader = useCallback(async () => { const [members, latest] = await Promise.all([listMembers(activity.id), getActivity(activity.id)]); return { members, latest }; }, [activity.id]);
   const snapshot = useRemote<{ members: Member[]; latest: ActivityDto | null }>(loader, { members: [], latest: null });
   const remote = { ...snapshot, data: snapshot.data.members };
+  const reload = snapshot.reload;
+  useEffect(() => { const timer = setInterval(() => void reload(true), 10000); return () => clearInterval(timer); }, [reload]);
   const reservedSeats = snapshot.data.latest?.reservedSeats ?? activity.reservedSeats ?? 0;
   const action = useAction();
-  const isHost = activity.hostId === getSession()?.user.id;
+  const isHost = activity.hostId === getSession()?.user.id || Boolean(activity.isBusinessManager);
   const latest = snapshot.data.latest;
   const canChange = (latest?.status ?? activity.backendStatus) === 'published' && Boolean((latest?.startsAt || activity.startsAt) && new Date(latest?.startsAt || activity.startsAt!).getTime() > now);
   const [target, setTarget] = useState<string | null>(null);
   const [profileId, setProfileId] = useState<string | null>(null);
-  return <View><Text style={styles.title}>Thành viên ({remote.data.length + reservedSeats})</Text>
-    {reservedSeats > 0 && <GroupCompanions key={`${activity.id}-${latest?.version ?? 0}`} activityId={activity.id} editable={canChange && isHost} onSaved={() => void remote.reload()} />}
+  return <View>{isHost && <JoinRequestsPanel activityId={activity.id} enabled={canChange} full={Boolean(latest && latest.memberCount >= latest.maxParticipants)} onChanged={() => { void remote.reload(true); onChanged?.(); }} />}<Text style={styles.title}>Thành viên ({remote.data.length + reservedSeats})</Text>
     {canChange && isHost && activity.organizerType !== 'business' && <AddActivityFriends activityId={activity.id} onAdded={() => void remote.reload()} />}
     <RemoteState {...remote} onRetry={remote.reload} />
     {action.error ? <Text>{action.error}</Text> : null}
-    {!remote.loading && !remote.error && remote.data.map(member => <View key={member.userId} style={styles.card}>
-      <Pressable style={styles.row} onPress={() => setProfileId(member.userId)}>
+    {!remote.loading && !remote.error && remote.data.map(member => <View key={member.userId} style={[styles.card, styles.row]}>
+      <Pressable style={[styles.row, { flex: 1 }]} onPress={() => setProfileId(member.userId)}>
         {member.avatarUrl ? <Image source={{ uri: imageUrl(member.avatarUrl) }} style={{ width: 48, height: 48, borderRadius: 24 }} /> : null}
-        <View style={styles.copy}><Text style={styles.title}>{member.name}</Text><Text>{member.role === 'host' ? 'Host' : 'Thành viên'} · Xem hồ sơ</Text></View>
+        <View style={styles.copy}>
+          <Text style={styles.title}>{member.name}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <Text>{member.role === 'host' ? (activity.organizerType === 'business' ? 'Doanh nghiệp tổ chức' : 'Host') : 'Thành viên'}</Text>
+            {member.depositStatus && <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, backgroundColor: member.depositStatus === 'paid' ? colors.successSoft : colors.warningSoft }}><Text style={{ fontSize: 11, fontWeight: '700', color: member.depositStatus === 'paid' ? colors.successText : colors.warningText }}>{member.depositStatus === 'paid' ? 'Đã cọc' : 'Chưa cọc'}</Text></View>}
+          </View>
+        </View>
       </Pressable>
-      {canChange && isHost && member.role !== 'host' && <Button disabled={action.busy} label="Loại thành viên" onPress={() => setTarget(member.userId)} />}
+      {canChange && isHost && member.role !== 'host' && <Pressable accessibilityRole="button" accessibilityLabel={`Xóa ${member.name}`} disabled={action.busy} onPress={() => setTarget(member.userId)} style={{ minHeight: 44, minWidth: 44, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: colors.danger, fontSize: 13 }}>Xóa</Text></Pressable>}
     </View>)}
     {canChange && !isHost && !activity.isBusinessManager && !remote.loading && !remote.error && <Button disabled={action.busy} label="Rời nhóm" onPress={() => setTarget('me')} />}
-    {target && <View style={styles.card}><Text>{target === 'me' ? 'Bạn muốn rời nhóm?' : 'Loại thành viên này khỏi nhóm?'}</Text><View style={styles.tabs}>
-      <Button disabled={action.busy} label="Giữ lại" onPress={() => setTarget(null)} />
-      <Button disabled={action.busy} label="Xác nhận" onPress={() => void action.run(async () => {
+    {target && <View style={styles.card}><Text>{target === 'me' ? 'Bạn muốn rời nhóm?' : `Xóa ${remote.data.find(member => member.userId === target)?.name || 'thành viên'} khỏi nhóm?`}</Text><View style={styles.tabs}>
+      <Button disabled={action.busy} label="Hủy" onPress={() => setTarget(null)} />
+      <Button disabled={action.busy} label={target === 'me' ? 'Rời nhóm' : 'Xóa'} onPress={() => void action.run(async () => {
         if (target === 'me') { await leaveActivity(activity.id); onLeft(); }
-        else { await removeMember(activity.id, target); await remote.reload(); }
+        else { await removeMember(activity.id, target); await remote.reload(true); onChanged?.(); }
         setTarget(null);
       })} />
     </View></View>}

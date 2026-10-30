@@ -41,13 +41,16 @@ export function HomeHeader({ activityCount, onCalendarPress, onNotificationsPres
 }
 
 export function NextActivityCard({ activity, onGroup, onPlan }: { activity: Activity; onGroup: () => void; onPlan: () => void }) {
+  const diffMs = activity.startsAt ? new Date(activity.startsAt).getTime() - Date.now() : 0;
+  const countdown = !activity.startsAt ? '' : diffMs <= 0 ? '◷ Đang diễn ra' : diffMs < 3600000 ? `◷ Còn ${Math.max(1, Math.ceil(diffMs / 60000))} phút` : diffMs < 86400000 ? `◷ Còn ${Math.ceil(diffMs / 3600000)} giờ` : `◷ Còn ${Math.ceil(diffMs / 86400000)} ngày`;
+  const endTime = activity.endsAt ? ` – ${new Date(activity.endsAt).toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', hour12: false })}` : '';
   return (
     <ImageBackground resizeMode="cover" source={activity.image} style={styles.nextCard}>
       <LinearGradient colors={[colors.overlaySubtle, colors.overlayMedium, colors.overlayHeavy]} locations={[0, 0.52, 1]} style={styles.nextOverlay}>
-        <View style={styles.nextTopRow}><View style={styles.nextPill}><Ionicons color={colors.primary} name="time-outline" size={15} /><Text style={styles.nextPillText}>Hoạt động tiếp theo</Text></View><Text style={styles.countdown}>◷ Còn 5 giờ</Text></View>
+        <View style={styles.nextTopRow}><View style={styles.nextPill}><Ionicons color={colors.primary} name="time-outline" size={15} /><Text style={styles.nextPillText}>Hoạt động tiếp theo</Text></View><Text style={styles.countdown}>{countdown}</Text></View>
         <View>
           <Text style={styles.nextTitle}>{activity.title}</Text>
-          <ActivityMeta icon="calendar-outline" text={`${activity.time} – 21:00`} />
+          <ActivityMeta icon="calendar-outline" text={`${activity.time}${endTime}`} />
           <ActivityMeta icon="location" text={`${activity.location} • ${activity.distance}`} />
           <View style={styles.memberRow}><AvatarStack activity={activity} /><Text style={styles.memberText}>{activity.members} thành viên</Text></View>
           <View style={styles.nextActions}>

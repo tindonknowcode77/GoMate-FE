@@ -1,5 +1,6 @@
 import { JoinConfirmationProvider, useJoinConfirmation } from '../components/JoinConfirmation';
-import { useFeedbackState } from '../services/feedback';
+import { promptProfileCompletion, setProfileRedirectHandler, useFeedbackState } from '../services/feedback';
+import { canUserParticipate, isBasicProfileComplete, missingBasicProfileLabels } from '../components/ActivityChoices';
 import { createConversation, getConversation } from '../services/chatService';
 import { FriendsScreen } from './FriendsScreen';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -129,8 +130,21 @@ function MainAppContent({ onLogout }: { onLogout: () => void }) {
   const { activeTab, route } = navigation;
   const navRef = useRef(navigation);
   useEffect(() => { navRef.current = navigation; }, [navigation]);
-  const setActiveTab = (tab: MainTab) => { const next = { activeTab: tab, route: null }; navRef.current = next; navigate(next); };
-  const setRoute = useCallback((next: FullScreenRoute, replace = false) => { const state = { ...navRef.current, route: next }; navRef.current = state; navigate(state, replace); }, [navigate]);
+  const setActiveTab = (tab: MainTab) => { setActionError(''); const next = { activeTab: tab, route: null }; navRef.current = next; navigate(next); };
+  const setRoute = useCallback((next: FullScreenRoute, replace = false) => { setActionError(''); const state = { ...navRef.current, route: next }; navRef.current = state; navigate(state, replace); }, [navigate, setActionError]);
+  useEffect(() => {
+    setProfileRedirectHandler(() => { setActionError(''); setRoute({ name: 'editProfile' }); });
+    return () => setProfileRedirectHandler();
+  }, [setActionError, setRoute]);
+  useEffect(() => {
+    if (activeTab === 'create' && !route && userProfile.profile && !isBasicProfileComplete(userProfile.profile)) {
+      const missing = missingBasicProfileLabels(userProfile.profile);
+      promptProfileCompletion(
+        `Bạn cần bổ sung đủ thông tin cơ bản (${missing.join(', ')}) trước khi tạo bài đăng hoạt động.`,
+        () => { if (navRef.current.activeTab === 'create') setActiveTab('home'); }
+      );
+    }
+  }, [activeTab, route, userProfile.profile]);
   useEffect(() => {
     if (route?.name !== 'chatLink') return;
     let alive = true;
@@ -188,14 +202,27 @@ function MainAppContent({ onLogout }: { onLogout: () => void }) {
   const mutation = useRef(false);
   const submitJoin = async (activity: Activity) => {
     if (mutation.current) return false;
+    if (userProfile.profile && !isBasicProfileComplete(userProfile.profile)) {
+      promptProfileCompletion(`Hồ sơ của bạn chưa đủ thông tin cơ bản (${missingBasicProfileLabels(userProfile.profile).join(', ')}). Vui lòng bổ sung thông tin để gửi yêu cầu tham gia.`);
+      return false;
+    }
+    if (userProfile.profile && !canUserParticipate(activity.participantPreferences, userProfile.profile)) {
+      promptProfileCompletion('Hồ sơ chưa đáp ứng yêu cầu nhóm. Hãy kiểm tra và bổ sung giới tính, ngày sinh, ngôn ngữ hoặc tùy chọn cá nhân trong hồ sơ.');
+      return false;
+    }
     mutation.current = true; setActionError('');
-    try { if (!await confirmJoin(activity)) return false; await joinActivity(activity.id); void matchFeedback(activity.id, 'interested').catch(() => {}); return true; }
-    catch (reason) { setActionError(reason instanceof Error ? reason.message : 'Không gửi được yêu cầu. Vui lòng thử lại.'); return false; }
+    try { await joinActivity(activity.id); void matchFeedback(activity.id, 'interested').catch(() => {}); return true; }
+    catch (reason) {
+      const msg = reason instanceof Error ? reason.message : 'Không gửi được yêu cầu. Vui lòng thử lại.';
+      if (/hồ sơ|điều kiện nhóm|điều kiện hoạt động/i.test(msg)) promptProfileCompletion(msg);
+      else setActionError(msg);
+      return false;
+    }
     finally { mutation.current = false; }
   };
   const handlePrimary = async (activity: Activity) => {
     if (activity.isBusinessManager) { setRoute({ name: 'group', activity, source: 'myActivities' }); return; }
-    if (activity.hostId === getSession()?.user.id) { setRoute({ name: 'manage' }); return; }
+    if (activity.hostId === getSession()?.user.id) { setRoute({ name: 'group', activity, source: 'myActivities', initialTab: 'manage' }); return; }
     if (activity.requestStatus === 'approved') { setRoute({ name: 'group', activity, source: 'myActivities' }); return; }
     if (activity.requestStatus === 'pending') {
       if (mutation.current) return;
@@ -225,7 +252,6 @@ function MainAppContent({ onLogout }: { onLogout: () => void }) {
   }, [filters, activities]);
 
   if (userProfile.loading || userProfile.error) return <SafeAreaView style={styles.safeArea}><RemoteState loading={userProfile.loading} error={userProfile.error} onRetry={userProfile.reload} /></SafeAreaView>;
-  if (userProfile.profile && !userProfile.profile.profileComplete) return <EditProfileScreen required onBack={handleLogout} onSaved={() => { void userProfile.reload(); }} />;
 
   if (route?.name === 'activityLink' || route?.name === 'chatLink') return <SafeAreaView style={styles.safeArea}><RemoteState loading error="" onRetry={() => {}} /></SafeAreaView>;
   if (route?.name === 'discover' && (discovery.loading || discovery.error || preferences.loading || preferences.error)) return <SafeAreaView style={styles.safeArea}><ScreenHeader title="Khám phá" onBack={() => setRoute(null)} /><RemoteState loading={discovery.loading || preferences.loading} error={discovery.error || preferences.error} onRetry={() => { void preferences.reload(); void discovery.reload(); }} /></SafeAreaView>;
@@ -254,7 +280,7 @@ function MainAppContent({ onLogout }: { onLogout: () => void }) {
     if (notice.type.startsWith('business-')) { if (Platform.OS === 'web') window.location.assign('/portal'); else await Linking.openURL(apiBaseUrl.replace(/\/api\/?$/, '') + '/portal'); return; }
     if (notice.type === 'activity-invitation') { setRoute({ name: 'friends' }); return; }
     if (notice.conversationId) { setRoute({ name: 'chat', conversation: await getConversation(notice.conversationId) }); return; }
-    if (notice.activityId) { const [row, requests] = await Promise.all([getActivity(notice.activityId), listMyRequests()]); const member = requests.some(request => request.activityId === row.id && request.status === 'approved'); setRoute(row.hostId === getSession()?.user.id || member ? { name: 'group', activity: toActivity(row), source: 'myActivities', initialTab: row.hostId === getSession()?.user.id ? 'manage' : 'chat' } : { name: 'activityDetail', activity: toActivity(row), source: 'home' }); return; }
+    if (notice.activityId) { const [row, requests] = await Promise.all([getActivity(notice.activityId), listMyRequests()]); const member = requests.some(request => request.activityId === row.id && request.status === 'approved'); setRoute(row.hostId === getSession()?.user.id || member ? { name: 'group', activity: toActivity(row), source: 'myActivities', initialTab: notice.type === 'join-request' || /yêu cầu tham gia/i.test(notice.title) ? 'members' : 'chat' } : { name: 'activityDetail', activity: toActivity(row, requests.find(request => request.activityId === row.id)?.status), source: 'home' }); return; }
     setRoute({ name: 'friends' });
   }} />;
   if (route?.name === 'myActivities') return <MyActivitiesScreen onOpenPending={() => setRoute({ name: 'pending' })} onBack={() => setRoute(null)} onOpenGroup={(activity) => setRoute({ name: 'group', activity, source: 'myActivities' })} />;
@@ -263,7 +289,7 @@ function MainAppContent({ onLogout }: { onLogout: () => void }) {
     return <EditProfileScreen onBack={() => setRoute(returnRoute)} onSaved={() => setRoute(returnRoute)} />;
   }
   if (route?.name === 'settings') return <SettingsScreen page={route.section || 'root'} onNavigate={section => setRoute({ name: 'settings', section })} onBack={() => setRoute(null)} onLogout={handleLogout} />;
-  if (route?.name === 'friends') return <FriendsScreen onBack={() => setRoute(null)} onChat={async userId => { const conversation = await createConversation({ type: 'direct', userId }); setRoute({ name: 'chat', conversation, returnTo: 'friends' }); }} />;
+  if (route?.name === 'friends') return <FriendsScreen onBack={() => setRoute(null)} onInvitationAccepted={async activityId => { const row = await getActivity(activityId); setRoute({ name: 'group', activity: toActivity(row, 'approved'), source: 'myActivities', initialTab: 'chat' }); }} onChat={async userId => { const conversation = await createConversation({ type: 'direct', userId }); setRoute({ name: 'chat', conversation, returnTo: 'friends' }); }} />;
   if (route?.name === 'chat') {
     const current = route;
     const back = () => setRoute(current.returnTo === 'friends' ? { name: 'friends' } : current.returnTo === 'discover' ? { name: 'discover' } : null);
@@ -277,15 +303,24 @@ function MainAppContent({ onLogout }: { onLogout: () => void }) {
 
   return (
     <SafeAreaView edges={['top', 'bottom', 'left', 'right']} style={styles.safeArea}>
-      {actionError ? <Text style={{ color: colors.danger, padding: 12 }}>{actionError}</Text> : null}
+      {userProfile.profile && !userProfile.profile.emailVerified && <Pressable accessibilityRole="button" onPress={() => setRoute({ name: 'verification' })} style={{ padding: 12, backgroundColor: colors.primarySoft }}><Text style={{ color: colors.primary }}>Xác minh email để tham gia hoạt động</Text></Pressable>}
       <View style={styles.content}>
         {activeTab === 'home' && <HomeScreen onProfilePress={() => setActiveTab('profile')} onMatchPress={() => { setActiveTab('match'); setRoute({ name: 'discover' }); }} onMyActivitiesPress={() => setRoute({ name: 'myActivities' })} onNotificationsPress={() => setRoute({ name: 'notifications' })} onOpenActivity={(activity) => setRoute({ name: 'activityDetail', activity, source: 'home' })} onOpenGroup={(activity) => setRoute({ name: 'group', activity, source: 'home' })} onPendingPress={() => setRoute({ name: 'pending' })} />}
         {activeTab === 'match' && <MatchHubScreen onProfile={() => setActiveTab('profile')} onFavorites={() => setRoute({ name: 'favorites' })} onDiscover={() => setRoute({ name: 'discover' })} onManage={() => setRoute({ name: 'manage' })} onNotifications={() => setRoute({ name: 'notifications' })} onPending={() => setRoute({ name: 'pending' })} onPreviewProfile={() => setRoute({ name: 'ownProfilePreview' })} />}
-        {activeTab === 'create' && <CreateActivityScreen onCreated={() => { void discovery.reload(); setRoute({ name: 'manage' }); }} />}
+        {activeTab === 'create' && <CreateActivityScreen onRequireProfile={() => setRoute({ name: 'editProfile' })} onCreated={() => { void discovery.reload(); setRoute({ name: 'manage' }); }} />}
         {activeTab === 'messages' && <MessagesScreen onFriends={() => setRoute({ name: 'friends' })} onOpenChat={(conversation) => setRoute({ name: 'chat', conversation })} />}
         {activeTab === 'profile' && <UserProfileScreen onFriends={() => setRoute({ name: 'friends' })} onPreview={() => setRoute({ name: 'ownProfilePreview' })} onVerification={() => setRoute({ name: 'verification' })} onReviews={() => setRoute({ name: 'myReviews' })} onEdit={() => setRoute({ name: 'editProfile' })} onMyActivities={() => setRoute({ name: 'myActivities' })} onNotifications={() => setRoute({ name: 'notifications' })} onSettings={() => setRoute({ name: 'settings' })} />}
       </View>
-      <BottomNav activeTab={activeTab} onChange={(tab) => { const next: Navigation = { activeTab: tab, route: tab === 'match' ? { name: 'discover' } : null }; navRef.current = next; navigate(next); }} />
+      <BottomNav activeTab={activeTab} onChange={(tab) => {
+        if (tab === 'create' && userProfile.profile && !isBasicProfileComplete(userProfile.profile)) {
+          promptProfileCompletion(`Bạn cần bổ sung đủ thông tin cơ bản (${missingBasicProfileLabels(userProfile.profile).join(', ')}) trước khi tạo bài đăng hoạt động.`);
+          return;
+        }
+        setActionError('');
+        const next: Navigation = { activeTab: tab, route: tab === 'match' ? { name: 'discover' } : null };
+        navRef.current = next;
+        navigate(next);
+      }} />
 
     </SafeAreaView>
   );

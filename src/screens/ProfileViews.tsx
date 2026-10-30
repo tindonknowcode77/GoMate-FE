@@ -48,6 +48,8 @@ function ProfileForm({ profile, required, onSaved }: { profile: UserProfile; req
         const asset = result.assets[0];
         if (!asset.base64 || (asset.fileSize ?? 0) > 10 * 1024 * 1024 || asset.base64.length * 3 / 4 - (asset.base64.endsWith('==') ? 2 : asset.base64.endsWith('=') ? 1 : 0) > 10 * 1024 * 1024) throw new Error('Mỗi ảnh tối đa 10 MB.');
         setPhoto({ uri: asset.uri, base64: asset.base64 }); setError('');
+        setPhotoBusy(true);
+        try { const updated = await uploadAvatar(asset.base64); remote.update(updated); setPhoto(null); } finally { setPhotoBusy(false); }
       }
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Không chọn được ảnh'); }
   };
@@ -61,8 +63,6 @@ function ProfileForm({ profile, required, onSaved }: { profile: UserProfile; req
       if (!draft.gender) throw new Error('Vui lòng chọn giới tính.');
       if (!profileRegions.includes(draft.location)) throw new Error('Vui lòng chọn tỉnh / thành phố.');
       if (!draft.languages.length) throw new Error('Vui lòng chọn ngôn ngữ.');
-      if (step !== 'basic' && !draft.bio.trim()) throw new Error('Vui lòng nhập giới thiệu.');
-      if (step !== 'basic' && !draft.interests.length) throw new Error('Vui lòng chọn sở thích.');
       let updated = await saveProfile({ ...draft, birthDate });
       if (photo) { updated = await uploadAvatar(photo.base64); setPhoto(null); }
       remote.update(updated);

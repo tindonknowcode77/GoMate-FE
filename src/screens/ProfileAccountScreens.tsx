@@ -1,3 +1,4 @@
+import { VerifyEmailScreen } from './VerifyEmailScreen';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,10 +10,11 @@ import { getMyReviews } from '../services/profileService';
 import { useRemote } from '../services/useRemote';
 import { colors, layout } from '../theme';
 export function VerificationStatusScreen({ onBack }: { onBack: () => void }) {
-  const { profile } = useProfile();
+  const { profile, reload } = useProfile();
+  if (profile && !profile.emailVerified) return <VerifyEmailScreen email={profile.email} onBack={onBack} onVerified={() => { void reload(); onBack(); }} />;
   return <SafeAreaView style={styles.safe}><ScreenHeader title="Xác minh tài khoản" onBack={onBack} /><ScrollView contentContainerStyle={styles.page}>
-    <View style={styles.card}><Ionicons name={profile?.emailVerified ? 'checkmark-circle' : 'mail-outline'} size={42} color={colors.success} /><Text style={styles.title}>{profile?.emailVerified ? 'Email đã xác minh' : 'Email chưa xác minh'}</Text><Text>{profile?.email}</Text><Text style={styles.note}>Email được xác minh khi bạn đăng ký hoặc đăng nhập bằng Google.</Text></View>
-    <View style={styles.card}><Text style={styles.title}>Hồ sơ GoMate</Text><Text>{profile?.profileComplete ? 'Bạn đã hoàn thiện thông tin hồ sơ.' : 'Hãy hoàn thiện thông tin để người đồng hành hiểu bạn hơn.'}</Text><Text style={styles.note}>Xác minh email xác nhận quyền truy cập email của bạn. GoMate chưa cung cấp xác minh giấy tờ tùy thân.</Text></View>
+    <View style={styles.card}><Ionicons name={profile?.emailVerified ? 'checkmark-circle' : 'mail-outline'} size={42} color={colors.success} /><Text style={styles.title}>{profile?.emailVerified ? 'Email đã xác minh' : 'Email chưa xác minh'}</Text><Text>{profile?.email}</Text><Text style={styles.note}></Text></View>
+    <View style={styles.card}><Text style={styles.title}>Hồ sơ GoMate</Text><Text>{profile?.profileComplete ? 'Đã hoàn thiện' : 'Chưa hoàn thiện'}</Text><Text style={styles.note}>Xác minh email xác nhận quyền truy cập email của bạn. GoMate chưa cung cấp xác minh giấy tờ tùy thân.</Text></View>
   </ScrollView></SafeAreaView>;
 }
 export function MyReviewsScreen({ onBack }: { onBack: () => void }) {

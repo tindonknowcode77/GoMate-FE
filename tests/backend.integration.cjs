@@ -44,7 +44,7 @@ test('real FE services against BE: login, creation, requests, decisions, lists, 
   const passwordHash = await hashPassword(password);
   for (const name of ['host', 'member', 'other']) {
     const user = await authRepository.createUser({ name, email: `${name}@example.com`, passwordHash });
-    await db.collection('users').updateOne({ id: user.id }, { $set: { email_verified: true } });
+    await db.collection('users').updateOne({ id: user.id }, { $set: { email_verified: true, ...(name === 'host' ? { birthDate: '2000-01-01', gender: 'female', location: 'TP.HCM', languages: ['English'] } : {}) } });
   }
   let verificationCode;
   const verificationMailer = { assertConfigured() {}, async sendCode(_email, code) { verificationCode = code; } };
@@ -88,6 +88,14 @@ test('real FE services against BE: login, creation, requests, decisions, lists, 
   assert.equal(activity.meetingPoint, 'Gate');
   assert.equal((await host.activities.listOwned()).length, 1);
   assert.equal((await host.activities.listJoined()).length, 0);
+  await assert.rejects(other.draft.publishActivityDraft({
+    name: 'Host mismatch test', description: 'Meet new friends', category: 'Ăn uống', photos: [],
+    date: '05/01/2099', endDate: '', startTime: '09:00', endTime: '11:00', registrationDeadline: '04/01/2099 · 18:00',
+    scheduleNote: '09:00 Meet', province: 'TP. Hồ Chí Minh', district: 'Quận 1', address: '123 Test', meetingPoint: 'Gate',
+    minParticipants: '2', maxParticipants: '3', participantPreferences: { genders: ['female'], languages: ['English'], religions: [], alcohol: 'any', dressCode: '' }, requirements: '', financialConfig: {
+      fundingMode: 'FULL_PREPAYMENT', estimatedCostPerMember: 0, paymentDeadline: '', treasurerUserId: 'current-user', approvalThreshold: 1000000, approvalRule: 'MAJORITY',
+    },
+  }), error => error.status === 400 && error.code === 'HOST_PROFILE_MISMATCH');
   assert.equal((await member.activities.listActivities())[0].id, activity.id);
   await assert.rejects(member.activities.joinActivity(activity.id), error => error.status === 403);
   await member.profile.saveProfile({ ...profileDraft, name: 'Member' });
@@ -123,12 +131,16 @@ test('real FE services against BE: login, creation, requests, decisions, lists, 
   const updated = await host.api.api(`/activities/${activity.id}`, { method: 'PATCH', body: JSON.stringify({ title: 'Edited integration meetup', registrationDeadline: null }) });
   assert.equal(updated.activity.title, 'Edited integration meetup');
   assert.equal(updated.activity.registrationDeadline, null);
+  const rejoined = (await member.activities.joinActivity(activity.id)).request;
+  await host.activities.decideRequest(activity.id, rejoined.id, 'approved');
+  const confirmed = await host.activities.confirmActivitySchedule(activity.id, (await host.activities.getActivity(activity.id)).version);
+  assert.ok(confirmed.scheduleConfirmedAt);
   const started = await host.activities.transitionActivity(activity.id, 'start');
   assert.equal(started.status, 'in-progress');
   await assert.rejects(other.activities.transitionActivity(activity.id, 'complete'), error => error.status === 403);
   const roster = await host.activities.listAttendance(activity.id);
-  assert.equal(roster.length, 1);
-  await host.activities.markAttendance(activity.id, roster[0].userId, 'present');
+  assert.equal(roster.length, 2);
+  for (const person of roster) await host.activities.markAttendance(activity.id, person.userId, 'present');
   assert.equal((await host.reload().activities.listAttendance(activity.id))[0].status, 'present');
   await host.activities.addActivityUpdate(activity.id, 'Arrived at meeting point');
   assert.equal((await host.activities.listUpdates(activity.id))[0].text, 'Arrived at meeting point');

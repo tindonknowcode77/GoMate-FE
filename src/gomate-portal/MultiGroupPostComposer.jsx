@@ -1,6 +1,6 @@
 import { usePortalText } from './usePortalText';
 import { useRef, useState } from 'react';
-import { Icon, PillButton, StatusPill } from './GoMatePortal';
+import { Icon, PillButton } from './GoMatePortal';
 
 const fieldStyle = 'gm-simple-input';
 
@@ -16,22 +16,22 @@ function localDateTime(daysAhead, hour) {
   return date.toISOString().slice(0, 16);
 }
 
-function createGroup(index, locations) {
+function createGroup(index, locations, maxParticipants = 12, baseGroup = null) {
   const location = locations[index % Math.max(locations.length, 1)];
-  const startsAt = localDateTime(2 + index, 9 + (index % 2) * 4);
-  const endsAt = localDateTime(2 + index, 11 + (index % 2) * 4);
+  const startsAt = baseGroup?.startsAt || localDateTime(2 + index, 9 + (index % 2) * 4);
+  const endsAt = baseGroup?.endsAt || localDateTime(2 + index, 11 + (index % 2) * 4);
   return {
     id: `group-draft-${Date.now()}-${index}`,
     name: `Group ${String(index + 1).padStart(2, '0')}`,
-    category: 'Workshop',
-    locationId: location?.id || '',
-    location: location?.address || '',
-    meetingPoint: location?.name || '',
+    category: baseGroup?.category || 'Workshop',
+    locationId: baseGroup?.locationId || location?.id || '',
+    location: baseGroup?.location || location?.address || '',
+    meetingPoint: baseGroup?.meetingPoint || location?.name || '',
     startsAt,
     endsAt,
-    maxParticipants: 12,
-    estimatedCost: 100000,
-    depositAmount: 0,
+    maxParticipants,
+    estimatedCost: baseGroup?.estimatedCost ?? 100000,
+    depositAmount: baseGroup?.depositAmount ?? 0,
   };
 }
 
@@ -39,6 +39,8 @@ export default function MultiGroupPostComposer({ locations, onPublish, busy }) {
   const t = usePortalText();
   const [promo, setPromo] = useState({ title: '', copy: '', discountPercent: 20, offer: '', offerTerms: '' });
   const [groups, setGroups] = useState(() => [createGroup(0, locations), createGroup(1, locations)]);
+  const [totalParticipants, setTotalParticipants] = useState(300);
+  const [splitCount, setSplitCount] = useState(3);
   const nextGroupNumber = useRef(2);
 
   const patchPromo = key => event => setPromo(value => ({ ...value, [key]: event.target.value }));
@@ -54,9 +56,17 @@ export default function MultiGroupPostComposer({ locations, onPublish, busy }) {
   };
   const addGroup = () => {
     const number = nextGroupNumber.current++;
-    setGroups(current => [...current, createGroup(number, locations)]);
+    setGroups(current => [...current, createGroup(number, locations, 12, current[0])]);
   };
-  const removeGroup = id => setGroups(current => current.length > 2 ? current.filter(group => group.id !== id) : current);
+  const splitGroupsAutomatically = () => {
+    const count = Math.min(20, Math.max(1, Number(splitCount) || 1));
+    const total = Math.max(count * 2, Number(totalParticipants) || count * 10);
+    const perGroup = Math.min(1000, Math.max(2, Math.ceil(total / count)));
+    const template = groups[0];
+    nextGroupNumber.current = count;
+    setGroups(Array.from({ length: count }, (_, index) => createGroup(index, locations, perGroup, template)));
+  };
+  const removeGroup = id => setGroups(current => current.length > 1 ? current.filter(group => group.id !== id) : current);
   const submit = event => {
     event.preventDefault();
     onPublish({
@@ -89,15 +99,23 @@ export default function MultiGroupPostComposer({ locations, onPublish, busy }) {
       <section className="gm-generated-groups-section">
         <div className="gm-business-section-heading gm-groups-heading">
           <span className="gm-business-step">02</span>
-          <div><h4>{t("Groups generated from this post")}</h4><p>{t("Configure each event separately. Minimum two groups.")}</p></div>
+          <div><h4>{t("Groups generated from this post")}</h4><p>{t("Tách tổng số người tham gia thành nhiều nhóm chat độc lập để phân công Staff quản lý.")}</p></div>
           <span className="gm-group-count">{t(groups.length)} {t(" groups")}</span>
+        </div>
+        <div className="gm-panel" style={{ padding: 14, marginBottom: 14, background: '#f7f6fd', borderRadius: 14 }}>
+          <strong>Tách nhóm nhanh theo quy mô sự kiện</strong>
+          <div className="gm-field-grid" style={{ marginTop: 8, alignItems: 'end' }}>
+            <Field label="Tổng số người tham gia"><input type="number" className={fieldStyle} min={2} max={20000} value={totalParticipants} onChange={e => setTotalParticipants(e.target.value)} /></Field>
+            <Field label="Số nhóm muốn tách (1–20)"><input type="number" className={fieldStyle} min={1} max={20} value={splitCount} onChange={e => setSplitCount(e.target.value)} /></Field>
+            <PillButton type="button" variant="secondary" onClick={splitGroupsAutomatically}>Tách thành {Math.min(20, Math.max(1, Number(splitCount) || 1))} nhóm ({Math.ceil((Number(totalParticipants) || 0) / Math.max(1, Number(splitCount) || 1))} người/nhóm)</PillButton>
+          </div>
         </div>
         <div className="gm-generated-groups">
           {groups.map((group, index) => <article className="gm-generated-group" key={group.id}>
             <div className="gm-generated-group-heading">
               <span className="gm-group-number">{t(String(index + 1).padStart(2, '0'))}</span>
               <div><h5>{group.name}</h5><span>{t("Separate GoMate group")}</span></div>
-              {groups.length > 2 && <button type="button" className="gm-text-action gm-remove-group" onClick={() => removeGroup(group.id)} aria-label={t(`Remove ${group.name}`)} title={t("Remove group")}><Icon name="close" size={16} /></button>}
+              {groups.length > 1 && <button type="button" className="gm-text-action gm-remove-group" onClick={() => removeGroup(group.id)} aria-label={t(`Remove ${group.name}`)} title={t("Remove group")}><Icon name="close" size={16} /></button>}
             </div>
             <div className="gm-field-grid">
               <Field label={t("Group name")}><input className={fieldStyle} required maxLength={100} value={group.name} onChange={event => patchGroup(group.id, 'name', event.target.value)} /></Field>

@@ -30,7 +30,8 @@ export function ActivitySummaryScreen({ activity, onBack, onRate }: { activity: 
             {Boolean(activity.images?.length) && <View style={styles.card}><Text style={styles.cardTitle}>Ảnh hoạt động</Text><ScrollView horizontal contentContainerStyle={{ gap: 8 }}>{activity.images!.map((source, index) => <Image key={index} source={source} style={{ width: 140, height: 100, borderRadius: 14 }} />)}</ScrollView></View>}
             <View style={styles.card}><Text style={styles.cardTitle}>Kết bạn với người đồng hành</Text>{remote.data.members.filter(member => member.userId !== getSession()?.user.id && remote.data!.attendance.some(item => item.userId === member.userId && ['present', 'late'].includes(item.status))).map(member => <View key={member.userId} style={{ gap: 10, paddingVertical: 12 }}><Text>{member.name}</Text><FriendRequestButton userId={member.userId} /></View>)}</View>
           </>}
-          <GradientButton label="Đánh giá trải nghiệm" onPress={onRate} trailing={<Ionicons color={colors.white} name="star" size={18} />} />
+          {remote.data && !remote.data.attendance.some(item => item.userId === getSession()?.user.id && ['present', 'late'].includes(item.status)) ? <Text style={{ color: colors.textSecondary, marginBottom: 10 }}>Chỉ thành viên được điểm danh có mặt hoặc đến muộn mới có thể gửi đánh giá.</Text> : null}
+          <GradientButton disabled={!remote.data || !remote.data.attendance.some(item => item.userId === getSession()?.user.id && ['present', 'late'].includes(item.status))} label="Đánh giá trải nghiệm" onPress={onRate} trailing={<Ionicons color={colors.white} name="star" size={18} />} />
         </View>
       </ScrollView>
     </SafeAreaView>

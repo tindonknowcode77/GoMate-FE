@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import { MemberProfileModal } from '../MemberProfileModal';
 import { imageUrl } from '../../services/profileService';
 import { Image, ImageBackground, Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -28,6 +30,7 @@ export function MatchHeader({ distance = 'Chưa có vị trí', onBack, onFilter
 
 export function ActivityMatchCard({ preview = false, favorite = false, onFavorite, activity, canUndo, onMore, onUndo }: { preview?: boolean; favorite?: boolean; onFavorite?: () => void; activity: Activity; canUndo: boolean; onMore: () => void; onUndo: () => void }) {
   const { language } = useLanguage();
+  const [showHost, setShowHost] = useState(false);
   return (
     <View style={[styles.cardShadow, activity.organizerType === 'business' && { borderWidth: 2, borderColor: '#44A58E', borderRadius: 24 }]}>
       <View style={styles.card}>
@@ -60,11 +63,11 @@ export function ActivityMatchCard({ preview = false, favorite = false, onFavorit
           <DetailSection title="Giới thiệu"><Text style={styles.body}>{activity.description}</Text></DetailSection>
           <PreferencesSummary value={activity.participantPreferences} />
           <DetailSection title="Host hoạt động">
-            <View style={styles.hostDetail}>
+            <Pressable disabled={!activity.hostId} onPress={() => setShowHost(true)} style={styles.hostDetail}>
               <View style={styles.hostAvatarLarge}>{activity.hostAvatarUrl ? <Image source={{ uri: imageUrl(activity.hostAvatarUrl) }} style={{ width: 44, height: 44, borderRadius: 22 }} /> : <Text style={styles.hostInitialLarge}>{activity.host.charAt(0)}</Text>}</View>
-              <View style={styles.hostDetailCopy}><View style={styles.hostNameRow}><Text style={styles.hostDetailName}>{activity.host}</Text></View><Text style={styles.hostDetailMeta}>{activity.hostRating > 0 ? `★ ${activity.hostRating.toFixed(1)}` : 'Chưa có đánh giá'} • {activity.hostCompletedActivities} hoạt động đã hoàn tất</Text></View>
+              <View style={styles.hostDetailCopy}><View style={styles.hostNameRow}><Text style={styles.hostDetailName}>{activity.host}</Text></View><Text style={styles.hostDetailMeta}>{activity.hostRating != null && activity.hostRating > 0 ? `★ ${activity.hostRating.toFixed(1)}` : 'Chưa có đánh giá'} • {activity.hostCompletedActivities} hoạt động đã hoàn tất</Text></View>
               <Ionicons color={colors.textMuted} name="chevron-forward" size={19} />
-            </View>
+            </Pressable>{showHost && activity.hostId ? <MemberProfileModal userId={activity.hostId} onClose={() => setShowHost(false)} /> : null}
           </DetailSection>
           {activity.requirements.length > 0 && <DetailSection title="Lưu ý">{activity.requirements.map((item) => <Bullet key={item} text={item} />)}</DetailSection>}
           {activity.coordinates && <DetailSection title="Bản đồ địa điểm"><RouteMap point={activity.coordinates} /></DetailSection>}

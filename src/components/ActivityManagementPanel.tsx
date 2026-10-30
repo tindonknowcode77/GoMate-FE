@@ -9,7 +9,7 @@ import { GradientButton } from './GradientButton';
 import { ActivityLifecyclePanel } from './ActivityLifecyclePanel';
 import { BusinessIdentity } from './BusinessIdentity';
 import { Activity } from '../data/activities';
-import { ActivityDto, decideRequest, deleteActivity, getActivity, listRequests, toActivity } from '../services/activityApi';
+import { ActivityDto, deleteActivity, getActivity, toActivity } from '../services/activityApi';
 import { getSession } from '../services/api';
 import { useRemote } from '../services/useRemote';
 import { CreateActivityScreen } from '../screens/CreateActivityScreen';
@@ -21,8 +21,8 @@ type Props = { activityId: string; onPlan?: () => void; onOpenGroup?: (activity:
 export function ActivityManagementPanel({ activityId, onPlan, onOpenGroup, onMembers, onProgress, onDeleted, onChanged }: Props) {
   const load = useCallback(async () => {
     const activity = await getActivity(activityId);
-    if (activity.hostId !== getSession()?.user.id) throw new Error('Chỉ host có quyền quản lý hoạt động.');
-    return { activity, requests: await listRequests(activityId) };
+    if (activity.hostId !== getSession()?.user.id && !activity.isBusinessManager) throw new Error('Chỉ host hoặc nhân sự được phân công có quyền quản lý hoạt động.');
+    return { activity };
   }, [activityId]);
   const remote = useRemote(load, null);
   const [editing, setEditing] = useState(false), [error, setError] = useFeedbackState(''), [busy, setBusy] = useState(false);
@@ -39,28 +39,25 @@ export function ActivityManagementPanel({ activityId, onPlan, onOpenGroup, onMem
   };
   const refresh = async () => { await remote.reload(); const fresh = await getActivity(activityId); onChanged?.(fresh); };
   const editable = row?.status === 'published' && new Date(row.startsAt).getTime() > now;
-  const decide = (requestId: string, status: 'approved' | 'rejected') => void run(async () => { await decideRequest(activityId, requestId, status); await refresh(); });
   const confirm = () => void run(async () => {
     if (!row || !confirmation) return;
     if (confirmation === 'delete') { await deleteActivity(activityId); setConfirmation(null); onDeleted(); return; }
   });
   const dialog = confirmation && {
-    delete: ['Xóa hoạt động?', 'Thành viên sẽ không còn truy cập được hoạt động và chat nhóm. Hành động này không thể hoàn tác.'],
+    delete: [row && row.memberCount > 1 ? 'Hủy hoạt động?' : 'Xóa hoạt động?', row && row.memberCount > 1 ? 'Nhóm sẽ ngừng nhận tin nhắn. Lịch sử trò chuyện được giữ lại.' : 'Hoạt động sẽ bị xóa. Không thể hoàn tác.'],
   }[confirmation];
   return <View style={styles.panel}>
     <RemoteState {...remote} onRetry={remote.reload} />
     {row && <>
       <ActivityLifecyclePanel activity={row} onPlan={onPlan} onChanged={fresh => { remote.setData(data => data ? { ...data, activity: fresh } : data); onChanged?.(fresh); }} onProgress={fresh => onProgress?.(toActivity(fresh))} />
       {row.organizerType === 'business' && <View style={styles.card}><BusinessIdentity activity={toActivity(row)} details /><Text style={styles.body}>Lịch và ưu đãi đã công bố. Người tham gia cần tự đăng ký và được doanh nghiệp xác nhận; không thêm bạn bè hoặc giữ chỗ ngoài danh sách đăng ký.</Text></View>}
-      <View style={styles.overview}><View style={styles.headingRow}><View style={styles.statusDot} /><Text style={styles.eyebrow}>{row.status === 'expired' ? 'ĐÃ HẾT HẠN' : row.status === 'completed' ? 'ĐÃ KẾT THÚC' : row.status === 'in-progress' ? 'ĐANG DIỄN RA' : 'SẮP DIỄN RA'}</Text><Pressable accessibilityRole="button" accessibilityLabel="Làm mới quản lý" onPress={() => void remote.reload()}><Ionicons name="refresh-outline" size={19} color={colors.primary} /></Pressable></View><Text style={styles.title}>Cùng nhóm sẵn sàng lên đường</Text><View style={styles.stats}><View style={styles.stat}><Text style={styles.statValue}>{row.memberCount}/{row.maxParticipants}</Text><Text style={styles.muted}>Thành viên</Text></View><View style={styles.stat}><Text style={styles.statValue}>{remote.data?.requests.length || 0}</Text><Text style={styles.muted}>Chờ duyệt</Text></View><View style={styles.stat}><Ionicons name={row.scheduleConfirmedAt ? 'calendar' : 'calendar-outline'} size={23} color={colors.primary} /><Text style={styles.muted}>{row.scheduleConfirmedAt ? 'Đã chốt lịch' : 'Chưa chốt lịch'}</Text></View></View></View>
+      <View style={styles.overview}><View style={styles.headingRow}><View style={styles.statusDot} /><Text style={styles.eyebrow}>{row.status === 'expired' ? 'ĐÃ HẾT HẠN' : row.status === 'completed' ? 'ĐÃ KẾT THÚC' : row.status === 'in-progress' ? 'ĐANG DIỄN RA' : 'SẮP DIỄN RA'}</Text><Pressable accessibilityRole="button" accessibilityLabel="Làm mới quản lý" onPress={() => void remote.reload()}><Ionicons name="refresh-outline" size={19} color={colors.primary} /></Pressable></View><Text style={styles.title}>Tổng quan</Text><View style={styles.stats}><View style={styles.stat}><Text style={styles.statValue}>{row.memberCount}/{row.maxParticipants}</Text><Text style={styles.muted}>Thành viên</Text></View><View style={styles.stat}><Ionicons name={row.scheduleConfirmedAt ? 'calendar' : 'calendar-outline'} size={23} color={colors.primary} /><Text style={styles.muted}>{row.scheduleConfirmedAt ? 'Đã chốt lịch' : 'Chưa chốt lịch'}</Text></View></View></View>
       <View style={styles.card}>
-        {onOpenGroup && <ManagementRow icon="chatbubbles-outline" title="Mở chat nhóm" detail="Trao đổi cùng thành viên ngay từ bây giờ" onPress={() => onOpenGroup(toActivity(row))} />}
-        {onMembers && <ManagementRow icon="people-outline" title="Quản lý thành viên" detail="Thêm bạn bè, xem hồ sơ và quản lý nhóm" onPress={() => onMembers(toActivity(row))} />}
-        {editable && row.organizerType !== 'business' && <ManagementRow icon="create-outline" title="Chỉnh sửa hoạt động" detail="Cập nhật bài đăng, thời gian và kế hoạch" disabled={busy} onPress={() => setEditing(true)} />}
+        {onOpenGroup && <ManagementRow icon="chatbubbles-outline" title="Mở chat nhóm" detail="" onPress={() => onOpenGroup(toActivity(row))} />}
+        {onMembers && <ManagementRow icon="people-outline" title="Quản lý thành viên" detail="" onPress={() => onMembers(toActivity(row))} />}
+        {editable && row.organizerType !== 'business' && <ManagementRow icon="create-outline" title="Chỉnh sửa hoạt động" detail="" disabled={busy} onPress={() => setEditing(true)} />}
       </View>
-      <View style={styles.headingRow}><Text style={styles.sectionTitle}>Yêu cầu tham gia</Text><View style={styles.count}><Text style={{ color: colors.primary, fontWeight: '700' }}>{remote.data?.requests.length || 0}</Text></View></View>
-      {!remote.data?.requests.length ? <View style={[styles.card, styles.empty]}><View style={styles.emptyIcon}><Ionicons name="people-outline" size={26} color={colors.primary} /></View><Text style={styles.sectionTitle}>Chưa có yêu cầu mới</Text><Text style={[styles.muted, { textAlign: 'center' }]}>Khi có người muốn đồng hành, bạn có thể xem và duyệt tại đây.</Text></View> : remote.data.requests.map(request => <View style={styles.request} key={request.id}><View style={styles.initial}><Text style={{ color: colors.primary, fontWeight: '800' }}>{request.name.slice(0, 1).toUpperCase()}</Text></View><View style={{ flex: 1, gap: 4 }}><Text style={styles.sectionTitle}>{request.name}</Text><Text style={styles.muted}>Muốn tham gia nhóm</Text><View style={styles.requestActions}><Pressable accessibilityRole="button" disabled={busy || !editable} onPress={() => decide(request.id, 'rejected')} style={styles.secondary}><Text style={{ color: colors.textSecondary }}>Từ chối</Text></Pressable><Pressable accessibilityRole="button" disabled={busy || !editable || row.memberCount >= row.maxParticipants} onPress={() => decide(request.id, 'approved')} style={styles.approve}><Text style={{ color: colors.white, fontWeight: '700' }}>Duyệt</Text></Pressable></View>{!editable || row.memberCount >= row.maxParticipants ? <Text style={styles.muted}>{!editable ? 'Hoạt động không còn nhận thành viên.' : 'Nhóm đã đủ chỗ.'}</Text> : null}</View></View>)}
-      <View style={styles.card}><ManagementRow icon="trash-outline" title="Xóa hoạt động" detail="Gỡ bài đăng và đóng quyền truy cập nhóm" destructive disabled={busy} onPress={() => setConfirmation('delete')} /></View>
+      <View style={styles.card}><ManagementRow icon="trash-outline" title={row.memberCount > 1 ? 'Hủy hoạt động' : 'Xóa hoạt động'} detail="" destructive disabled={busy} onPress={() => setConfirmation('delete')} /></View>
     </>}
     {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
     <Modal visible={Boolean(confirmation)} transparent animationType="fade" onRequestClose={() => { if (!busy) setConfirmation(null); }}><View style={styles.overlay}><View style={styles.dialog}><Ionicons name={confirmation === 'delete' ? 'trash-outline' : 'calendar-outline'} size={30} color={confirmation === 'delete' ? colors.danger : colors.primary} /><Text style={styles.title}>{dialog?.[0]}</Text><Text style={styles.body}>{dialog?.[1]}</Text>{error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}<GradientButton disabled={busy} label={busy ? 'Đang xử lý...' : 'Xác nhận'} onPress={confirm} /><Pressable accessibilityRole="button" disabled={busy} onPress={() => { setConfirmation(null); setError(''); }} style={styles.cancel}><Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Để sau</Text></Pressable></View></View></Modal>
@@ -69,7 +66,7 @@ export function ActivityManagementPanel({ activityId, onPlan, onOpenGroup, onMem
 }
 
 function ManagementRow({ icon, title, detail, onPress, destructive, disabled }: { icon: Icon; title: string; detail: string; onPress: () => void; destructive?: boolean; disabled?: boolean }) {
-  return <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} style={[styles.action, disabled && { opacity: 0.5 }]}><View style={[styles.actionIcon, destructive && { backgroundColor: colors.matchSoft }]}><Ionicons name={icon} size={22} color={destructive ? colors.danger : colors.primary} /></View><View style={{ flex: 1, gap: 5 }}><Text style={[styles.sectionTitle, destructive && { color: colors.danger }]}>{title}</Text><Text style={styles.muted}>{detail}</Text></View><Ionicons name="chevron-forward" color={colors.textMuted} size={18} /></Pressable>;
+  return <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} style={[styles.action, disabled && { opacity: 0.5 }]}><View style={[styles.actionIcon, destructive && { backgroundColor: colors.matchSoft }]}><Ionicons name={icon} size={22} color={destructive ? colors.danger : colors.primary} /></View><View style={{ flex: 1, gap: 5 }}><Text style={[styles.sectionTitle, destructive && { color: colors.danger }]}>{title}</Text>{detail ? <Text style={styles.muted}>{detail}</Text> : null}</View><Ionicons name="chevron-forward" color={colors.textMuted} size={18} /></Pressable>;
 }
 
 export function ManagedActivityThumbnail({ activity, selected, onPress }: { activity: Activity; selected: boolean; onPress: () => void }) {

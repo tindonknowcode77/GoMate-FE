@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { MemberProfileModal } from '../components/MemberProfileModal';
 import { Text } from '../components/LocalizedText';
 import { GradientButton } from '../components/GradientButton';
 import { ScreenHeader } from '../components/ScreenHeader';
@@ -13,10 +14,11 @@ import { Activity } from '../data/activities';
 import { colors, layout, radii } from '../theme';
 import { genderOptions, religionOptions } from '../components/ActivityChoices';
 
-export function ActivityDetailScreen({ activity, error, isHost = false, onBack, onPrimary, onViewPeople }: { activity: Activity; error?: string; isHost?: boolean; onBack: () => void; onPrimary: () => void; onViewPeople: () => void }) {
+export function ActivityDetailScreen({ activity, error, isHost = false, onBack, onPrimary }: { activity: Activity; error?: string; isHost?: boolean; onBack: () => void; onPrimary: () => void; onViewPeople: () => void }) {
+  const [showHost, setShowHost] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 60000); return () => clearInterval(timer); }, []);
-  const unavailable = activity.backendStatus === 'completed' || activity.backendStatus === 'in-progress' || Boolean(activity.startsAt && new Date(activity.startsAt).getTime() <= now) || Number(activity.members.split('/')[0]) >= Number(activity.members.split('/')[1]);
+  const unavailable = ['completed', 'in-progress', 'expired', 'cancelled'].includes(activity.backendStatus || '') || Boolean(activity.registrationDeadline && new Date(activity.registrationDeadline).getTime() <= now) || Boolean(activity.startsAt && new Date(activity.startsAt).getTime() <= now) || Number(activity.members.split('/')[0]) >= Number(activity.members.split('/')[1]);
   const blocked = unavailable && !isHost && !activity.isBusinessManager && activity.requestStatus !== 'approved' && activity.requestStatus !== 'pending';
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -40,11 +42,11 @@ export function ActivityDetailScreen({ activity, error, isHost = false, onBack, 
           </View>
 
           {activity.coordinates && <RouteMap point={activity.coordinates} />}
-          <Pressable onPress={onViewPeople} style={styles.hostCard}>
+          <Pressable onPress={() => setShowHost(true)} style={styles.hostCard}>
             <View style={styles.hostAvatar}><Text style={styles.hostInitial}>{activity.host.charAt(0)}</Text></View>
             <View style={styles.hostCopy}>
-              <View style={styles.hostNameRow}><Text style={styles.hostName}>{activity.host}</Text><Ionicons color={colors.success} name="checkmark-circle" size={17} /></View>
-              <Text style={styles.hostMeta}>★ {activity.hostRating} · {activity.hostCompletedActivities} hoạt động đã hoàn thành</Text>
+              <View style={styles.hostNameRow}><Text style={styles.hostName}>{activity.host}</Text></View>
+              <Text style={styles.hostMeta}>{activity.hostRating == null ? 'Chưa có đánh giá' : `★ ${activity.hostRating}`} · {activity.hostCompletedActivities} hoạt động đã hoàn thành</Text>
             </View>
             <Ionicons color={colors.textMuted} name="chevron-forward" size={19} />
           </Pressable>
@@ -63,9 +65,10 @@ export function ActivityDetailScreen({ activity, error, isHost = false, onBack, 
           <Section title="Yêu cầu">
             {activity.requirements.map((item) => <Bullet key={item} text={item} />)}
           </Section>
-          <GradientButton disabled={blocked} label={activity.isBusinessManager ? 'Mở nhóm được phân công' : blocked ? 'Hoạt động không còn nhận thành viên' : activity.requestStatus === 'pending' ? 'Hủy yêu cầu tham gia' : activity.requestStatus === 'approved' ? 'Mở nhóm hoạt động' : isHost ? 'Quản lý hoạt động' : 'Gửi yêu cầu tham gia'} onPress={onPrimary} style={styles.cta} trailing={<Ionicons color={colors.white} name={isHost ? 'settings-outline' : 'heart'} size={19} />} />
+          <GradientButton disabled={blocked} label={activity.isBusinessManager ? 'Mở nhóm được phân công' : blocked ? (activity.backendStatus === 'cancelled' ? 'Hoạt động đã bị hủy' : ['completed', 'expired'].includes(activity.backendStatus || '') ? 'Hoạt động đã kết thúc' : activity.backendStatus === 'in-progress' || (activity.startsAt && new Date(activity.startsAt).getTime() <= now) ? 'Hoạt động đã bắt đầu' : (activity.registrationDeadline && new Date(activity.registrationDeadline).getTime() <= now) ? 'Đã hết hạn đăng ký' : Number(activity.members.split('/')[0]) >= Number(activity.members.split('/')[1]) ? 'Đã đủ chỗ' : 'Đã đóng đăng ký') : activity.requestStatus === 'pending' ? 'Hủy yêu cầu' : activity.requestStatus === 'approved' ? 'Mở nhóm' : isHost ? 'Quản lý hoạt động' : 'Yêu cầu tham gia'} onPress={onPrimary} style={styles.cta} trailing={<Ionicons color={colors.white} name={isHost ? 'settings-outline' : 'heart'} size={19} />} />
         </View>
       </ScrollView>
+      {showHost && activity.hostId && <MemberProfileModal userId={activity.hostId} onClose={() => setShowHost(false)} />}
     </SafeAreaView>
   );
 }

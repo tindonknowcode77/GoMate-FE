@@ -12,10 +12,10 @@ export type Activity = {
   minParticipants?: number;
   participantPreferences?: import('../components/ActivityChoices').ParticipantPreferences;
   meetingPoint?: string;
-  startsAt?: string;
+  registrationDeadline?: string | null; startsAt?: string;
   endsAt?: string;
-  requestStatus?: 'pending' | 'approved' | 'rejected' | 'cancelled' | 'left' | 'removed';
-  backendStatus?: 'published' | 'in-progress' | 'completed' | 'expired';
+  requestStatus?: 'pending' | 'approved' | 'rejected' | 'cancelled' | 'left' | 'removed' | 'closed';
+  backendStatus?: 'published' | 'in-progress' | 'completed' | 'expired' | 'cancelled';
   title: string;
   host: string;
   location: string;
@@ -28,7 +28,7 @@ export type Activity = {
   estimatedCost: string;
   requirements: string[];
   plan: string[];
-  hostRating: number;
+  hostRating: number | null;
   hostCompletedActivities: number;
   status?: 'pending' | 'confirmed' | 'in-progress' | 'completed';
   image: ImageSourcePropType;
