@@ -3,6 +3,170 @@
 This file records completed development work. Keep the newest entry at the top
 and follow `templates/development-log-entry.md`.
 
+## 2026-10-30 - Plain-text demo script and current-branch delivery
+
+### Summary
+
+- Add a Vietnamese plain-text script for the individual and business journeys, including Admin review, assigned staff, stable group allocation, inline locations, chat and withdrawal/deletion. Include setup, accounts, expected results and presenter checklist.
+- Deliver the accumulated FE/BE changes on their existing `quan_business` branches. Parent workspace launcher files are versioned under FE `tooling/workspace-root/` because the parent is not a Git repository.
+
+### Files changed
+
+- `docs/DEMO_HAI_LUONG.txt`, `docs/DEVELOPMENT_LOG.md`.
+
+### Verification
+
+- Reviewed instructions against current demo guide, launcher and verified portal flow. No source change in this documentation task; preceding entry records passing build, typecheck, browser regressions and backend tests.
+- Check staged whitespace and final remote branch SHAs during delivery.
+
+### Remaining work
+
+- None for the demo document. Existing lint/Expo Doctor limitations remain recorded below.
+
+## 2026-10-30 - Manual campaigns, stable group audiences and business group chat
+
+### Summary
+
+- Allow manual meeting points without a saved branch, with optional inline save and coordinates. Default to shared group information; split exact totals (20/3 = 7, 7, 6), explaining uneven splits before submission.
+- Move notices to the top-right bell; use refresh/settings icons. Settings is a placeholder. Redesign active-group search, cards and operational tabs; add owner/assigned-staff chat with history, polling, read receipts and authenticated attachments.
+- Persist one consumer group per campaign across discovery, direct URLs, joins, favorites, feed and chat. Owners/Admin/assigned staff retain scoped management access. New business group capacities count participants, excluding the organizer.
+- Add owner/Admin withdrawal/deletion of campaigns or groups, version checks and confirmation. Close requests/chat writes, retain history, notify affected users, and retry durable cleanup without resurrecting groups.
+
+### Files changed
+
+- FE: `src/gomate-portal/MultiGroupPostComposer.jsx`, `LocationLibrary.jsx`, `ConnectedPortal.jsx`, `ActiveCampaignDashboard.jsx`, `GoMatePortal.jsx`, `connected-portal.css`; new `BusinessGroupChat.jsx`, `PortalHeaderActions.jsx`, `PostLifecycleActions.jsx`; `tests/business-campaign-controls.web.cjs`, `package.json`, decision log.
+- BE: new `src/common/business-audience.js`, `src/modules/portal/post-lifecycle.js`; portal repository/routes/validation/operations, activity repository/routes/me-routes/chat-events, chat repository, database indexes; `tests/business-campaign-control.test.js`, `tests/business-workflow.test.js`, `docs/PORTAL_API.md`.
+
+### Verification
+
+- Relevant BE activity/business/chat/portal suite: 43 tests passed across 16 files. New campaign-control test passed again with injected post-commit chat failure, durable reconciliation, exactly-once notifications and no resurrection.
+- Root `npm run build:web`, FE `npm run typecheck`: passed. New `node tests/business-campaign-controls.web.cjs`: passed against isolated real BE/Mongo, including inline save, 20/3 split, approval, owner/staff chat and image download, withdrawal/deletion and mobile bounds. Screenshot inspected.
+- `node tests/portal-registration.web.cjs` and `node tests/verification-documents.web.cjs`: passed again against the final export, including session restoration and private document previews.
+- FE lint retains two unrelated Date.now render-purity errors and five warnings; Expo Doctor passes 20/21 checks with existing expo/expo-location/expo-sharing patch mismatches.
+
+### Remaining work
+
+- Settings intentionally has no action. Existing approved campaigns are not repartitioned or migrated to new participant counters. The full legacy native-app workflow test has a previously recorded unrelated staff-screen text expectation; the dedicated browser regression covers the new portal flow.
+
+## 2026-10-30 - Stable file picking, private image previews and complete Admin verification
+
+### Summary
+
+- Anchor the portal scroller to the viewport independently of Expo's fixed-height root. Anchor the native file input inside its upload control to avoid focus scrolling the document and exposing blank space after the picker closes.
+- Show local and saved image thumbnails for primary and supplemental verification documents in the business form/summary and Admin details. Load saved images through the existing authenticated owner/Admin download endpoint; revoke blob URLs and cancel obsolete requests. Refresh replaced files by application revision, including replacements with the same filename. PDFs keep a file card/download rather than an unsafe inline embed.
+- Use the complete application review panel on both Admin Overview and Business applications. Include every submitted business/contact field, account type, country, certificate/tax numbers, submission/update dates and both documents. Keep review state current after data refresh and show the modal above floating controls on mobile.
+
+### Files changed
+
+- `src/gomate-portal/VerificationDocumentPreview.jsx`, `BusinessVerificationForm.jsx`, `AdminBusinessReview.jsx`, `ConnectedPortal.jsx`, `connected-portal.css`.
+- `src/i18n/portalTranslations.ts`, `package.json`, `tests/verification-documents.web.cjs`, `tests/business-workflow.web.cjs`, `docs/DEVELOPMENT_LOG.md`.
+
+### Verification
+
+- Root `npm run build:web`, FE `npm run typecheck`, `git diff --check`: passed. Local `/portal` returns 200 and serves the latest bundle.
+- `node tests/verification-documents.web.cjs`: passed against an isolated real backend/database. Covers file chooser selection/cancel, viewport coverage without root scrolling, local image replacement, persisted private thumbnails, all submitted fields in Admin, rejection/resubmission with a same-name replacement and mobile rendering. Desktop/mobile screenshots inspected.
+- `node tests/portal-registration.web.cjs`: passed, including PDF submissions and restored-session/no-login-flash checks.
+- `npm run lint`: existing two Date.now render-purity errors and five warnings in unrelated files. `npx expo-doctor`: existing three patch mismatches; 20/21 checks passed.
+
+### Remaining work
+
+- Native picker coverage uses headless Chrome's file chooser automation; the exact original OS/DevTools repaint artifact was not independently reproduced. Image previews and viewport bounds pass the regression scenario without resizing or opening DevTools.
+
+## 2026-10-30 - Restore portal sessions without login flash and clarify Admin/Staff
+
+### Summary
+
+- Render a loading/retry workspace while a stored session resolves, rather than mounting email/password login. Keep sessions during temporary API failures; expired sessions still return to login.
+- Restrict platform review/management to Admin in FE and BE; reject assigning the retired global Staff role. Business Staff remains derived from business-created grants and retains group-scoped permissions.
+- Replace demo Staff with Admin and migrate only marked workshop demo accounts, preserving passwords/IDs and invalidating previous sessions. Applied the targeted migration locally without reseeding activities.
+
+### Files changed
+
+- FE: `src/gomate-portal/ConnectedPortal.jsx`, `DemoHub.jsx`, `connected-portal.css`, `src/i18n/portalTranslations.ts`, `tests/portal-registration.web.cjs`, demo/module documentation and logs.
+- BE: portal routes/repository, operator role command, `src/database/workshop-demo.js`, `workshop-demo-admin.js`, portal/business test fixtures, `tests/portal-authority.test.js`, `docs/PORTAL_API.md`.
+
+### Verification
+
+- `node --test tests/portal-authority.test.js tests/portal.test.js tests/business-events.test.js tests/business-verification.test.js tests/business-workflow.test.js`: 20 tests passed. Verifies Admin-only approval, legacy Staff/Business Staff denial, role assignment restrictions and safe/idempotent demo migration.
+- FE `node tests/portal-registration.web.cjs`: passed. DOM observer confirms no password form mounts during delayed reload or retry after HTTP 503; HTTP 401 clears the session and displays login. Demo card shows Admin; business registration/upload still passes.
+- Root `npm run build:web`, FE `npm run typecheck`: passed. Local demo migration returned demo.admin@gomate.local with admin role, retaining the existing password.
+- FE `npm run lint`: existing two Date.now render-purity errors and five warnings in unrelated files. `npx expo-doctor`: existing patch mismatches for expo, expo-location and expo-sharing (20/21 checks passed).
+
+### Remaining work
+
+- Real legacy Staff accounts require an explicit operator decision if they should become Admin; no automatic promotion is performed.
+
+## 2026-10-30 - Company and household business verification form
+
+### Summary
+
+- Remove the authenticated sidebar demo link; add company/individual account type, Vietnam region, explicit name/certificate guidance, 28 selectable industries with Other, and optional supplemental upload. Keep representative/contact information.
+- Persist schemaVersion 3 certificate identity, freeze certificate/type/region after submission and retain approval-based business access. Keep older application request shapes compatible.
+- Validate uploads on BE: matching PDF/PNG/JPEG/JPG formats, max 10 MB per file and parsed PDFs limited to 1–30 pages. Store supplemental files privately in a separate collection; expose metadata and owner/reviewer downloads only.
+
+### Files changed
+
+- FE: `src/gomate-portal/BusinessVerificationForm.jsx`, `ConnectedPortal.jsx`, `AdminBusinessReview.jsx`, `connected-portal.css`, `src/i18n/portalTranslations.ts`, `tests/portal-registration.web.cjs`, `tests/business-workflow.web.cjs`.
+- BE: `src/modules/portal/business-options.js`, `documents.js`, `validation.js`, `routes.js`, `repository.js`, `src/database/mongo.js`, package/lockfile, portal/business-workflow test fixtures, `tests/business-verification.test.js`, `docs/PORTAL_API.md`.
+- `docs/DECISIONS.md`, `docs/DEVELOPMENT_LOG.md`.
+
+### Verification
+
+- Root `npm run build:web`, FE `npm run typecheck`, both repository `git diff --check`: passed.
+- BE `node --test tests/business-verification.test.js tests/portal.test.js tests/business-workflow.test.js`: 18 tests passed. Includes PDF 30/31 page boundaries, malformed/oversized files, simultaneous two 10 MB uploads, allowed industries, certificate immutability, private supplemental downloads, rejection/resubmission and approval permissions.
+- FE `node tests/portal-registration.web.cjs`: passed with real isolated auth/portal APIs, household business upload plus supplemental PDF, industry selection and reload persistence; desktop/mobile screenshots inspected.
+- FE `node tests/business-workflow.web.cjs`: profile rejection/resubmission/approval and campaign publication stages passed. The wider suite then timed out on its unrelated staff-onboarding text expectation (Bạn là nhân sự quản lý nhóm doanh nghiệp, line 71); no staff UI was changed in this task. Updated selectors to match visible state rather than transient icon-containing alerts.
+- `npm run lint`: existing two Date.now render-purity errors and five warnings in unrelated app files. `npx expo-doctor`: existing three Expo package patch mismatches (20/21 checks passed).
+
+### Remaining work
+
+- PDF validation rejects unreadable/password-protected files. Only Vietnam is offered as requested. Real document identity/name matching is performed by reviewers, not OCR.
+
+## 2026-10-30 - Business registration directly inside the portal
+
+### Summary
+
+- Use the app's BrandLogo and Ionicons in the portal instead of the separate drawn logo/icons.
+- Add real account registration, password confirmation and email verification within `/portal`, followed by the existing business application form. Business permissions still require application approval.
+- Move demo and app access below authentication. State that downloads are unavailable, with a working web-app link. Include Vietnamese/English copy and mobile layout.
+
+### Files changed
+
+- `src/gomate-portal/PortalAuth.jsx`, `ConnectedPortal.jsx`, `GoMatePortal.jsx`, `connected-portal.css`.
+- `src/i18n/portalTranslations.ts`, `package.json`, `tests/portal-registration.web.cjs`.
+
+### Verification
+
+- `npm run build:web` (shared root), `npm run typecheck`: passed.
+- `node tests/portal-registration.web.cjs`: passed against an isolated MongoDB database and actual auth endpoints; covers mismatched passwords, account creation without business privileges, wrong/correct verification codes, authenticated business onboarding, reload persistence and mobile overflow. Inspected desktop and mobile screenshots.
+- `npm run lint`: existing two render-purity errors and five warnings in unrelated app files; no new reported errors. Portal JSX is excluded by the existing lint configuration.
+- `npx expo-doctor`: 20/21 checks passed; existing patch-version mismatches for expo, expo-location and expo-sharing.
+
+### Remaining work
+
+- No app download URL exists yet. Real email delivery requires the existing BE mail configuration; the test captures verification mail without external delivery.
+## 2026-10-30 - Standardize local web on port 3000
+
+### Summary
+
+- Replace the shared-root dual-server launcher with a fresh web export followed by BE watch mode on port 3000. Force same-origin `/api` during export; stop startup on export failure.
+- Add `dev` and `build:web` aliases, document manual rebuild/refresh after FE edits, and update demo URLs. Preserve native Expo commands.
+
+### Files changed
+
+- Shared parent `package.json`, `scripts/web-local.cjs`, `README.md`; versioned copies in `tooling/workspace-root/`.
+- `tooling/README.md`, `docs/DEMO_GUIDE.md`, `docs/DECISIONS.md`, `docs/DEVELOPMENT_LOG.md`.
+
+### Verification
+
+- `node --check scripts/web-local.cjs`, `npm run build:web`, `npm run typecheck`, launcher-copy equality and `git diff --check`: passed.
+- HTTP GET on existing local server: `/`, `/portal`, `/demo`, `/api/health` all returned 200 after the fresh export. An attempted second BE startup correctly failed with EADDRINUSE; the existing server was left running.
+- `npm run lint`: failed on existing Date.now render purity errors in HomeComponents.tsx and ActivityProgressScreen.tsx; five existing warnings. Those files were not changed.
+- `npx expo-doctor`: 20/21 passed; existing patch-version mismatches for expo, expo-location and expo-sharing.
+
+### Remaining work
+
+- Existing lint errors and Expo patch-version warnings remain outside this launcher change. Frontend edits require `npm run build:web` and a browser refresh.
 ## 2026-10-29 - Surface approved business assignments in the staff app
 
 ### Summary

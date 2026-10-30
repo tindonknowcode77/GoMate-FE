@@ -40,7 +40,7 @@ export default function LocationLibrary({ locations, onSave, onDelete }) {
     setMessage('');
   };
   const editLocation = location => {
-    setForm({ ...emptyLocation(), ...location });
+    setForm({ ...emptyLocation(), ...location, latitude:location.latitude ?? '',longitude:location.longitude ?? '' });
     mapAPI.pin(location);
     setMessage('');
   };
@@ -52,9 +52,9 @@ export default function LocationLibrary({ locations, onSave, onDelete }) {
   };
   const submit = async event => {
     event.preventDefault();
-    if(form.latitude===''||form.longitude===''){setMessage('Chọn điểm trên bản đồ hoặc nhập vĩ độ và kinh độ.');return;}
+    if ((form.latitude==='') !== (form.longitude==='')) {setMessage('Nhập cả vĩ độ và kinh độ, hoặc để trống cả hai.');return;}
     const isEditing = Boolean(form.id);
-    const location = { ...form, latitude: Number(form.latitude), longitude: Number(form.longitude) };
+    const location = { ...form, latitude: form.latitude===''?undefined:Number(form.latitude), longitude:form.longitude===''?undefined:Number(form.longitude) };
     if (await onSave(location) === false) return;
     reset({ clearMessage: false });
     setMessage(isEditing ? 'Location updated.' : 'Location added to the library.');
@@ -80,7 +80,7 @@ export default function LocationLibrary({ locations, onSave, onDelete }) {
               <Field label={t("City")}><input className={fieldStyle} value={form.city} required maxLength={100} onChange={patch('city')} /></Field>
               <Field label={t("Contact phone")}><input className={fieldStyle} type="tel" value={form.phone} onChange={patch('phone')} /></Field>
             </div>
-            <div className="gm-field-grid"><Field label="Vĩ độ"><input className={fieldStyle} type="number" step="any" min={-90} max={90} required value={form.latitude} onChange={patch('latitude')} /></Field><Field label="Kinh độ"><input className={fieldStyle} type="number" step="any" min={-180} max={180} required value={form.longitude} onChange={patch('longitude')} /></Field></div>{mapAPI.error && <p role="status">{mapAPI.error}</p>}
+            <div className="gm-field-grid"><Field label="Vĩ độ"><input className={fieldStyle} type="number" step="any" min={-90} max={90} value={form.latitude} onChange={patch('latitude')} /></Field><Field label="Kinh độ"><input className={fieldStyle} type="number" step="any" min={-180} max={180} value={form.longitude} onChange={patch('longitude')} /></Field></div>{mapAPI.error && <p role="status">{mapAPI.error}</p>}
             <div className="gm-location-coordinates"><span>{t(mapAPI.pinnedPlace ? 'Pinned coordinates' : 'Map pin')}</span><strong>{t(form.latitude ? `${Number(form.latitude).toFixed(4)}, ${Number(form.longitude).toFixed(4)}` : 'Select a search result or pin the map')}</strong></div>
             <div className="gm-location-form-actions"><PillButton type="submit" icon={form.id ? 'check' : 'plus'}>{t(form.id ? 'Save changes' : 'Add location')}</PillButton>{form.id && <button type="button" className="gm-text-action" onClick={reset}>{t("Cancel edit")}</button>}</div>
             {message && <p className="gm-location-message" role="status">{t(message)}</p>}

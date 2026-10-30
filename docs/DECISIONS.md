@@ -4,6 +4,31 @@ Record decisions here when they materially affect architecture, dependencies,
 security, the data model, or product behavior. Keep the newest decision at the
 top. Small implementation details belong only in `DEVELOPMENT_LOG.md`.
 
+### 2026-10-30 - One consumer group per business campaign and recoverable withdrawal
+
+- **Status:** Accepted.
+- **Audience:** Persist first group allocation under a unique user/campaign key, preferring existing pending/approved membership. Apply before consumer search pagination and to direct reads, joins, favorites, feed and chat. Do not allocate a second sibling when the first is withdrawn/deleted. Owners, Admin and scoped assigned staff retain management access.
+- **Creation:** Saved branches and coordinates are optional. Shared fields are the default. Divide exact totals by quotient/remainder and explain uneven splits; reject invalid capacities. New counters exclude the organizer from participant seats. Do not reshape existing approved campaigns.
+- **Lifecycle:** Owner/Admin can withdraw/delete campaigns/groups with optimistic versions. Deletion is logical to preserve history, receipts and audit evidence. Immediately hide the target and persist private cleanup tasks; reconcile activity state, system chat and idempotent notifications after interruptions. Staff cannot withdraw/delete.
+- **Chat:** Reuse authenticated conversation/file APIs for owners and approved assigned staff; cancelled groups become read-only. Poll history every three seconds. Settings is intentionally a placeholder.
+
+### 2026-10-30 - Admin owns moderation; Staff belongs to businesses
+
+- **Status:** Accepted.
+- **Decision:** Only Admin moderates and manages the platform. Retire the global Staff privilege and role assignment; preserve Business Staff as consented, approved grants created by business owners and scoped to assigned groups. Do not automatically elevate real legacy Staff accounts.
+- **Demo:** Replace the moderation card with demo.admin@gomate.local. Migrate only marked workshop demo accounts while preserving passwords/IDs and revoking previous sessions; block non-demo collisions.
+- **Session UI:** A stored authenticated session renders a workspace loading/retry screen until its profile/data resolves. Show the login form only without a valid session; temporary failures retain the stored session.
+
+### 2026-10-30 - Certificate identity and private business verification documents
+
+- **Status:** Accepted.
+- **Decision:** New verification forms use company/household account type, Vietnam region, a backend-owned industry allowlist and certificate number, while retaining representative/contact details. Certificate identity locks on submission; approved businesses cannot resubmit or rename through this endpoint. Legacy request shapes remain supported.
+- **Documents:** Parse PDFs server-side to enforce 30 pages; accept a primary and optional supplemental document up to 10 MB each. Store supplemental content in a separate private collection so two files do not exceed a MongoDB document limit. Only metadata appears in application views; downloads require ownership or Staff/Admin access.
+### 2026-10-30 - One local web origin on port 3000
+
+- **Status:** Accepted.
+- **Decision:** The shared-root `dev`/`dev:all` launcher exports current Expo web source with `EXPO_PUBLIC_API_BASE_URL=/api`, then starts BE on port 3000. The app, portal, demo and API share this origin; no Metro development server is started.
+- **Reason:** Avoid confusing the live Expo UI with an older static export on a second port. Build failures stop startup. `build:web` refreshes the export after frontend edits; refresh the browser manually. Native Expo scripts remain separate.
 ### 2026-10-29 - Business staff assignments are visible in app activities and chat
 
 - **Status:** Accepted, correcting approved staff assignments missing from the app.

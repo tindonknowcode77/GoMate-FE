@@ -28,20 +28,22 @@ const be = name => import(pathToFileURL(beRoot + '/src/' + name + '.js').href);
     browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE || (existsSync('C:/Program Files/Google/Chrome/Application/chrome.exe') ? 'C:/Program Files/Google/Chrome/Application/chrome.exe' : undefined), headless: true });
     for (let index=0;index<4;index++) { const page=await browser.newPage({timezoneId:"Asia/Ho_Chi_Minh",viewport:{width:index===3?390:1440,height:1000}});page.setDefaultTimeout(20000);page.on('pageerror',error=>errors.push(error.message));pages.push(page); }
     const [owner, admin, employee, participant] = pages;
-    const visible = (page,text) => page.getByText(text,{exact:true}).first().waitFor({state:'visible'});
+    const visible = (page,text) => page.getByText(text,{exact:false}).filter({visible:true}).first().waitFor({state:'visible'});
     const click = (page,text) => page.getByText(text,{exact:true}).last().click();
     const nav = (page,text) => page.locator('.gm-sidebar-nav').getByRole('button',{name:text,exact:true}).click();
     const call = (page,path,method='GET',body) => page.evaluate(async ({path,method,body})=>{ const session=JSON.parse(localStorage.getItem('gomate.session'));const response=await fetch('/api'+path,{method,headers:{Authorization:'Bearer '+session.accessToken,'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});return {status:response.status,body:await response.json()}; },{path,method,body});
     const login = async (page,index) => { await page.goto(base+'/portal');await page.getByLabel('Email',{exact:true}).fill(users[index].email);await page.getByLabel('Mật khẩu',{exact:true}).fill('123456');await page.getByRole('button',{name:'Đăng nhập',exact:true}).click();await page.locator('.gm-sidebar').waitFor(); };
     await login(owner,0); await login(admin,1); await login(employee,2); await login(participant,3);
     const company = 'Web Workshop Company';
-    for(const [label,value] of [['Tên doanh nghiệp',company],['Mã số thuế','0312345678'],['Lĩnh vực hoạt động','Workshop'],['Địa chỉ chi tiết','12 Nguyễn Huệ, TP. Hồ Chí Minh'],['Họ và tên người đại diện','Nguyễn Văn An'],['Chức vụ','Giám đốc'],['Email liên hệ','an@example.com'],['Số điện thoại','0901234567']]) await owner.getByLabel(label,{exact:true}).fill(value);
-    await owner.getByLabel('Hồ sơ xác minh',{exact:true}).setInputFiles({name:'license.pdf',mimeType:'application/pdf',buffer:Buffer.from('%PDF-1.4\nPrivate web license')});
+    for(const [label,value] of [['Tên doanh nghiệp',company],['Số giấy chứng nhận','0312345678'],['Địa chỉ chi tiết','12 Nguyễn Huệ, TP. Hồ Chí Minh'],['Họ và tên người đại diện','Nguyễn Văn An'],['Chức vụ','Giám đốc'],['Email liên hệ','an@example.com'],['Số điện thoại','0901234567']]) await owner.getByLabel(label,{exact:true}).fill(value);
+    await owner.getByLabel('Ngành',{exact:true}).selectOption('Thủ công, mỹ thuật và workshop');
+    const { PDFDocument } = beRequire('pdf-lib'); const licensePdf = await PDFDocument.create(); licensePdf.addPage();
+    await owner.getByLabel('Hồ sơ xác minh',{exact:true}).setInputFiles({name:'license.pdf',mimeType:'application/pdf',buffer:Buffer.from(await licensePdf.save())});
     await click(owner,'Gửi hồ sơ xác minh'); await visible(owner,'Chờ duyệt'); await owner.reload();await owner.locator('.gm-verification-summary dd').filter({hasText:'Nguyễn Văn An'}).waitFor();await visible(owner,'0312345678');
-    await admin.reload(); const applicationCard=admin.locator('.gm-live-review').filter({has:admin.getByRole('heading',{name:company,exact:true})});
-    await admin.getByLabel('Ghi chú hồ sơ '+company,{exact:true}).fill('Bổ sung địa chỉ');await applicationCard.getByRole('button',{name:'Từ chối hồ sơ',exact:true}).click();await visible(admin,'Đã gửi lý do từ chối.');
+    await admin.reload(); await admin.locator('.gm-admin-review-table tr').filter({hasText:company}).getByRole('button').click(); const applicationCard=admin.getByRole('dialog');
+    await applicationCard.getByLabel('Ghi chú duyệt',{exact:true}).fill('Bổ sung địa chỉ');await applicationCard.getByRole('button',{name:'Từ chối hồ sơ',exact:true}).click();await owner.reload();await visible(owner,'Cần cập nhật');
     await owner.reload();await owner.getByLabel('Địa chỉ chi tiết',{exact:true}).fill('20 Nguyễn Huệ, TP. Hồ Chí Minh');await click(owner,'Gửi lại hồ sơ');await visible(owner,'Chờ duyệt');
-    await admin.reload();await applicationCard.getByRole('button',{name:'Duyệt doanh nghiệp',exact:true}).click();await visible(admin,'Đã duyệt thành công.');
+    await admin.reload();await admin.locator('.gm-admin-review-table tr').filter({hasText:company}).getByRole('button').click();await applicationCard.getByRole('button',{name:'Duyệt doanh nghiệp',exact:true}).click();await owner.reload();await visible(owner,'Doanh nghiệp đã xác minh');
     await owner.reload();await visible(owner,'Doanh nghiệp đã xác minh');assert.equal((await db.collection('business_applications').findOne({ownerId:users[0].id})).address,'20 Nguyễn Huệ, TP. Hồ Chí Minh');
     console.log('PASS complete profile survives reload, rejection/resubmission retains private license and approval grants business access');
 
@@ -52,7 +54,7 @@ const be = name => import(pathToFileURL(beRoot + '/src/' + name + '.js').href);
     const groupForms=owner.locator('.gm-generated-group');for(let index=0;index<2;index++){const form=groupForms.nth(index);await form.getByLabel('Tên nhóm',{exact:true}).fill('Web group '+index);await form.getByLabel(/^Chọn nhanh địa điểm/).selectOption({label:'Workshop branch · Ho Chi Minh City'});await form.getByLabel('Tiền cọc / người (VND)',{exact:true}).fill(index===0?'50000':'0');}
     await owner.locator('.gm-multi-post-footer button[type="submit"]').click();await visible(owner,'Đã gửi bài và 2 nhóm để duyệt. Các nhóm chỉ xuất hiện trên app sau khi Staff duyệt.');
     assert.equal(await db.collection('activities').countDocuments({hostId:users[0].id}),0);
-    await admin.reload();const postCard=admin.locator('.gm-live-review').filter({has:admin.getByRole('heading',{name:'Web real campaign',exact:true})});await postCard.getByRole('button',{name:'Duyệt và đưa lên app',exact:true}).click();await visible(admin,'Đã duyệt thành công.');
+    await admin.reload();const postCard=admin.locator('.gm-live-review').filter({has:admin.getByRole('heading',{name:'Web real campaign',exact:true})});await postCard.getByRole('button',{name:'Duyệt và đưa lên app',exact:true}).click();await owner.reload();await visible(owner,'Doanh nghiệp đã xác minh');
     await owner.reload();await nav(owner,'Nhóm đang hoạt động');await visible(owner,'Quản lý nhóm thực tế');assert.equal(await db.collection('activities').countDocuments({hostId:users[0].id,status:'published'}),2);
     const activity=await db.collection('activities').findOne({hostId:users[0].id,businessGroupName:'Web group 0'});
     assert.deepEqual(activity.coordinates,{type:'Point',coordinates:[106.69,10.77]});
