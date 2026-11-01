@@ -1,21 +1,30 @@
+import { portalActionError } from './portalActionError';
 import { useEffect, useState } from 'react';
 import { api } from '../services/api';
+import { usePortalNotice } from './PortalNotifications';
 
 const money = amount => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount || 0);
 const escrowLabel = status => status === 'eligible-after-completion' ? 'Đã hoàn tất & điểm danh · Đủ điều kiện giải ngân (90%)' : status === 'refund-protected' ? 'Đã hủy/hết hạn · Bảo vệ hoàn cọc 100% cho người dùng' : 'Đang tạm giữ bảo đảm (Escrow) · Chờ hoàn tất sự kiện';
 
 export default function BusinessWallet() {
-  const [wallet, setWallet] = useState(null), [error, setError] = useState(''), [busy, setBusy] = useState(false);
-  const load = async () => {
+  const notify = usePortalNotice();
+  const [wallet, setWallet] = useState(null), [error, setError] = useState(''), [busy, setBusy] = useState(true);
+  const load = async (announce = false) => {
     setBusy(true); setError('');
-    try { setWallet(await api('/portal/wallet')); } catch (reason) { setError(reason.message); }
+    try { setWallet(await api('/portal/wallet')); if (announce) notify('Đã cập nhật dữ liệu ví và đối soát tiền cọc.'); } catch (reason) { const message = portalActionError('làm mới dữ liệu ví và đối soát tiền cọc', reason); setError(message); if (announce) notify(message, 'error'); }
     finally { setBusy(false); }
   };
-  useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    let alive = true;
+    void api('/portal/wallet').then(value => { if (alive) setWallet(value); })
+      .catch(reason => { if (alive) setError(portalActionError('tải dữ liệu ví và đối soát tiền cọc', reason)); })
+      .finally(() => { if (alive) setBusy(false); });
+    return () => { alive = false; };
+  }, []);
   return <section className="gm-panel gm-live-panel" aria-busy={busy}>
     <h2>Ví doanh nghiệp · Đối soát & Bảo đảm tiền cọc</h2>
     <p>Cơ chế bảo vệ người dùng (Anti-fraud Escrow): Tiền cọc của thành viên được đối soát theo từng nhóm hoạt động. Hệ thống thu phí nền tảng {wallet ? wallet.estimatedFeeBps / 100 : 10}% trên mỗi khoản cọc và chỉ giải ngân 90% còn lại về ví doanh nghiệp sau khi hoạt động đã diễn ra, điểm danh thành viên đầy đủ và kết thúc hợp lệ. Nếu sự kiện bị hủy hoặc quá hạn không tổ chức, khoản cọc được khóa giải ngân để bảo đảm hoàn lại cho người dùng.</p>
-    <button type="button" className="gm-simple-input" onClick={() => void load()} disabled={busy}>{busy ? 'Đang tải…' : 'Làm mới đối soát'}</button>
+    <button type="button" className="gm-simple-input" onClick={() => void load(true)} disabled={busy}>{busy ? 'Đang tải…' : 'Làm mới đối soát'}</button>
     {error && <p role="alert">{error}</p>}
     {wallet && <>
       <dl>

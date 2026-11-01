@@ -4,6 +4,14 @@ Record decisions here when they materially affect architecture, dependencies,
 security, the data model, or product behavior. Keep the newest decision at the
 top. Small implementation details belong only in `DEVELOPMENT_LOG.md`.
 
+### 2026-11-01 - Business-owned employee provisioning without approval
+
+- **Status:** Accepted. Supersedes the employee consent/admin-review requirement in earlier decisions; platform moderation remains admin-only.
+- **Provisioning:** Only verified business owners create new employee login accounts. Require a new email and a 6-128 character password, hashed by the existing auth module. Reject existing emails instead of changing or taking over another account. Email is marked verified for immediate use; the business provides initial credentials directly to the employee.
+- **Authority:** Keep the global account role user. Effective business-staff access comes from an active owner-scoped group grant. New grants use approved status plus provisionedAt, without inventing staff consent; previous approved/consented grants remain valid. Group IDs may be empty, must belong to the business, and updates/revocation apply immediately to portal/activity/chat reads and writes. Identity/password takeover via assignment edits is forbidden.
+- **Workflow:** Remove staff consent and admin staff-review endpoints/UI. Old pending grants require an explicit business save to activate; no automatic migration or global staff privileges are introduced. Business application/post review remains admin-only.
+- **Feedback:** Use a fixed top-right notice stack with dismiss buttons, live announcement roles and timed expiry for portal action results. Keep loading/read-failure context and field validation adjacent to the relevant data.
+
 ### 2026-10-30 - One consumer group per business campaign and recoverable withdrawal
 
 - **Status:** Accepted.

@@ -1,3 +1,5 @@
+import { usePortalNotice } from './PortalNotifications';
+import { portalActionError } from './portalActionError';
 import { usePortalText } from './usePortalText';
 import { useEffect, useState } from 'react';
 import { ActivityMap } from '../components/ActivityMap';
@@ -29,7 +31,7 @@ function Field({ label, children }) {
 export default function LocationLibrary({ locations, onSave, onDelete }) {
   const t = usePortalText();
   const [form, setForm] = useState(emptyLocation);
-  const [message, setMessage] = useState('');
+  const notify = usePortalNotice();
   const mapAPI = useMapAPI();
 
   const patch = key => event => setForm(value => ({ ...value, [key]: event.target.value }));
@@ -37,27 +39,22 @@ export default function LocationLibrary({ locations, onSave, onDelete }) {
     const place = await mapAPI.resolve(prediction); if(!place) return;
     mapAPI.pin(place);
     setForm(value => ({ ...value, address: place.address, city: place.city, latitude: place.latitude, longitude: place.longitude, mapX: place.mapX, mapY: place.mapY }));
-    setMessage('');
   };
   const editLocation = location => {
     setForm({ ...emptyLocation(), ...location, latitude:location.latitude ?? '',longitude:location.longitude ?? '' });
     mapAPI.pin(location);
-    setMessage('');
   };
-  const reset = ({ clearMessage = true } = {}) => {
+  const reset = () => {
     setForm(emptyLocation());
     mapAPI.pin(null);
     mapAPI.search('');
-    if (clearMessage) setMessage('');
   };
   const submit = async event => {
     event.preventDefault();
-    if ((form.latitude==='') !== (form.longitude==='')) {setMessage('Nhập cả vĩ độ và kinh độ, hoặc để trống cả hai.');return;}
-    const isEditing = Boolean(form.id);
+    if ((form.latitude==='') !== (form.longitude==='')) {notify(portalActionError(form.id ? 'cập nhật địa điểm' : 'thêm địa điểm', new Error('Nhập cả vĩ độ và kinh độ, hoặc để trống cả hai.')), 'error');return;}
     const location = { ...form, latitude: form.latitude===''?undefined:Number(form.latitude), longitude:form.longitude===''?undefined:Number(form.longitude) };
     if (await onSave(location) === false) return;
-    reset({ clearMessage: false });
-    setMessage(isEditing ? 'Location updated.' : 'Location added to the library.');
+    reset();
   };
 
   return (
@@ -83,7 +80,6 @@ export default function LocationLibrary({ locations, onSave, onDelete }) {
             <div className="gm-field-grid"><Field label="Vĩ độ"><input className={fieldStyle} type="number" step="any" min={-90} max={90} value={form.latitude} onChange={patch('latitude')} /></Field><Field label="Kinh độ"><input className={fieldStyle} type="number" step="any" min={-180} max={180} value={form.longitude} onChange={patch('longitude')} /></Field></div>{mapAPI.error && <p role="status">{mapAPI.error}</p>}
             <div className="gm-location-coordinates"><span>{t(mapAPI.pinnedPlace ? 'Pinned coordinates' : 'Map pin')}</span><strong>{t(form.latitude ? `${Number(form.latitude).toFixed(4)}, ${Number(form.longitude).toFixed(4)}` : 'Select a search result or pin the map')}</strong></div>
             <div className="gm-location-form-actions"><PillButton type="submit" icon={form.id ? 'check' : 'plus'}>{t(form.id ? 'Save changes' : 'Add location')}</PillButton>{form.id && <button type="button" className="gm-text-action" onClick={reset}>{t("Cancel edit")}</button>}</div>
-            {message && <p className="gm-location-message" role="status">{t(message)}</p>}
           </form>
         </section>
 

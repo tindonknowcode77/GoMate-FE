@@ -1,10 +1,13 @@
-import { useRef, useState } from 'react';
+import { portalActionError } from './portalActionError';
+import { usePortalNotice } from './PortalNotifications';
+import { useEffect, useRef, useState } from 'react';
 import { getSession, login, post, verifyEmail } from '../services/api';
 import { AuthShell, Icon, Logo, PillButton } from './GoMatePortal';
 import { usePortalText } from './usePortalText';
 
 export default function PortalAuth({ onAuthenticated, initialError }) {
   const t = usePortalText();
+  const notify = usePortalNotice();
   const [stage, setStage] = useState(getSession()?.user.emailVerified === false ? 'verify' : 'login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState(getSession()?.user.email || '');
@@ -12,16 +15,16 @@ export default function PortalAuth({ onAuthenticated, initialError }) {
   const [confirm, setConfirm] = useState('');
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(initialError || '');
+  useEffect(() => { if (initialError) notify(initialError, 'error'); }, [initialError, notify]);
   const [notice, setNotice] = useState('');
   const lock = useRef(false);
-  const run = async action => {
+  const run = async (action, operation = stage === 'register' ? 'đăng ký tài khoản doanh nghiệp' : stage === 'verify' ? 'xác minh email' : 'đăng nhập tài khoản') => {
     if (lock.current) return;
-    lock.current = true; setBusy(true); setError(''); setNotice('');
-    try { await action(); } catch (reason) { setError(reason.message); }
+    lock.current = true; setBusy(true); setNotice('');
+    try { await action(); } catch (reason) { notify(portalActionError(operation, reason), 'error'); }
     finally { lock.current = false; setBusy(false); }
   };
-  const changeStage = next => { setStage(next); setError(''); setNotice(''); setCode(''); setPassword(''); setConfirm(''); };
+  const changeStage = next => { setStage(next); setNotice(''); setCode(''); setPassword(''); setConfirm(''); };
   const submit = event => {
     event.preventDefault();
     void run(async () => {
@@ -33,11 +36,12 @@ export default function PortalAuth({ onAuthenticated, initialError }) {
       } else if (stage === 'verify') {
         await verifyEmail(email, code);
         await onAuthenticated();
+        notify('Đã xác minh email và đăng nhập tài khoản.');
       } else {
         const result = await login(email, password);
         setPassword('');
         if (!result.user.emailVerified) { setStage('verify'); setNotice('Xác minh email để tiếp tục đăng ký doanh nghiệp.'); }
-        else await onAuthenticated();
+        else { await onAuthenticated(); notify('Đăng nhập thành công.'); }
       }
     });
   };
@@ -50,14 +54,19 @@ export default function PortalAuth({ onAuthenticated, initialError }) {
         <label className="gm-field"><span>{t('Email')}</span><input className="gm-simple-input" type="email" autoComplete="username" required maxLength={254} readOnly={verifying} value={email} onChange={event => setEmail(event.target.value)} /></label>
         {verifying ? <label className="gm-field"><span>{t('Mã xác minh')}</span><input className="gm-simple-input" inputMode="numeric" autoComplete="one-time-code" required pattern="[0-9]{6}" maxLength={6} value={code} onChange={event => setCode(event.target.value)} /></label> : <label className="gm-field"><span>{t('Mật khẩu')}</span><input className="gm-simple-input" type="password" aria-label={t('Mật khẩu')} autoComplete={registering ? 'new-password' : 'current-password'} required minLength={registering ? 6 : 1} maxLength={128} value={password} onChange={event => setPassword(event.target.value)} />{registering && <small>{t('Từ 6 đến 128 ký tự.')}</small>}</label>}
         {registering && <label className="gm-field"><span>{t('Xác nhận mật khẩu')}</span><input className="gm-simple-input" type="password" autoComplete="new-password" required minLength={6} maxLength={128} value={confirm} onChange={event => setConfirm(event.target.value)} /></label>}
-        {error && <div className="gm-form-error" role="alert">{t(error)}</div>}
-        {notice && <div className="gm-live-muted" role="status">{t(notice)}</div>}
+        {notice && <AuthNotice message={notice} />}
         <PillButton type="submit" disabled={busy} icon={registering ? 'business' : verifying ? 'shield' : 'arrow'}>{t(busy ? 'Đang xử lý…' : registering ? 'Tạo tài khoản doanh nghiệp' : verifying ? 'Xác minh và tiếp tục' : 'Đăng nhập')}</PillButton>
       </form>
-      {verifying && <button className="gm-auth-text-button" disabled={busy} onClick={() => void run(async () => { await post('/auth/resend-verification', { email: email.trim() }); setNotice('Nếu tài khoản cần xác minh, mã sẽ được gửi đến email. Vui lòng chờ 60 giây trước khi gửi lại.'); })}>{t('Gửi lại mã xác minh')}</button>}
+      {verifying && <button className="gm-auth-text-button" disabled={busy} onClick={() => void run(async () => { await post('/auth/resend-verification', { email: email.trim() }); setNotice('Nếu tài khoản cần xác minh, mã sẽ được gửi đến email. Vui lòng chờ 60 giây trước khi gửi lại.'); }, 'gửi lại mã xác minh')}>{t('Gửi lại mã xác minh')}</button>}
       <div className="gm-partner-signup"><p>{t(stage === 'login' ? 'Doanh nghiệp chưa có tài khoản?' : 'Đã có tài khoản GoMate?')}</p><PillButton variant="secondary" disabled={busy} onClick={() => changeStage(stage === 'login' ? 'register' : 'login')}>{t(stage === 'login' ? 'Đăng ký tài khoản doanh nghiệp' : 'Quay lại đăng nhập')}</PillButton></div>
       {registering && <p className="gm-live-muted gm-partner-note">{t('Tài khoản chỉ có quyền doanh nghiệp sau khi hồ sơ được GoMate phê duyệt.')}</p>}
       <footer className="gm-partner-footer"><a href="/demo"><Icon name="play" />{t('Khám phá bản demo')}</a><div className="gm-partner-app"><span><Icon name="download" />{t('Tải ứng dụng GoMate')}</span><small>{t('Chưa có bản tải về. Bạn có thể sử dụng bản web.')}</small><a href="/">{t('Mở app GoMate trên web')}<Icon name="external" size={15} /></a></div></footer>
     </div>
   </AuthShell></div>;
+}
+
+function AuthNotice({ message, tone }) {
+  const notify = usePortalNotice();
+  useEffect(() => { notify(message, tone); }, [message, tone, notify]);
+  return null;
 }

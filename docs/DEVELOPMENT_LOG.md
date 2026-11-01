@@ -3,6 +3,90 @@
 This file records completed development work. Keep the newest entry at the top
 and follow `templates/development-log-entry.md`.
 
+## 2026-11-01 - Contextual portal action errors
+
+### Summary
+
+- Add an explicit operation/target to every shared portal action failure, including employee, location, document, review, campaign/group lifecycle, plan, deposit, offer, attendance, refresh and logout actions.
+- Centralize Vietnamese explanations for common API validation, duplicate email, permission, stale data, authentication and server errors. Keep wrong login credentials distinct from an expired session, retain useful server reasons and avoid duplicate expiry notices when returning to authentication.
+- Apply the same error formatting to registration/verification/resend, wallet loading/refresh and location coordinate validation. Existing success messages and top-right notice behavior are preserved.
+
+### Files changed
+
+- `src/gomate-portal/portalActionError.js`, `ConnectedPortal.jsx`, `PortalAuth.jsx`, `BusinessWallet.jsx`, `LocationLibrary.jsx`.
+- `tests/business-campaign-controls.web.cjs`; portal README.
+
+### Verification
+
+- Browser campaign controls: Passed. Real invalid login and duplicate employee email plus controlled invalid-payload (400), unavailable-refresh (503) and stale-withdrawal (409) responses produce the correct operation and translated reason. Failed refresh preserves the workspace; failed withdrawal leaves the group published. Successful creation, scoped chat, withdrawal/deletion, wallet refresh and mobile checks still pass.
+- `npm.cmd run typecheck`: Passed.
+- Explicit ESLint on all changed portal source files with `--no-ignore`: Passed.
+- Expo web export with `EXPO_PUBLIC_API_BASE_URL=/api`: Passed.
+- `npx.cmd expo-doctor`: Passed, 18/18 checks.
+- `npm.cmd run lint`: Failed on the two pre-existing render-time `Date.now()` purity errors in `HomeComponents.tsx` and `ActivityProgressScreen.tsx`, with five unrelated warnings.
+- Reviewed edits and ran `git diff --check`: Passed.
+
+### Remaining work
+
+- Existing repository-wide lint errors remain outside this task.
+
+## 2026-11-01 - Describe each portal action in its notification
+
+### Summary
+
+- Remove the generic success fallback. Report the actual action and affected employee, location, business application, post or group after successful API completion.
+- Distinguish staff creation/update/revocation, post/group withdrawal/deletion, application/post review, schedule/start/completion, attendance, deposits, plans, offers, downloads, refresh and authentication.
+- Add a specific result for manual wallet reconciliation refresh; initial wallet loading remains silent and ignores responses after unmount.
+
+### Files changed
+
+- `src/gomate-portal/ConnectedPortal.jsx`, `PortalAuth.jsx`, `BusinessWallet.jsx`.
+- `tests/business-campaign-controls.web.cjs`.
+
+### Verification
+
+- Browser campaign controls: Passed; assert contextual notices for saving a location, approving a named post, creating a named employee and refreshing wallet reconciliation, and absence of the former generic success notice. Existing desktop/mobile positioning and dismissal checks also passed.
+- `npm.cmd run typecheck`: Passed.
+- Explicit ESLint with `--no-ignore` on the three changed JSX files: Passed.
+- Expo web export with `EXPO_PUBLIC_API_BASE_URL=/api`: Passed.
+- `npx.cmd expo-doctor`: Passed, 18/18 checks.
+- `npm.cmd run lint`: Failed on the two existing render-time `Date.now()` purity errors in `HomeComponents.tsx` and `ActivityProgressScreen.tsx`; five unrelated warnings remain.
+- Reviewed edits and ran `git diff --check`: Passed.
+
+### Remaining work
+
+- Existing repository-wide lint errors remain outside this task.
+
+## 2026-11-01 - Top-right action notices and direct business staff accounts
+
+### Summary
+
+- Show dismissible success/error notices in a fixed top-right stack, independent of scroll position. Shared portal actions, location feedback and authentication use the notifier instead of result banners at the top of the page. Success/error notices expire after 6/10 seconds; repeated errors create distinct notices.
+- Businesses create new employee accounts with name, email, password, phone, title and optional assigned groups. Accounts work immediately without employee consent or admin review; existing emails are rejected and editing cannot replace account identity. Only admin reviews business applications/posts and administers the platform.
+- Remove employee invitations and the admin employee-approval UI/APIs. Keep existing approved/consented grants compatible; direct grants use provisionedAt and preserve immediate scoped activity/chat access and revocation.
+
+### Files changed
+
+- FE: src/gomate-portal/{PortalNotifications.jsx,ConnectedPortal.jsx,PortalAuth.jsx,BusinessStaffManagement.jsx,AdminBusinessReview.jsx,LocationLibrary.jsx,connected-portal.css,README.md}.
+- FE: tests/{business-campaign-controls.web.cjs,business-workflow.web.cjs}; docs/DECISIONS.md.
+- BE: src/modules/portal/{operations-routes.js,operations.js,repository.js}, src/common/business-staff-access.js; tests/{business-workflow.test.js,business-campaign-control.test.js}; API/development docs.
+
+### Verification
+
+- BE npm.cmd test: Passed, all 124 tests. Includes immediate employee login, duplicate email/password validation, assigned-group isolation, reassignment, revocation and admin-only platform authority.
+- FE business-campaign-controls.web.cjs: Passed with real backend/browser flows; desktop/mobile toast position, repeated errors, dismissal, account creation/login without approvals, scoped chat and lifecycle controls. Reviewed desktop screenshot.
+- FE portal-registration.web.cjs: Passed; signup, email verification, session restoration/retry and mobile layout.
+- The older business-workflow.web.cjs also reached direct employee creation/login, app activity/member access and chat, then failed at the stale consumer join-button label (Gửi yêu cầu tham gia versus the current Yêu cầu tham gia). Its remaining consumer lifecycle assertions are unverified in this run; backend lifecycle tests and focused browser controls passed.
+- npm.cmd run typecheck: Passed. Web export with EXPO_PUBLIC_API_BASE_URL=/api: Passed. npx.cmd expo-doctor: Passed, 18/18 checks (registry access required escalation).
+- Explicit ESLint on changed portal JSX with --no-ignore: Passed. npm.cmd run lint: Failed on pre-existing react-hooks/purity errors in HomeComponents.tsx and ActivityProgressScreen.tsx; five unrelated warnings remain. The repository lint configuration normally excludes JSX.
+- Reviewed FE/BE diffs; no changes to pre-existing package.json/package-lock.json edits. git diff --check: Passed.
+
+### Remaining work
+
+- Existing pending employee grants stay inactive until their business explicitly saves them. No production data migration was run.
+- The business supplies the employee's initial password; provisioning marks email_verified for immediate login and sends no verification email or credentials.
+- Resolve the two existing lint purity errors outside this task.
+
 ## 2026-10-30 - Copy-ready input data for two HCMC demo flows
 
 ### Summary
