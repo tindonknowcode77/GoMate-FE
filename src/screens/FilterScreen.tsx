@@ -57,6 +57,7 @@ export function FilterScreen(props: FilterScreenProps) { return <FilterSheet {..
 
 export function FilterSheet({ saving = false, saveError, initialFilters = defaultActivityFilters, onApply, onClose }: FilterScreenProps) {
   const [filters, setFilters] = useState<ActivityFilters>(initialFilters);
+  const [capacityOpen, setCapacityOpen] = useState(Boolean(initialFilters.minimumCapacity || initialFilters.maximumCapacity));
   const [error, setError] = useFeedbackState('');
   const apply = () => {
     if (filters.dateFrom && filters.dateTo && dateToIso(filters.dateFrom) > dateToIso(filters.dateTo)) { setError('Ngày kết thúc không được trước ngày bắt đầu.'); return; }
@@ -72,21 +73,12 @@ export function FilterSheet({ saving = false, saveError, initialFilters = defaul
   return <SafeAreaView style={styles.safeArea}>
     <View style={styles.sheetHandle} /><View style={styles.header}><Pressable accessibilityLabel="Đóng bộ lọc" onPress={onClose} style={styles.headerButton}><Ionicons color={colors.text} name="close" size={26} /></Pressable><View style={styles.headerCopy}><Text style={styles.headerTitle}>Bộ lọc hoạt động</Text><Text style={styles.headerSubtitle}>Tìm hoạt động phù hợp nhất với bạn</Text></View><Pressable onPress={() => setFilters(defaultActivityFilters)} style={styles.resetButton}><Text style={styles.resetText}>Đặt lại</Text></Pressable></View>
     <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}><View style={styles.page}>
-      <FilterSection icon="business-outline" subtitle="Chọn nguồn tổ chức hoạt động" title="Loại hoạt động">
-        <ChipGroup options={['Tất cả', 'Cá nhân', 'Doanh nghiệp']} selected={[{ all: 'Tất cả', personal: 'Cá nhân', business: 'Doanh nghiệp' }[filters.organizerType]]} onPress={label => setFilters(current => ({ ...current, organizerType: label === 'Cá nhân' ? 'personal' : label === 'Doanh nghiệp' ? 'business' : 'all' }))} />
-        <Text style={styles.innerLabel}>Sắp xếp gợi ý</Text><ChipGroup options={['Dành cho bạn', 'Gần nhất', 'Sắp diễn ra']} selected={[{ recommended: 'Dành cho bạn', nearest: 'Gần nhất', soonest: 'Sắp diễn ra' }[filters.sort]]} onPress={label => setFilters(current => ({ ...current, sort: label === 'Gần nhất' ? 'nearest' : label === 'Sắp diễn ra' ? 'soonest' : 'recommended' }))} />
-        <Text style={styles.allHint}>Bộ lọc được lưu cho tài khoản của bạn khi áp dụng.</Text>
-      </FilterSection>
       <FilterSection icon="location-outline" subtitle="Chọn khu vực hoặc tìm quanh một vị trí" title="Khu vực">
         <ActivityLocationFields filter province={filters.province} district={filters.district} ward={filters.ward} onChange={patch => setFilters(current => ({ ...current, ...patch }))} />
         <View style={{ gap: 12, marginTop: 16 }}><LocationField value={filters.coordinates} onChange={coordinates => setFilters(current => ({ ...current, coordinates, radiusEnabled: coordinates ? current.radiusEnabled : false }))} radiusKm={filters.radiusEnabled ? filters.distance : undefined} onPlaceSelected={place => { const fields = placeRegionFields(place, filters.province); setFilters(current => ({ ...current, ...(fields.province ? { province: fields.province } : {}), district: fields.district, ward: fields.ward })); }} />
         <View style={styles.sliderHeader}><Text style={styles.sliderLabel}>Chỉ tìm trong bán kính</Text><Switch accessibilityLabel="Lọc theo bán kính" value={filters.radiusEnabled} onValueChange={radiusEnabled => setFilters(current => ({ ...current, radiusEnabled }))} /></View></View>
         {filters.radiusEnabled && !filters.coordinates && <Text style={styles.allHint}>Bán kính đã được lưu. Chọn vị trí cho phiên này để tiếp tục.</Text>}
         <SelectionField label="Bán kính tìm kiếm" options={[1, 5, 10, 20, 50, 100, 200].map(value => ({ value: String(value), label: `${value} km` }))} selected={[String(filters.distance)]} onChange={values => setFilters(current => ({ ...current, distance: Number(values[0] || 10) }))} />
-      </FilterSection>
-
-      <FilterSection icon="grid-outline" subtitle="Có thể chọn nhiều danh mục" title="Danh mục">
-        <SelectionField label="Danh mục hoạt động" options={[...activityCategories, 'Khác'].map(label => ({ value: label, label }))} selected={filters.categories} onChange={categories => setFilters(current => ({ ...current, categories }))} multiple searchable emptyLabel="Tất cả danh mục" />
       </FilterSection>
 
       <FilterSection icon="calendar-outline" subtitle="Để trống nếu thời gian linh hoạt" title="Thời gian phù hợp">
@@ -100,12 +92,21 @@ export function FilterSheet({ saving = false, saveError, initialFilters = defaul
         </View>
       </FilterSection>
 
-
-
-      <FilterSection icon="people-outline" subtitle="Lọc theo sức chứa của nhóm" title="Số lượng thành viên">
-        <SelectionField label="Nhóm có tối thiểu" options={[{ value: '0', label: 'Bất kỳ' }, ...Array.from({ length: 999 }, (_, index) => ({ value: String(index + 2), label: `${index + 2} người` }))]} selected={[String(filters.minimumCapacity)]} onChange={values => setFilters(current => ({ ...current, minimumCapacity: Number(values[0] || 0) }))} />
-        <SelectionField label="Nhóm có tối đa" options={[{ value: '0', label: 'Bất kỳ' }, ...Array.from({ length: 999 }, (_, index) => ({ value: String(index + 2), label: `${index + 2} người` }))]} selected={[String(filters.maximumCapacity)]} onChange={values => setFilters(current => ({ ...current, maximumCapacity: Number(values[0] || 0) }))} />
+      <FilterSection icon="grid-outline" subtitle="Có thể chọn nhiều danh mục" title="Danh mục">
+        <SelectionField label="Danh mục hoạt động" options={[...activityCategories, 'Khác'].map(label => ({ value: label, label }))} selected={filters.categories} onChange={categories => setFilters(current => ({ ...current, categories }))} multiple searchable emptyLabel="Tất cả danh mục" />
       </FilterSection>
+
+      <FilterSection icon="business-outline" subtitle="Chọn nguồn tổ chức hoạt động" title="Loại hoạt động">
+        <ChipGroup options={['Tất cả', 'Cá nhân', 'Doanh nghiệp']} selected={[{ all: 'Tất cả', personal: 'Cá nhân', business: 'Doanh nghiệp' }[filters.organizerType]]} onPress={label => setFilters(current => ({ ...current, organizerType: label === 'Cá nhân' ? 'personal' : label === 'Doanh nghiệp' ? 'business' : 'all' }))} />
+        <Text style={styles.innerLabel}>Sắp xếp gợi ý</Text><ChipGroup options={['Dành cho bạn', 'Gần nhất', 'Sắp diễn ra']} selected={[{ recommended: 'Dành cho bạn', nearest: 'Gần nhất', soonest: 'Sắp diễn ra' }[filters.sort]]} onPress={label => setFilters(current => ({ ...current, sort: label === 'Gần nhất' ? 'nearest' : label === 'Sắp diễn ra' ? 'soonest' : 'recommended' }))} />
+      </FilterSection>
+
+
+
+      <View style={styles.section}><Pressable accessibilityRole="button" accessibilityState={{ expanded: capacityOpen }} onPress={() => setCapacityOpen(!capacityOpen)} style={styles.sectionHeader}><View style={styles.sectionIcon}><Ionicons color={colors.primary} name="people-outline" size={20} /></View><View style={{ flex: 1 }}><Text style={styles.sectionTitle}>Số lượng thành viên {(filters.minimumCapacity || filters.maximumCapacity) ? `(${filters.minimumCapacity || 2}–${filters.maximumCapacity || '∞'})` : ''} {capacityOpen ? '−' : '+'}</Text><Text style={styles.sectionSubtitle}>Lọc theo sức chứa của nhóm</Text></View></Pressable>{capacityOpen && <View style={styles.sectionBody}>
+        <SelectionField label="Nhóm có tối thiểu" options={[{ value: '0', label: 'Bất kỳ' }, ...[2, 3, 4, 5, 6, 8, 10, 15, 20, 30, 50].map(count => ({ value: String(count), label: `${count} người` }))]} selected={[String(filters.minimumCapacity)]} onChange={values => setFilters(current => ({ ...current, minimumCapacity: Number(values[0] || 0) }))} />
+        <SelectionField label="Nhóm có tối đa" options={[{ value: '0', label: 'Bất kỳ' }, ...[2, 4, 6, 8, 10, 12, 15, 20, 30, 50, 100].map(count => ({ value: String(count), label: `${count} người` }))]} selected={[String(filters.maximumCapacity)]} onChange={values => setFilters(current => ({ ...current, maximumCapacity: Number(values[0] || 0) }))} />
+      </View>}</View>
       <AdvancedPreferences filter value={filters.preferences} onChange={preferences => setFilters(current => ({ ...current, preferences }))} />
       {saveError ? <Text style={{ color: colors.danger }}>{saveError}</Text> : null}
       {error ? <Text style={{ color: colors.danger }}>{error}</Text> : null}

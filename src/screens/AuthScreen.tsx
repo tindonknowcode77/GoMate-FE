@@ -9,7 +9,7 @@ import { BrandLogo } from '../components/BrandLogo';
 import { FormField } from '../components/FormField';
 import { Text } from '../components/LocalizedText';
 import { useWebNavigation } from '../services/webNavigation';
-import { login, post } from '../services/api';
+import { ApiError, login, post } from '../services/api';
 import { colors, control, typography } from '../theme';
 
 type AuthStage = 'welcome' | 'login' | 'signup' | 'forgot' | 'reset' | 'success';
@@ -50,7 +50,10 @@ export function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
     finally { submitting.current = false; setBusy(false); }
   };
   const handleLogin = () => void run(async () => { await login(email, loginPassword); onLogin(); });
-  const handleRegister = () => void run(async () => { await post('/auth/register', { name, email: email.trim(), password: signupPassword }); onRegister(email.trim()); });
+  const handleRegister = () => void run(async () => {
+    try { await post('/auth/register', { name, email: email.trim(), password: signupPassword }); onRegister(email.trim()); }
+    catch (reason) { if (reason instanceof ApiError && (reason.status === 409 || reason.code === 'EMAIL_ALREADY_REGISTERED')) { setStage('login'); throw new Error('Email đã được đăng ký. Hãy đăng nhập để tiếp tục hoặc xác minh email.'); } throw reason; }
+  });
   const unavailable = () => setError('Đăng nhập mạng xã hội chưa được cấu hình. Vui lòng dùng email.');
 
   if (stage === 'welcome') {
@@ -65,9 +68,8 @@ export function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
           <View style={styles.welcomeActions}>{error ? <Text style={{ color: colors.match }}>{error}</Text> : null}
             <MethodButton icon="mail-outline" label="Continue with email" onPress={() => setStage('signup')} primary />
             <GoogleLoginButton onLogin={onLogin} />
-            <MethodButton icon="logo-apple" label="Continue with Apple" onPress={unavailable} />
             <InlinePrompt action="Log in" label="Already have an account?" onPress={() => setStage('login')} />
-            {Platform.OS === 'web' && <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 20 }}><Pressable accessibilityRole="link" style={{ padding: 12 }} onPress={() => window.location.assign('/demo')}><Text style={{ color: colors.primary, fontSize: 12 }}>Bộ demo GoMate</Text></Pressable><Pressable accessibilityRole="link" style={{ padding: 12 }} onPress={() => window.location.assign('/portal')}><Text style={{ color: colors.primary, fontSize: 12 }}>Dành cho doanh nghiệp</Text></Pressable></View>}
+            {Platform.OS === 'web' && <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 20 }}><Pressable accessibilityRole="link" style={{ padding: 12 }} onPress={() => window.location.assign('/portal')}><Text style={{ color: colors.primary, fontSize: 12 }}>Dành cho doanh nghiệp</Text></Pressable></View>}
           </View>
           <Text style={styles.legal}>By continuing you agree to our Terms of Service and Privacy Policy.</Text>
         </View>
@@ -114,7 +116,6 @@ export function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
                 <Text style={styles.orText}>or</Text>
                 <View style={styles.socialButtons}>
                   <GoogleLoginButton onLogin={onLogin} />
-                  <MethodButton icon="logo-apple" label="Continue with Apple" onPress={unavailable} />
                 </View>
               </View>
               <InlinePrompt action="Sign up" label="New to GoMate?" onPress={() => setStage('signup')} />

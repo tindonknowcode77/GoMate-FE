@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Icon, PillButton } from './GoMatePortal';
 
 const fieldStyle = 'gm-simple-input';
-const pendingApproval = 'Pending Admin (Minh) Approval';
+const pendingApproval = 'Chờ nhân sự đồng ý và Admin duyệt';
 const emptyStaff = () => ({ name: '', email: '', phone: '', title: '', groupIds: [] });
 
 function Field({ label, children }) {
@@ -32,10 +32,10 @@ export default function BusinessStaffManagement({ groups, accounts, onSave, onDe
     setForm(emptyStaff());
     if (clearMessage) setMessage('');
   };
-  const submit = event => {
+  const submit = async event => {
     event.preventDefault();
     const isEditing = Boolean(editingId);
-    onSave({ ...form, id: editingId || `business-staff-${Date.now()}`, status: pendingApproval, updatedAt: new Date().toISOString() });
+    if (await onSave({ ...form, id: editingId }) === false) return;
     reset({ clearMessage: false });
     setMessage(isEditing ? 'Staff details updated.' : 'Staff account request sent for admin approval.');
   };
@@ -78,12 +78,12 @@ export default function BusinessStaffManagement({ groups, accounts, onSave, onDe
           {!accounts.length && <div className="gm-staff-empty"><Icon name="users" size={24} /><strong>{t("No staff accounts yet")}</strong><span>{t("Create a staff request to assign group management.")}</span></div>}
           <div className="gm-staff-list">{accounts.map(account => <article className="gm-staff-row" key={account.id}>
             <div className="gm-staff-avatar">{t(account.name.split(/\s+/).map(part => part[0]).slice(0, 2).join('').toUpperCase())}</div>
-            <div className="gm-staff-main"><div className="gm-staff-name-line"><strong>{account.name}</strong><span className="gm-staff-approval-status"><i />{t(account.status || pendingApproval)}</span></div><span>{account.title} {t(" · ")}{account.email} {t(" · ")}{t(account.phone)}</span>
+            <div className="gm-staff-main"><div className="gm-staff-name-line"><strong>{account.name}</strong><span className="gm-staff-approval-status"><i />{t(({pending:account.acceptedAt?'Chờ Admin duyệt':'Chờ nhân sự đồng ý',approved:'Đã duyệt',rejected:'Đã từ chối',revoked:'Đã thu hồi',declined:'Nhân sự từ chối'})[account.status] || account.status || pendingApproval)}</span></div><span>{account.title} {t(" · ")}{account.email} {t(" · ")}{t(account.phone)}</span>
               <div className="gm-staff-assigned-groups">{account.groupIds.map(id => <span key={id}>{t(groupName(id))}</span>)}</div>
             </div>
             <div className="gm-staff-actions"><button type="button" className="gm-text-action" onClick={() => edit(account)}>{t("Edit")}</button><button type="button" className="gm-text-action gm-delete-action" onClick={() => onDelete(account.id)} aria-label={t(`Remove ${account.name}`)} title={t("Remove staff account")}><Icon name="close" size={15} /></button></div>
           </article>)}</div>
-          <div className="gm-staff-approval-note"><Icon name="shield" size={15} /><span>{t("Minh reviews business staff account requests before access is granted.")}</span></div>
+          <div className="gm-staff-approval-note"><Icon name="shield" size={15} /><span>{t("Admin (Minh) duyệt danh sách sau khi nhân sự đồng ý. Một nhóm có thể được giao cho nhiều nhân sự. Nhân sự dùng tài khoản GoMate của mình, chỉ quản lý các nhóm được phân công.")}</span></div>
         </section>
       </div>
     </div>

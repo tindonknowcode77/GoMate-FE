@@ -1,0 +1,147 @@
+KỊCH BẢN DEMO GOMATE - HAI LUỒNG
+Ngày cập nhật: 30/10/2026
+Nhánh FE và BE: quan_business
+
+1. CHUẨN BỊ
+
+- Dùng FE và BE cùng nhánh quan_business, đặt hai thư mục cạnh nhau.
+- Cài dependency: npm.cmd ci trong mỗi repo; cấu hình MongoDB trong BE/.env.
+- Nếu chưa có bộ chạy ở thư mục cha, chép nội dung FE/tooling/workspace-root/
+  ra thư mục cha theo FE/tooling/README.md. Giữ cấu hình riêng đang có.
+- Tại thư mục cha: npm.cmd install rồi npm.cmd run dev:all.
+- Chỉ sử dụng cổng 3000:
+  App:    http://localhost:3000
+  Portal: http://localhost:3000/portal
+  Demo:   http://localhost:3000/demo
+- Muốn tạo tài khoản mẫu trên database demo: tại FE chạy npm.cmd run demo:seed.
+  Seed không đặt lại tiến độ/mật khẩu tài khoản mẫu đã tồn tại.
+- Mật khẩu mặc định khi tạo tài khoản mẫu lần đầu: DemoGoMate123!
+  Nếu đã đặt WORKSHOP_DEMO_PASSWORD hoặc đổi mật khẩu, dùng mật khẩu đã đặt.
+- Dùng Chrome, Edge hoặc profile/ẩn danh riêng cho từng vai trò.
+  Hai tab thường cùng trình duyệt dùng chung đăng nhập, không tách vai trò.
+- Chuẩn bị ảnh PNG/JPG hoặc PDF giấy phép để trình diễn; dùng dữ liệu minh họa.
+- Chọn lịch tương lai, kết thúc sau bắt đầu; dùng tên bài mới cho mỗi lần demo.
+- Chuyển giao diện sang tiếng Việt để tên nút khớp kịch bản.
+
+Tài khoản mẫu:
+  demo.host@gomate.local        Host cá nhân
+  demo.member@gomate.local      Người tham gia
+  demo.business@gomate.local    Doanh nghiệp đã xác minh
+  demo.admin@gomate.local       Admin nền tảng
+  demo.newbusiness@gomate.local Đối tác mới gửi hồ sơ xác minh
+
+LUỒNG 1 - CÁ NHÂN TẠO HOẠT ĐỘNG VÀ NGƯỜI DÙNG THAM GIA
+Thời lượng gợi ý: 5-7 phút.
+
+Bước 1: Host tạo hoạt động
+- Chrome mở /demo, chọn Host cá nhân.
+- Tạo hoạt động có tiêu đề "DEMO Ca phe ket ban [giờ demo]".
+- Điền lịch tương lai, địa điểm và sức chứa; hoàn tất đăng bài.
+- Có thể dùng bài mẫu còn hiệu lực nếu muốn demo nhanh.
+Kết quả: hoạt động xuất hiện trong app và có trang chi tiết.
+
+Bước 2: Người dùng đăng ký tham gia
+- Edge/profile khác mở /demo, chọn Người tham gia.
+- Vào Tìm hoạt động, tìm đúng tên bài vừa tạo.
+- Mở chi tiết, gửi yêu cầu tham gia và xác nhận cam kết nếu được hỏi.
+Kết quả: người tham gia thấy trạng thái chờ duyệt.
+
+Bước 3: Host duyệt và hai bên chat
+- Host mở Quản lý, duyệt yêu cầu của người tham gia.
+- Người tham gia vào nhóm qua thông báo hoặc bài đăng.
+- Hai bên gửi một tin nhắn; thử gửi ảnh/tệp và mở lại tệp.
+- Mở menu nhóm để xem thành viên, kế hoạch và liên kết nhóm.
+Kết quả: tin nhắn và thành viên được lưu, tải lại vẫn còn.
+
+Bước 4: Điều hành và kết thúc
+- Host mở Quản lý, hoàn thiện kế hoạch rồi chốt lịch.
+- Khi các điều kiện cho phép, bắt đầu và điểm danh host/thành viên.
+- Đánh dấu Có mặt/Đến muộn, sau đó kết thúc hoạt động.
+- Người tham gia mở tổng kết và gửi đánh giá trải nghiệm.
+Kết quả: hoạt động kết thúc, người đủ điều kiện đánh giá được.
+
+LUỒNG 2 - DOANH NGHIỆP, ADMIN, NHÂN SỰ VÀ NGƯỜI THAM GIA
+Thời lượng gợi ý: 10-15 phút.
+
+Bước 1: Đăng ký và gửi hồ sơ doanh nghiệp
+- Mở /portal, chọn đăng ký tài khoản doanh nghiệp nếu trình diễn từ đầu.
+- Đăng ký email có thể nhận thư, xác minh email rồi đăng nhập.
+- Hoặc dùng demo.newbusiness@gomate.local để vào bước hồ sơ nhanh.
+- Chọn loại tài khoản, Việt Nam, tên pháp lý, ngành và số giấy chứng nhận.
+- Điền đầy đủ địa chỉ, người đại diện và thông tin liên hệ theo biểu mẫu.
+- Tải giấy phép công ty/hộ kinh doanh và tài liệu bổ sung nếu có.
+- Hỗ trợ JPEG/JPG/PNG/PDF; tối đa 10 MB/tệp, PDF tối đa 30 trang.
+- Gửi hồ sơ. Tên và số chứng nhận phải khớp tài liệu.
+Kết quả: trạng thái chờ duyệt; ảnh giấy phép có hình thu nhỏ.
+Lưu ý: tài khoản mới mẫu đã được duyệt từ lần trước không trở về bước này.
+       Muốn lặp lại từ đầu, đăng ký một tài khoản khác.
+
+Bước 2: Admin duyệt hồ sơ
+- Trình duyệt riêng đăng nhập demo.admin@gomate.local tại /portal.
+- Mở hồ sơ doanh nghiệp, xem toàn bộ thông tin và cả hai tài liệu.
+- Có thể từ chối kèm lý do để demo doanh nghiệp sửa và gửi lại.
+- Duyệt doanh nghiệp; phía doanh nghiệp bấm icon làm mới.
+Kết quả: doanh nghiệp được mở các chức năng quản lý.
+- Nhấn F5 để minh họa phiên đã đăng nhập không lóe form email/mật khẩu.
+
+Bước 3: Tạo bài với nhiều nhóm, không tạo chi nhánh trước
+- Có thể dùng demo.business@gomate.local để bỏ qua bước xác minh.
+- Mở Tạo bài đăng; đặt tên "DEMO Workshop gom [giờ demo]".
+- Điền giới thiệu và ưu đãi; giữ tùy chọn dùng chung thông tin nhóm.
+- Nhập tổng 20 người, chia 3 nhóm và thực hiện chia nhóm.
+Kết quả: sức chứa 7, 7, 6; có thông báo chia không đều.
+- Nhập thủ công tên điểm hẹn, địa chỉ và tỉnh/thành ngay trong form.
+- Thử nút lưu địa điểm ngay tại trang tạo; đây là tùy chọn, không bắt buộc.
+- Điền lịch tương lai và chi phí; đặt cọc 0 để demo nhanh.
+- Kiểm tra thông tin chung ở các nhóm rồi gửi duyệt.
+Kết quả: bài chờ Admin, chưa xuất hiện cho người dùng trong app.
+
+Bước 4: Admin duyệt bài, người dùng chỉ thấy một nhóm
+- Admin mở hàng chờ bài đăng, chọn đúng tên và Duyệt và đưa lên app.
+- Doanh nghiệp mở Nhóm đang hoạt động: thấy đủ 3 nhóm để quản lý.
+- Người tham gia đăng nhập app bằng profile riêng, tìm đúng tên bài.
+Kết quả: người này chỉ thấy một nhóm của bài, không thấy cả ba.
+- Tải lại và tìm lại: vẫn là nhóm đã được phân cho người này.
+- Nếu thử tài khoản khác, nhóm được phân có thể trùng hoặc khác.
+- Người tham gia gửi yêu cầu; doanh nghiệp duyệt ở nhóm tương ứng.
+
+Bước 5: Nhân sự doanh nghiệp và chat trên website
+- Dùng một tài khoản người dùng đã xác minh khác làm nhân sự.
+- Doanh nghiệp vào Nhân sự doanh nghiệp, nhập email và phân nhóm cụ thể.
+- Người được mời đăng nhập, đồng ý làm nhân sự.
+- Admin duyệt hồ sơ nhân sự sau khi đã có sự đồng ý.
+- Nhân sự mở /portal, thấy các nhóm được phân công.
+- Doanh nghiệp và nhân sự mở Chat nhóm, gửi tin nhắn qua lại và đính kèm ảnh.
+- Người tham gia đã được duyệt mở chat cùng nhóm từ app.
+Kết quả: ba bên sử dụng cùng hội thoại; nhân sự không có quyền Admin.
+- Thử tìm nhóm/lọc trạng thái, xem tham gia, tiền cọc và lịch trình.
+- Chỉ đối chiếu tiền cọc thủ công nếu cần; demo không xử lý thanh toán thật.
+
+Bước 6: Thông báo, thu hồi nhóm và xóa bài
+- Chỉ ra chuông thông báo ở góc phải, cạnh icon làm mới và cài đặt.
+- Cài đặt hiện là nút giao diện, chưa có chức năng.
+- Doanh nghiệp thu hồi một nhóm và xác nhận trong hộp thoại.
+Kết quả: nhóm ngừng nhận tham gia/ghi chat; người liên quan nhận thông báo.
+- Người đã được phân nhóm bị thu hồi không được chuyển sang nhóm thứ hai.
+- Dùng Admin thử thu hồi/xóa một nhóm khác hoặc xóa cả bài.
+- Cả chủ doanh nghiệp và Admin đều có nút thao tác; nhân sự không có quyền này.
+Kết quả: bài/nhóm đã xóa không còn được phân phối; dữ liệu lịch sử được giữ.
+
+CHECKLIST TRƯỚC KHI TRÌNH BÀY
+
+[ ] FE và BE cùng nhánh quan_business; server/API chạy trên 3000.
+[ ] Mỗi vai trò có phiên đăng nhập riêng, mật khẩu đã kiểm tra.
+[ ] Có giấy phép mẫu hợp lệ và email nhận được thư nếu đăng ký mới.
+[ ] Bài có tên riêng, lịch tương lai; tài khoản tham gia chưa vào bài này.
+[ ] F5 giữ phiên; ảnh giấy phép hiển thị ở doanh nghiệp và Admin.
+[ ] 20/3 ra 7-7-6; địa điểm thủ công không cần chi nhánh.
+[ ] Người dùng thấy một nhóm; owner/Admin thấy đủ nhóm để quản lý.
+[ ] Nhân sự đã đồng ý và được Admin duyệt đúng nhóm.
+[ ] Chat hai chiều chạy; thu hồi/xóa chỉ demo cuối để không mất bài giữa chừng.
+
+KHI CẦN KHỞI ĐỘNG LẠI
+
+- Ctrl+C dừng tiến trình, chạy npm.cmd run dev:all ở thư mục cha.
+- Sau sửa FE: npm.cmd run build:web ở thư mục cha, rồi Ctrl+F5 trình duyệt.
+- Không chuyển qua cổng 8081 để demo bản web này.
+- Không cần seed lại cho mỗi lần demo; tạo bài mới để tránh trạng thái cũ.

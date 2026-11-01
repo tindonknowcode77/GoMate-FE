@@ -1,1168 +1,143 @@
-import { AdminDashboard } from './AdminDashboard';
-import { StaffDashboard } from './StaffDashboard';
-import { AdminWorkspace, StaffWorkspace, BusinessWorkspace } from './WorkspaceLayouts';
+import PortalHeaderActions from './PortalHeaderActions';
+import PostLifecycleActions from './PostLifecycleActions';
+import { usePortalText } from './usePortalText';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { GoogleLoginButton } from '../components/GoogleLoginButton';
-import { getSession, login, logout, post, setUnauthorizedHandler, verifyEmail } from '../services/api';
-import { downloadDocument, portalApi, readDocument, saveBlob } from './portalApi';
-import './gomate-portal.css';
-import './portal-connected.css';
+import { api, apiBaseUrl, getSession, logout } from '../services/api';
+import { Logo, Icon, PillButton, StatusPill, MetricCard } from './GoMatePortal';
+import PortalAuth from './PortalAuth';
+import BusinessVerificationForm from './BusinessVerificationForm';
+import BusinessStaffManagement from './BusinessStaffManagement';
+import LocationLibrary from './LocationLibrary';
+import MultiGroupPostComposer from './MultiGroupPostComposer';
+import ActiveCampaignDashboard from './ActiveCampaignDashboard';
+import AdminBusinessReview from './AdminBusinessReview';
+import BusinessWallet from './BusinessWallet';
+import './connected-portal.css';
 
-const statuses = {
-  pending: 'Chờ duyệt',
-  approved: 'Đã duyệt',
-  rejected: 'Từ chối',
-  open: 'Đang mở',
-  closed: 'Đã đóng',
-  active: 'Đang hoạt động',
-  paused: 'Tạm dừng',
-  cancelled: 'Đã hủy',
-  resolved: 'Đã xử lý',
-  dismissed: 'Không xử lý',
-};
-
-const date = value => (value ? new Date(value).toLocaleString('vi-VN') : '—');
-
-function Status({ value }) {
-  return <span className={`gm-status gm-status--${value}`}>{statuses[value] || value}</span>;
+const eventPayload = value => value ? Object.fromEntries(['category','location','province','address','meetingPoint','startsAt','endsAt','registrationDeadline','estimatedCost','minParticipants','maxParticipants','itinerary','plan','planLink','coordinates'].filter(key=>value[key]!==undefined).map(key=>[key,value[key]])) : undefined;
+const statusLabel = { pending: 'Chờ duyệt', approved: 'Đã duyệt', rejected: 'Từ chối', deleted:'Đã xóa', publishing: 'Đang xuất bản', withdrawn: 'Đã rút' };
+const tone = status => status === 'approved' ? 'green' : status === 'rejected' ? 'red' : 'orange';
+const format = iso => iso ? new Date(iso).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', dateStyle: 'short', timeStyle: 'short' }) : '—';
+const fieldStyle = 'gm-simple-input';
+function Field({ label, children }) {
+  const t = usePortalText(); return <label className="gm-field"><span>{t(label)}</span>{children}</label>; }
+async function pages(path) {
+  const items = [];
+  for (let page = 1; page <= 500; page++) { const result = await api(path + '?page=' + page); items.push(...result.items); if (items.length >= result.total || !result.items.length) return { items }; }
+  throw Error('Danh sách quá lớn. Vui lòng liên hệ quản trị viên.');
 }
-
-function Button({ children, className = '', ...props }) {
-  return (
-    <button type="button" className={`gm-btn gm-btn--primary ${className}`.trim()} {...props}>
-      {children}
-    </button>
-  );
+async function fileValue(file) {
+  if (!file || file.size > 10 * 1024 * 1024) throw Error('Chọn hồ sơ PDF/PNG/JPEG tối đa 10 MB.');
+  return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve({ name: file.name, mime: file.type, base64: String(reader.result).split(',')[1] }); reader.onerror = () => reject(Error('Không đọc được hồ sơ')); reader.readAsDataURL(file); });
 }
-
-function Field({ label, ...props }) {
-  return (
-    <label className="gm-field">
-      <span>{label}</span>
-      <input className="gm-simple-input" {...props} />
-    </label>
-  );
-}
-
-function ErrorBox({ error }) {
-  return error ? (
-    <p className="gm-form-error" role="alert">
-      {error}
-    </p>
-  ) : null;
-}
-
-function useAction() {
-  const lock = useRef(false),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState('');
-  const run = async action => {
-    if (lock.current) return;
-    lock.current = true;
-    setBusy(true);
-    setError('');
-    try {
-      await action();
-    } catch (reason) {
-      setError(reason.message || 'Yêu cầu thất bại.');
-    } finally {
-      lock.current = false;
-      setBusy(false);
-    }
-  };
-  return { run, busy, error };
-}
-
-export function LoginPage({ onLogin }) {
-  const workspaceTitle =
-    { '/admin': 'GoMate Admin', '/staff': 'GoMate Staff', '/business': 'GoMate Business' }[
-      window.location.pathname.replace(/\/$/, '')
-    ] || 'GoMate Portal';
-  const [stage, setStage] = useState('login'),
-    [email, setEmail] = useState(''),
-    [password, setPassword] = useState(''),
-    [name, setName] = useState(''),
-    [code, setCode] = useState(''),
-    [notice, setNotice] = useState('');
-  const action = useAction();
-  const submit = event => {
-    event.preventDefault();
-    void action.run(async () => {
-      setNotice('');
-      if (stage === 'login') {
-        await login(email, password);
-        await onLogin();
-      }
-      if (stage === 'register') {
-        await post('/auth/register', { email, name, password });
-        setStage('verify');
-        setNotice('Nhập mã xác minh đã gửi tới email.');
-      }
-      if (stage === 'verify') {
-        await verifyEmail(email, code);
-        await onLogin();
-      }
-      if (stage === 'forgot') {
-        await post('/auth/forgot-password', { email });
-        setStage('reset');
-        setNotice('Nếu tài khoản hợp lệ, mã khôi phục đã được gửi qua email.');
-      }
-      if (stage === 'reset') {
-        await post('/auth/reset-password', { email, code, newPassword: password });
-        setStage('login');
-        setNotice('Đã đổi mật khẩu. Đăng nhập lại để tiếp tục.');
-      }
-    });
-  };
-  return (
-    <main className="portal-auth">
-      <a href="/">GoMate · Về ứng dụng</a>
-      <section className="gm-panel portal-card">
-        <h1>{workspaceTitle}</h1>
-        <p>Không gian dành cho doanh nghiệp và đội ngũ quản trị.</p>
-        <h2>
-          {
-            {
-              login: 'Đăng nhập',
-              register: 'Tạo tài khoản',
-              verify: 'Xác minh email',
-              forgot: 'Quên mật khẩu',
-              reset: 'Đặt lại mật khẩu',
-            }[stage]
-          }
-        </h2>
-        <form onSubmit={submit}>
-          <fieldset disabled={action.busy}>
-            {stage === 'register' && (
-              <Field label="Họ tên" value={name} onChange={e => setName(e.target.value)} required maxLength={100} />
-            )}
-            <Field
-              label="Email"
-              type="email"
-              autoComplete="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              required
-            />
-            {['login', 'register', 'reset'].includes(stage) && (
-              <Field
-                label={stage === 'reset' ? 'Mật khẩu mới' : 'Mật khẩu'}
-                type="password"
-                autoComplete={stage === 'login' ? 'current-password' : 'new-password'}
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                required
-                minLength={6}
-                maxLength={128}
-              />
-            )}
-            {['verify', 'reset'].includes(stage) && (
-              <Field
-                label="Mã 6 chữ số"
-                value={code}
-                onChange={e => setCode(e.target.value)}
-                required
-                pattern="[0-9]{6}"
-                inputMode="numeric"
-              />
-            )}
-            <ErrorBox error={action.error} />
-            {notice && <p role="status">{notice}</p>}
-            <Button type="submit">{action.busy ? 'Đang xử lý…' : 'Tiếp tục'}</Button>
-            <div className="portal-actions">
-              {stage !== 'login' && (
-                <button type="button" onClick={() => setStage('login')}>
-                  Đăng nhập
-                </button>
-              )}
-              {stage === 'login' && (
-                <>
-                  <button type="button" onClick={() => setStage('register')}>
-                    Tạo tài khoản
-                  </button>
-                  <button type="button" onClick={() => setStage('forgot')}>
-                    Quên mật khẩu
-                  </button>
-                  <button type="button" onClick={() => setStage('verify')}>
-                    Xác minh email
-                  </button>
-                </>
-              )}
-              {stage === 'verify' && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    void action.run(async () => {
-                      await post('/auth/resend-verification', { email });
-                      setNotice('Đã yêu cầu gửi mã. Chờ ít nhất 60 giây trước lần tiếp theo.');
-                    })
-                  }
-                >
-                  Gửi lại mã
-                </button>
-              )}
-            </div>
-          </fieldset>
-        </form>
-        {stage === 'login' && <GoogleLoginButton onLogin={() => void action.run(onLogin)} />}
-        <p>
-          Tài khoản mới gửi hồ sơ doanh nghiệp sau khi xác minh email. Quyền Staff/Admin do quản trị viên cấp.
-        </p>
-      </section>
-    </main>
-  );
-}
-
-function Application({ me, refresh }) {
-  const [company, setCompany] = useState(me.application?.company || ''),
-    [website, setWebsite] = useState(me.application?.website || ''),
-    [category, setCategory] = useState(me.application?.category || ''),
-    [file, setFile] = useState(null),
-    action = useAction(),
-    current = me.application;
-  return (
-    <section className="gm-panel portal-card">
-      <h2>Hồ sơ doanh nghiệp</h2>
-      {current && (
-        <p>
-          <Status value={current.status} /> {current.reviewNote}
-        </p>
-      )}
-      {!current || current.status === 'rejected' ? (
-        <form
-          onSubmit={e => {
-            e.preventDefault();
-            void action.run(async () => {
-              await portalApi('/applications', 'POST', {
-                company,
-                website,
-                category,
-                document: await readDocument(file),
-              });
-              await refresh();
-            });
-          }}
-        >
-          <fieldset disabled={action.busy}>
-            <Field
-              label="Tên doanh nghiệp"
-              value={company}
-              onChange={e => setCompany(e.target.value)}
-              required
-              maxLength={150}
-            />
-            <Field
-              label="Danh mục"
-              value={category}
-              onChange={e => setCategory(e.target.value)}
-              required
-              maxLength={100}
-            />
-            <Field
-              label="Website (không bắt buộc)"
-              type="url"
-              value={website}
-              onChange={e => setWebsite(e.target.value)}
-              maxLength={500}
-            />
-            <Field
-              label="Giấy tờ xác minh (PDF/PNG/JPEG, tối đa 10 MB)"
-              type="file"
-              accept=".pdf,.png,.jpg,.jpeg"
-              onChange={e => setFile(e.target.files?.[0])}
-              required
-            />
-            <Button type="submit">{action.busy ? 'Đang gửi…' : 'Gửi hồ sơ xét duyệt'}</Button>
-          </fieldset>
-        </form>
-      ) : (
-        <p>
-          {current.status === 'pending'
-            ? 'Hồ sơ đang chờ quản trị viên xem xét.'
-            : 'Doanh nghiệp đã được phê duyệt.'}
-        </p>
-      )}
-      <ErrorBox error={action.error} />
-      <Button disabled={action.busy} onClick={() => void action.run(refresh)}>
-        Kiểm tra trạng thái
-      </Button>
-    </section>
-  );
-}
-
-function RemoteList({ path, render, revision = 0 }) {
-  const [page, setPage] = useState(1),
-    [retry, setRetry] = useState(0);
-  return (
-    <ListPage
-      key={path + ':' + page + ':' + revision + ':' + retry}
-      path={path}
-      page={page}
-      setPage={setPage}
-      retry={() => setRetry(v => v + 1)}
-      render={render}
-    />
-  );
-}
-
-function ListPage({ path, page, setPage, retry, render }) {
-  const [data, setData] = useState(null),
-    [error, setError] = useState('');
-  useEffect(() => {
-    let alive = true;
-    portalApi(path + '?page=' + page)
-      .then(value => {
-        if (alive) setData(value);
-      })
-      .catch(reason => {
-        if (alive) setError(reason.message);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [path, page]);
-
-  if (error)
-    return (
-      <div className="portal-error-container">
-        <ErrorBox error={error} />
-        <Button onClick={retry}>Thử lại</Button>
-      </div>
-    );
-  if (!data) return <p role="status" className="portal-loading-text">Đang tải dữ liệu…</p>;
-  return (
-    <>
-      <div className="portal-list">
-        {data.items.length ? (
-          data.items.map(item => <div key={item.id}>{render(item)}</div>)
-        ) : (
-          <div className="portal-empty-card">
-            <span className="portal-empty-icon">📂</span>
-            <p>Chưa có dữ liệu nào trong danh sách.</p>
-          </div>
-        )}
-      </div>
-      <div className="portal-actions portal-pagination-actions">
-        <Button disabled={page === 1} onClick={() => setPage(p => p - 1)}>
-          Trước
-        </Button>
-        <span className="portal-page-number">Trang {page}</span>
-        <Button
-          disabled={page * 20 >= (data.total ?? data.items.length)}
-          onClick={() => setPage(p => p + 1)}
-        >
-          Sau
-        </Button>
-      </div>
-    </>
-  );
-}
-
-function Decision({ path, choices, onDone, allowHide = false }) {
-  const [note, setNote] = useState(''),
-    [hide, setHide] = useState(false),
-    action = useAction();
-  return (
-    <div className="gm-decision-card">
-      {!allowHide && (
-        <Field
-          label="Ghi chú xét duyệt"
-          placeholder="Ghi chú hoặc lý do xử lý (không bắt buộc)..."
-          value={note}
-          onChange={e => setNote(e.target.value)}
-          maxLength={1000}
-          disabled={action.busy}
-        />
-      )}
-      {allowHide && (
-        <label className="gm-decision-toggle">
-          <input
-            type="checkbox"
-            checked={hide}
-            onChange={e => setHide(e.target.checked)}
-            disabled={action.busy}
-          />
-          <span>Ẩn hoạt động bị báo cáo</span>
-        </label>
-      )}
-      <div className="portal-actions gm-decision-actions">
-        {choices.map(status => (
-          <Button
-            key={status}
-            className={`gm-btn ${
-              status === 'approved' || status === 'resolved'
-                ? 'gm-btn--approve'
-                : status === 'rejected' || status === 'dismissed'
-                ? 'gm-btn--reject'
-                : 'gm-btn--primary'
-            }`}
-            disabled={action.busy}
-            onClick={() =>
-              void action.run(async () => {
-                await portalApi(
-                  path,
-                  'PATCH',
-                  allowHide
-                    ? { status, hideActivity: status === 'resolved' && hide }
-                    : { status, reviewNote: note }
-                );
-                onDone();
-              })
-            }
-          >
-            {statuses[status]}
-          </Button>
-        ))}
-      </div>
-      <ErrorBox error={action.error} />
-    </div>
-  );
-}
-
-function Posts({ me }) {
-  const [revision, setRevision] = useState(0),
-    action = useAction(),
-    [draft, setDraft] = useState({
-      title: '',
-      copy: '',
-      badge: '',
-      discount: '',
-      border: 'Soft',
-      premium: false,
-    }),
-    business = me.role === 'business',
-    reload = () => setRevision(v => v + 1);
-
-  return (
-    <>
-      <div className="portal-section-head">
-        <h2>{business ? 'Bài đăng doanh nghiệp' : 'Kiểm duyệt bài đăng'}</h2>
-        <span className="portal-section-sub">
-          {business ? 'Tạo thông báo và ưu đãi cho đối tác' : 'Hàng đợi phê duyệt nội dung công khai'}
-        </span>
-      </div>
-      {business && (
-        <section className="gm-panel portal-card portal-create-card">
-          <form
-            onSubmit={e => {
-              e.preventDefault();
-              void action.run(async () => {
-                await portalApi('/posts', 'POST', draft);
-                setDraft(d => ({ ...d, title: '', copy: '' }));
-                reload();
-              });
-            }}
-          >
-            <fieldset disabled={action.busy}>
-              <Field
-                label="Tiêu đề"
-                required
-                value={draft.title}
-                maxLength={120}
-                onChange={e => setDraft({ ...draft, title: e.target.value })}
-              />
-              <label className="gm-field">
-                <span>Nội dung</span>
-                <textarea
-                  required
-                  maxLength={3000}
-                  value={draft.copy}
-                  onChange={e => setDraft({ ...draft, copy: e.target.value })}
-                />
-              </label>
-              <label className="gm-checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={draft.premium}
-                  disabled={me.subscription.plan !== 'plus' || me.subscription.status !== 'active'}
-                  onChange={e => setDraft({ ...draft, premium: e.target.checked })}
-                />
-                Trang trí Plus
-              </label>
-              {draft.premium && (
-                <div className="portal-plus-grid">
-                  <Field
-                    label="Nhãn"
-                    maxLength={60}
-                    value={draft.badge}
-                    onChange={e => setDraft({ ...draft, badge: e.target.value })}
-                  />
-                  <Field
-                    label="Ưu đãi"
-                    maxLength={60}
-                    value={draft.discount}
-                    onChange={e => setDraft({ ...draft, discount: e.target.value })}
-                  />
-                  <label className="gm-field-select">
-                    <span>Kiểu viền</span>
-                    <select
-                      aria-label="Kiểu viền"
-                      value={draft.border}
-                      onChange={e => setDraft({ ...draft, border: e.target.value })}
-                    >
-                      {['Soft', 'Glow', 'Solid'].map(v => (
-                        <option key={v}>{v}</option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-              )}
-              <Button type="submit">Gửi duyệt</Button>
-              <ErrorBox error={action.error} />
-            </fieldset>
-          </form>
-        </section>
-      )}
-      <RemoteList
-        path="/posts"
-        revision={revision}
-        render={item => (
-          <article className={`gm-panel portal-card post-card ${item.premium ? 'portal-premium' : ''}`}>
-            <div className="card-header-row">
-              <div className="post-author-block">
-                <div className="post-avatar" aria-hidden="true">
-                  {(item.businessName || 'B').slice(0, 1).toUpperCase()}
-                </div>
-                <div>
-                  <strong className="post-author-name">{item.businessName}</strong>
-                  <span className="post-author-time">{date(item.createdAt)}</span>
-                </div>
-              </div>
-              <div className="post-status-block">
-                {item.premium && (
-                  <span className="post-plus-badge">
-                    ⭐ Plus {item.badge ? `· ${item.badge}` : ''}
-                  </span>
-                )}
-                <Status value={item.status} />
-              </div>
-            </div>
-            <h3 className="post-title">{item.title}</h3>
-            <p className="portal-text post-content-body">{item.copy}</p>
-            {item.event && (
-              <div className="portal-text">
-                <p>{item.event.category} · {item.event.location}</p>
-                <p>{date(item.event.startsAt)} → {date(item.event.endsAt)}</p>
-                <p>Sức chứa: {item.event.maxParticipants} · Chi phí/người: {item.event.estimatedCost?.toLocaleString('vi-VN')} VND</p>
-                {item.event.meetingPoint && <p>Điểm gặp: {item.event.meetingPoint}</p>}
-                {item.event.plan?.length > 0 && <ol>{item.event.plan.map((step, index) => <li key={index}>{step}</li>)}</ol>}
-              </div>
-            )}
-            {item.offer && <p>Ưu đãi: {item.offer}</p>}
-            {item.offerTerms && <p>Điều kiện áp dụng: {item.offerTerms}</p>}
-            {item.activityId && item.status === 'approved' && (
-              <a href={`/#/app/home/activityDetail/${item.activityId}`}>Xem sự kiện trong app</a>
-            )}
-            {item.discount && (
-              <div className="post-discount-banner">
-                <span>🎁 Ưu đãi:</span> <strong>{item.discount}</strong>
-              </div>
-            )}
-            {item.reviewNote && (
-              <div className="post-review-note">
-                <strong>Ghi chú xét duyệt:</strong> {item.reviewNote}
-              </div>
-            )}
-            {!business && item.status === 'pending' && (
-              <Decision path={`/posts/${item.id}`} choices={['approved', 'rejected']} onDone={reload} />
-            )}
-          </article>
-        )}
-      />
-    </>
-  );
-}
-
-function Applications() {
-  const [revision, setRevision] = useState(0),
-    action = useAction();
-  return (
-    <>
-      <div className="portal-section-head">
-        <h2>Duyệt hồ sơ doanh nghiệp</h2>
-        <span className="portal-section-sub">Thẩm định tính hợp lệ và cấp quyền cho đối tác</span>
-      </div>
-      <ErrorBox error={action.error} />
-      <RemoteList
-        path="/applications"
-        revision={revision}
-        render={item => (
-          <article className="gm-panel portal-card app-card">
-            <div className="card-header-row">
-              <div className="app-author-block">
-                <div className="app-avatar" aria-hidden="true">
-                  {(item.company || 'B').slice(0, 1).toUpperCase()}
-                </div>
-                <div>
-                  <h3 className="app-company-name">{item.company}</h3>
-                  <span className="app-meta-text">{item.category} · {item.website || 'Không có website'}</span>
-                </div>
-              </div>
-              <Status value={item.status} />
-            </div>
-            {item.reviewNote && (
-              <div className="post-review-note">
-                <strong>Ghi chú:</strong> {item.reviewNote}
-              </div>
-            )}
-            <div className="app-actions">
-              <Button disabled={action.busy} onClick={() => void action.run(() => downloadDocument(item.id))}>
-                📄 Tải giấy tờ để xem xét
-              </Button>
-            </div>
-            {item.status === 'pending' && (
-              <Decision
-                path={`/applications/${item.id}`}
-                choices={['approved', 'rejected']}
-                onDone={() => setRevision(v => v + 1)}
-              />
-            )}
-          </article>
-        )}
-      />
-    </>
-  );
-}
-
-function Reports() {
-  const [revision, setRevision] = useState(0);
-  return (
-    <>
-      <div className="portal-section-head">
-        <h2>Báo cáo từ người dùng</h2>
-        <span className="portal-section-sub">Phản ánh hành vi & nội dung cần xem xét an toàn cộng đồng</span>
-      </div>
-      <RemoteList
-        path="/reports"
-        revision={revision}
-        render={item => (
-          <article className="gm-panel portal-card report-card">
-            <div className="card-header-row">
-              <div className="report-badge-head">
-                <span className="report-flag-icon" aria-hidden="true">⚑</span>
-                <span className="report-badge-text">Phản ánh vi phạm</span>
-              </div>
-              <Status value={item.status} />
-            </div>
-            <h3 className="report-reason-title">{item.reason}</h3>
-            <p className="portal-text report-detail-body">{item.detail}</p>
-            <div className="report-meta-chip">
-              <span>Mục báo cáo:</span>
-              <code>Hoạt động: {item.activityId}</code>
-            </div>
-            {item.status === 'pending' && (
-              <Decision
-                path={`/reports/${item.id}`}
-                choices={['resolved', 'dismissed']}
-                allowHide
-                onDone={() => setRevision(v => v + 1)}
-              />
-            )}
-          </article>
-        )}
-      />
-    </>
-  );
-}
-
-function Ticket({ item, staff, reload }) {
-  const [message, setMessage] = useState(''),
-    [status, setStatus] = useState(item.status),
-    action = useAction();
-
-  return (
-    <article className="gm-panel portal-card ticket-card">
-      <div className="card-header-row">
-        <div className="ticket-title-block">
-          <span className="ticket-badge-icon" aria-hidden="true">☏</span>
-          <h3 className="ticket-subject">{item.subject}</h3>
-        </div>
-        <Status value={item.status} />
-      </div>
-
-      <div className="ticket-conversation">
-        {item.messages.map(msg => {
-          const isSender = msg.authorId === item.ownerId;
-          return (
-            <div
-              className={`portal-message ticket-message ${
-                isSender ? 'ticket-message--user' : 'ticket-message--staff'
-              }`}
-              key={msg.id}
-            >
-              <div className="ticket-msg-header">
-                <span className="ticket-sender-label">
-                  {isSender ? 'Người gửi' : 'Hỗ trợ'}
-                </span>
-                <span className="ticket-msg-date">{date(msg.createdAt)}</span>
-              </div>
-              <p className="portal-text ticket-msg-text">{msg.text}</p>
-            </div>
-          );
-        })}
-      </div>
-
-      <form
-        onSubmit={e => {
-          e.preventDefault();
-          void action.run(async () => {
-            await portalApi(`/tickets/${item.id}/replies`, 'POST', { message, status });
-            setMessage('');
-            reload();
-          });
-        }}
-        className="ticket-form"
-      >
-        <fieldset disabled={action.busy}>
-          <Field
-            label="Trả lời"
-            placeholder="Nhập nội dung giải đáp hỗ trợ..."
-            value={message}
-            onChange={e => setMessage(e.target.value)}
-            required
-            maxLength={3000}
-          />
-          {staff && (
-            <label className="ticket-status-label">
-              <span>Trạng thái</span>
-              <select
-                aria-label="Trạng thái"
-                value={status}
-                onChange={e => setStatus(e.target.value)}
-                className="gm-select-clean"
-              >
-                <option value="open">Đang mở</option>
-                <option value="closed">Đóng sau khi trả lời</option>
-              </select>
-            </label>
-          )}
-          <Button type="submit">Gửi trả lời</Button>
-          <ErrorBox error={action.error} />
-        </fieldset>
-      </form>
-    </article>
-  );
-}
-
-export function Tickets({ me }) {
-  const [revision, setRevision] = useState(0),
-    [subject, setSubject] = useState(''),
-    [message, setMessage] = useState(''),
-    action = useAction(),
-    reload = () => setRevision(v => v + 1);
-
-  return (
-    <>
-      <div className="portal-section-head">
-        <h2>Yêu cầu hỗ trợ</h2>
-        <span className="portal-section-sub">Tiếp nhận và giải đáp trực tiếp cho cộng đồng người dùng</span>
-      </div>
-      {!['admin', 'staff'].includes(me.role) && (
-        <section className="gm-panel portal-card portal-create-card">
-          <form
-            onSubmit={e => {
-              e.preventDefault();
-              void action.run(async () => {
-                await portalApi('/tickets', 'POST', { subject, message });
-                setSubject('');
-                setMessage('');
-                reload();
-              });
-            }}
-          >
-            <fieldset disabled={action.busy}>
-              <Field
-                label="Tiêu đề"
-                required
-                maxLength={150}
-                value={subject}
-                onChange={e => setSubject(e.target.value)}
-              />
-              <Field
-                label="Nội dung cần hỗ trợ"
-                required
-                maxLength={3000}
-                value={message}
-                onChange={e => setMessage(e.target.value)}
-              />
-              <Button type="submit">Gửi yêu cầu</Button>
-              <ErrorBox error={action.error} />
-            </fieldset>
-          </form>
-        </section>
-      )}
-      <RemoteList
-        path="/tickets"
-        revision={revision}
-        render={item => <Ticket item={item} staff={['staff', 'admin'].includes(me.role)} reload={reload} />}
-      />
-    </>
-  );
-}
-
-function RoleEditor({ item, actorId }) {
-  const [role, setRole] = useState(item.role || 'user'),
-    [current, setCurrent] = useState(item.role || 'user'),
-    [saved, setSaved] = useState(false),
-    action = useAction();
-  const disabled = item.id === actorId;
-  return (
-    <form
-      onSubmit={event => {
-        event.preventDefault();
-        void action.run(async () => {
-          setSaved(false);
-          await portalApi(`/users/${item.id}/role`, 'PATCH', { role });
-          setCurrent(role);
-          setSaved(true);
-        });
-      }}
-    >
-      <fieldset disabled={action.busy || disabled}>
-        <label>
-          Vai trò{' '}
-          <select
-            aria-label="Vai trò"
-            value={role}
-            onChange={event => {
-              setRole(event.target.value);
-              setSaved(false);
-            }}
-          >
-            <option value="user">User</option>
-            <option value="staff">Staff</option>
-            <option value="admin">Admin</option>
-          </select>
-        </label>
-        <p>Quyền hiện tại: {current}. Thay đổi quyền sẽ yêu cầu tài khoản này đăng nhập lại.</p>
-        <Button type="submit" disabled={role === current}>
-          Lưu vai trò
-        </Button>
-      </fieldset>
-      {item.effectiveRole === 'business' && (
-        <p>Tài khoản đã được duyệt doanh nghiệp. Chọn User vẫn giữ quyền doanh nghiệp từ hồ sơ đã duyệt.</p>
-      )}
-      {disabled && <p>{'Không thể tự đổi vai trò của tài khoản đang đăng nhập.'}</p>}
-      {saved && <p role="status">Đã cập nhật vai trò. Các phiên đăng nhập cũ đã bị thu hồi.</p>}
-      <ErrorBox error={action.error} />
-    </form>
-  );
-}
-
-function UserRow({ item, actorId, subscriptions = false }) {
-  const [plan, setPlan] = useState(item.subscription?.plan || 'free'),
-    [status, setStatus] = useState(item.subscription?.status || 'active'),
-    [saved, setSaved] = useState(false),
-    action = useAction();
-  return (
-    <article className="gm-panel portal-card user-row-card">
-      <div className="card-header-row">
-        <div>
-          <h3>{item.name}</h3>
-          <p className="user-email-text">{item.email}</p>
-        </div>
-      </div>
-      {!subscriptions ? (
-        <RoleEditor item={item} actorId={actorId} />
-      ) : (
-        <form
-          onSubmit={e => {
-            e.preventDefault();
-            void action.run(async () => {
-              setSaved(false);
-              await portalApi(`/users/${item.id}/subscription`, 'PATCH', { plan, status });
-              setSaved(true);
-            });
-          }}
-        >
-          <fieldset disabled={action.busy}>
-            <label>
-              Gói{' '}
-              <select
-                aria-label="Gói"
-                value={plan}
-                onChange={e => {
-                  setPlan(e.target.value);
-                  setSaved(false);
-                }}
-              >
-                <option value="free">Free</option>
-                <option value="plus">Plus</option>
-              </select>
-            </label>
-            <label>
-              Trạng thái{' '}
-              <select
-                aria-label="Trạng thái"
-                value={status}
-                onChange={e => {
-                  setStatus(e.target.value);
-                  setSaved(false);
-                }}
-              >
-                {['active', 'paused', 'cancelled'].map(v => (
-                  <option key={v} value={v}>
-                    {statuses[v]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <Button type="submit">Lưu gói</Button>
-            {saved && <span role="status">Đã lưu</span>}
-            <ErrorBox error={action.error} />
-          </fieldset>
-        </form>
-      )}
-    </article>
-  );
-}
-
-function Overview({ me }) {
-  const [metrics, setMetrics] = useState(null),
-    [error, setError] = useState(''),
-    [retry, setRetry] = useState(0);
-  useEffect(() => {
-    let alive = true;
-    portalApi('/metrics')
-      .then(data => {
-        if (alive) {
-          setMetrics(data);
-          setError('');
-        }
-      })
-      .catch(e => {
-        if (alive) setError(e.message);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [retry]);
-  const names = {
-    posts: 'Bài đăng',
-    pendingPosts: 'Bài chờ duyệt',
-    approvedPosts: 'Bài được duyệt',
-    users: 'Người dùng',
-    pendingBusinesses: 'Doanh nghiệp chờ duyệt',
-    openTickets: 'Ticket đang mở',
-    openReports: 'Báo cáo chờ xử lý',
-  };
-  return (
-    <>
-      <h2>Chào {me.name}</h2>
-      <ErrorBox error={error} />
-      <Button onClick={() => setRetry(v => v + 1)}>Làm mới số liệu</Button>
-      <div className="portal-metrics">
-        {metrics &&
-          Object.entries(metrics).map(([key, value]) => (
-            <article key={key} className="gm-panel portal-card">
-              <span>{names[key] || key}</span>
-              <h2>{value}</h2>
-            </article>
-          ))}
-      </div>
-      {metrics && me.role === 'admin' && (
-        <Button
-          onClick={() =>
-            saveBlob(
-              new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), metrics }, null, 2)], {
-                type: 'application/json',
-              }),
-              'gomate-report.json'
-            )
-          }
-        >
-          Xuất báo cáo tổng quan
-        </Button>
-      )}
-    </>
-  );
-}
-
-export function GoMatePortal() {
-  const [me, setMe] = useState(null),
-    [loading, setLoading] = useState(Boolean(getSession())),
-    [bootError, setBootError] = useState(''),
-    [section, setSection] = useState('overview'),
-    action = useAction();
-
-  useEffect(() => {
-    setUnauthorizedHandler(() => {
-      setMe(null);
-      setBootError('');
-    });
-    return () => setUnauthorizedHandler();
+export default function ConnectedPortal() {
+  const t = usePortalText();
+  const [me, setMe] = useState(null), [data, setData] = useState({ posts: [], applications: [], users: [], metrics: {} });
+  const [section, setSection] = useState('overview'), [busy, setBusy] = useState(false), [error, setError] = useState(''), [success, setSuccess] = useState('');
+  const [refreshError, setRefreshError] = useState('');
+  const [application, setApplication] = useState({ company: '', category: '', accountType: 'business', country: 'VN', certificateNumber: '', website: '', taxId: '', address: '', representativeName: '', representativeTitle: '', representativeEmail: '', representativePhone: '' }), [document, setDocument] = useState(null), [applicationDetails, setApplicationDetails] = useState(null), [notes, setNotes] = useState({});
+  const [supplementalDocument, setSupplementalDocument] = useState(null);
+  const [locations, setLocations] = useState([]);
+  const [businessGroups, setBusinessGroups] = useState([]), [businessStaff, setBusinessStaff] = useState([]);
+  const [staffRequests, setStaffRequests] = useState([]), [staffInvitations, setStaffInvitations] = useState([]), [notices, setNotices] = useState([]);
+  const lock = useRef(false), applicationRevision = useRef('');
+  const loading = useRef(null);
+  const load = useCallback(() => {
+    if (loading.current) return loading.current;
+    const token = getSession()?.accessToken;
+    const request = (async () => {
+    if (!getSession()) { setMe(null); return; }
+    const profile = await api('/portal/me');
+    const reviewing = profile.role === 'admin', business = profile.role === 'business', employee = profile.role === 'business-staff';
+    const results = await Promise.allSettled([
+      business || reviewing ? pages('/portal/posts') : {items:[]}, business || reviewing ? api('/portal/metrics') : {}, reviewing ? pages('/portal/applications') : {items:[]}, profile.role === 'admin' ? pages('/portal/users') : {items:[]},
+      business || employee ? pages('/portal/locations') : {items:[]}, business || employee ? pages('/portal/groups') : {items:[]}, business ? pages('/portal/staff') : {items:[]}, profile.role === 'admin' ? pages('/portal/staff-requests') : {items:[]}, api('/portal/staff-invitations'), pages('/portal/notifications'),
+    ]);
+    // Wait for every request before releasing the load lock, even on failure.
+    const failed = results.find(result => result.status === 'rejected');
+    if (failed) throw failed.reason;
+    if (getSession()?.accessToken !== token) return;
+    const [posts, metrics, applications, users, places, groups, employees, reviews, incoming, notifications] = results.map(result => result.value);
+    setData({posts:posts.items,metrics,applications:applications.items,users:users.items}); setLocations(places.items); setBusinessGroups(groups.items); setBusinessStaff(employees.items); setStaffRequests(reviews.items); setStaffInvitations(incoming.items); setNotices(notifications.items);
+    const revision=profile.application ? profile.application.id+':'+profile.application.version : '';
+    if(profile.application && applicationRevision.current!==revision) { applicationRevision.current=revision; setApplication(current => ({...current,...Object.fromEntries(Object.keys(current).map(key=>[key,profile.application[key] || (key === 'country' ? 'VN' : key === 'accountType' ? 'business' : '')]))})); setApplicationDetails({...profile.application,licenseName:profile.application.license?.name}); }
+    setMe(profile);
+    setRefreshError('');
+    })();
+    loading.current = request;
+    const clear = () => { if (loading.current === request) loading.current = null; };
+    void request.then(clear, clear);
+    return request;
   }, []);
-
-  const acceptUser = useCallback(user => {
-    const path = user.role === 'admin' ? '/admin' : user.role === 'staff' ? '/staff' : '/business';
-    if (window.location.pathname !== path) window.history.replaceState(null, '', path);
-    setMe(user);
-  }, []);
-
-  const refresh = useCallback(async () => {
-    const user = await portalApi('/me');
-    acceptUser(user);
-    setBootError('');
-  }, [acceptUser]);
-
+  useEffect(() => { let alive = true; void load().catch(reason => { if (alive) setError(reason.message); }); return () => { alive = false; }; }, [load]);
+  useEffect(() => { if (['business','business-staff'].includes(me?.role) && section === 'overview') queueMicrotask(() => setSection(me.role === 'business' ? 'create-post' : 'active-groups')); }, [me?.role, section]);
+  const run = async action => { if (lock.current) return false; lock.current = true; setBusy(true); setError(''); setSuccess(''); try { await loading.current?.catch(() => {}); await action(); return true; } catch (reason) { setError(reason.message); return false; } finally { lock.current = false; setBusy(false); } };
   useEffect(() => {
-    if (!getSession()) return;
-    let alive = true;
-    portalApi('/me')
-      .then(user => {
-        if (alive) acceptUser(user);
-      })
-      .catch(error => {
-        if (alive && getSession()) setBootError(error.message);
-      })
-      .finally(() => {
-        if (alive) setLoading(false);
-      });
-    return () => {
-      alive = false;
+    if (!me?.id) return;
+    let disposed = false, timer, failures = 0;
+    const schedule = () => { if (!disposed) timer = setTimeout(refresh, Math.min(120000, 15000 * 2 ** failures)); };
+    const refresh = async () => {
+      if (disposed) return;
+      if (!lock.current && window.document.visibilityState !== 'hidden' && window.navigator.onLine !== false) {
+        try { await load(); failures = 0; }
+        catch { failures = Math.min(failures + 1, 3); if (!disposed) setRefreshError('Chưa cập nhật được dữ liệu mới. Đang hiển thị dữ liệu lần tải thành công gần nhất; hệ thống sẽ tự thử lại.'); }
+      }
+      schedule();
     };
-  }, [acceptUser]);
-
-  if (loading) return <main className="portal-auth">Đang tải phiên đăng nhập…</main>;
-  if (bootError)
-    return (
-      <main className="portal-auth">
-        <ErrorBox error={bootError} />
-        <Button onClick={() => void action.run(refresh)}>Thử lại</Button>
-        <ErrorBox error={action.error} />
-        <Button
-          onClick={() =>
-            void logout()
-              .catch(() => {})
-              .finally(() => {
-                setMe(null);
-                setBootError('');
-              })
-          }
-        >
-          Đăng xuất
-        </Button>
-      </main>
-    );
-  if (!me)
-    return (
-      <div className="gomate-portal">
-        <LoginPage onLogin={refresh} />
-      </div>
-    );
-
-  const sections =
-    me.role === 'admin'
-      ? ['overview', 'users', 'applications', 'posts', 'reports', 'tickets', 'subscriptions']
-      : me.role === 'staff'
-      ? ['overview', 'applications', 'posts', 'reports', 'tickets', 'feed']
-      : me.role === 'business'
-      ? ['overview', 'posts', 'billing', 'application', 'tickets', 'feed']
-      : ['application', 'tickets', 'feed'],
-    current = sections.includes(section) ? section : sections[0];
-
-  const Workspace =
-    me.role === 'admin' ? AdminWorkspace : me.role === 'staff' ? StaffWorkspace : BusinessWorkspace;
-
-  const account = (
-    <>
-      <Button
-        disabled={action.busy}
-        onClick={() =>
-          void action.run(async () => {
-            try {
-              await logout();
-            } finally {
-              setMe(null);
-            }
-          })
-        }
-      >
-        Đăng xuất
-      </Button>
-      <ErrorBox error={action.error} />
-    </>
-  );
-
-  return (
-    <div className="gomate-portal">
-      <Workspace me={me} sections={sections} current={current} onSelect={setSection} account={account}>
-        {current === 'overview' &&
-          (me.role === 'admin' ? (
-            <AdminDashboard me={me} onSelect={setSection} />
-          ) : me.role === 'staff' ? (
-            <StaffDashboard me={me} onSelect={setSection} />
-          ) : (
-            <Overview me={me} />
-          ))}
-        {current === 'application' && <Application me={me} refresh={refresh} />}
-        {current === 'applications' && <Applications />}
-        {current === 'posts' && <Posts me={me} />}
-        {current === 'reports' && <Reports />}
-        {current === 'tickets' && <Tickets me={me} />}
-        {['users', 'subscriptions'].includes(current) && (
-          <RemoteList
-            path="/users"
-            render={item => <UserRow item={item} actorId={me.id} subscriptions={current === 'subscriptions'} />}
-          />
-        )}
-        {current === 'billing' && (
-          <section className="gm-panel portal-card">
-            <h2>Gói {me.subscription.plan === 'plus' ? 'GoMate Plus' : 'Free'}</h2>
-            <Status value={me.subscription.status} />
-            <p>Liên hệ hỗ trợ để yêu cầu thay đổi gói.</p>
-            <Button onClick={() => setSection('tickets')}>Liên hệ hỗ trợ</Button>
-            <Button disabled={action.busy} onClick={() => void action.run(refresh)}>
-              Cập nhật trạng thái gói
-            </Button>
-          </section>
-        )}
-        {current === 'feed' && (
-          <>
-            <div className="portal-section-head">
-              <h2>Bài đăng đã xuất bản</h2>
-              <span className="portal-section-sub">
-                Các bài viết đối tác đang hiển thị trên ứng dụng thực tế
-              </span>
-            </div>
-            <RemoteList
-              path="/feed"
-              render={item => (
-                <article
-                  className={`gm-panel portal-card feed-card ${item.premium ? 'portal-premium' : ''}`}
-                >
-                  <div className="card-header-row">
-                    <div className="feed-author-block">
-                      <div className="feed-avatar" aria-hidden="true">
-                        {(item.businessName || 'B').slice(0, 1).toUpperCase()}
-                      </div>
-                      <div>
-                        <strong className="feed-author-name">{item.businessName}</strong>
-                        <span className="feed-date">{date(item.createdAt)}</span>
-                      </div>
-                    </div>
-                    {item.premium && <span className="feed-plus-badge">⭐ Plus</span>}
-                  </div>
-                  <h3 className="feed-title">{item.title}</h3>
-                  <p className="portal-text feed-content">{item.copy}</p>
-                  {item.premium && (item.badge || item.discount) && (
-                    <div className="feed-plus-ribbon">
-                      {item.badge && <span className="feed-badge-pill">{item.badge}</span>}
-                      {item.discount && <span className="feed-discount-pill">{item.discount}</span>}
-                    </div>
-                  )}
-                  <div className="feed-footer">
-                    <small>{date(item.createdAt)}</small>
-                    <span className="feed-live-indicator">● Đang hiển thị trực tuyến</span>
-                  </div>
-                </article>
-              )}
-            />
-          </>
-        )}
-      </Workspace>
-    </div>
-  );
+    schedule();
+    return () => { disposed = true; clearTimeout(timer); };
+  }, [me?.id, load]);
+  const apply = event => { event.preventDefault(); void run(async () => { const uploaded = document ? await fileValue(document) : undefined; const supplement = supplementalDocument ? await fileValue(supplementalDocument) : undefined; await api('/portal/applications', {method:'POST',body:JSON.stringify({...application,...(me.application?{version:me.application.version}:{}),...(uploaded?{document:uploaded}:{}),...(supplement?{supplementalDocument:supplement}:{})})}); setDocument(null); setSupplementalDocument(null); await load(); setSuccess('Đã gửi đầy đủ hồ sơ. Admin sẽ kiểm tra và thông báo kết quả.'); }); };
+  const decide = (kind, row, status) => void run(async () => { if (status === 'rejected' && !notes[row.id]?.trim()) throw Error('Nhập lý do từ chối để doanh nghiệp có thể cập nhật.'); await api(`/portal/${kind}/${row.id}`, { method: 'PATCH', body: JSON.stringify({ status, reviewNote: notes[row.id] || '', version: row.version }) }); await load(); setSuccess(status === 'approved' ? 'Đã duyệt thành công.' : 'Đã gửi lý do từ chối.'); });
+  const download = (row, kind) => void run(async () => { const response = await fetch(`${apiBaseUrl}/portal/applications/${row.id}/document${kind === 'supplemental' ? '?kind=supplemental' : ''}`, { headers: { Authorization: 'Bearer ' + getSession().accessToken } }); if (!response.ok) throw Error('Không tải được hồ sơ'); const url = URL.createObjectURL(await response.blob()); const anchor = window.document.createElement('a'); anchor.href = url; anchor.download = 'ho-so-doanh-nghiep'; anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); });
+  const saveLocation = location => run(async () => { const {name,address,city,phone,latitude,longitude,mapX,mapY,version} = location; await api('/portal/locations'+(location.id?'/'+location.id:''),{method:location.id?'PUT':'POST',body:JSON.stringify({name,address,city,phone,latitude,longitude,mapX,mapY,...(location.id?{version}:{})})}); await load(); });
+  const deleteLocation = id => run(async () => { await api('/portal/locations/'+id,{method:'DELETE',body:JSON.stringify({version:locations.find(item=>item.id===id)?.version})}); await load(); });
+  const createLocationInline = async value => { let saved; const ok = await run(async()=>{saved=await api('/portal/locations',{method:'POST',body:JSON.stringify(value)});await load();}); return ok ? saved : null; };
+  const postLifecycle = (post,action,groupId) => run(async()=>{await api('/portal/posts/'+post.id+'/lifecycle',{method:'POST',body:JSON.stringify({version:post.version,action,...(groupId?{groupId}:{})})});await load();setSuccess(action==='delete'?'Đã xóa.':'Đã thu hồi.');});
+  const publishMultiGroupPost = ({promo,groups}) => run(async () => {
+    await api('/portal/posts',{method:'POST',body:JSON.stringify({...promo,badge:'Doanh nghiệp',discount:promo.discountPercent?'Giảm '+promo.discountPercent+'%':'',premium:false,border:'Solid',groups:groups.map(group=>({name:group.name,locationId:group.locationId,depositAmount:group.depositAmount,event:{category:group.category,location:group.location,address:group.location,province:group.city,meetingPoint:group.meetingPoint,startsAt:new Date(group.startsAt).toISOString(),endsAt:new Date(group.endsAt).toISOString(),maxParticipants:group.maxParticipants,estimatedCost:group.estimatedCost,...(Number.isFinite(locations.find(place=>place.id===group.locationId)?.longitude) && Number.isFinite(locations.find(place=>place.id===group.locationId)?.latitude) ? {coordinates:{type:'Point',coordinates:[locations.find(place=>place.id===group.locationId).longitude,locations.find(place=>place.id===group.locationId).latitude]}} : {})}}))})});
+    await load(); setSuccess('Đã gửi bài và '+groups.length+' nhóm để duyệt. Các nhóm chỉ xuất hiện trên app sau khi Admin duyệt.'); setSection('posts');
+  });
+  const saveBusinessStaff = account => run(async () => { const previous=businessStaff.find(item=>item.id===account.id); const {name,email,phone,title,groupIds}=account; await api('/portal/staff'+(previous?'/'+previous.id:''),{method:previous?'PUT':'POST',body:JSON.stringify({name,email,phone,title,groupIds,...(previous?{version:previous.version}:{})})}); await load(); });
+  const deleteBusinessStaff = id => run(async () => { await api('/portal/staff/'+id,{method:'DELETE',body:JSON.stringify({version:businessStaff.find(item=>item.id===id)?.version})}); await load(); });
+  const groupCommand = (group,command,patch={}) => run(async () => { const url='/portal/groups/'+group.id+'/'; await api(url+command,{method:command.startsWith('actions/')?'POST':command.startsWith('offers/')?'PUT':'PATCH',body:JSON.stringify({version:group.version,...patch})}); await load(); });
+  const groupChange = (group,patch) => run(async () => {
+    let path,method='PUT',body={version:group.version};
+    if(patch.itinerary) {path='plan';body.itinerary=patch.itinerary;}
+    else if(patch.depositMembers) {const member=patch.depositMembers.find(item=>group.depositMembers.find(old=>old.id===item.id)?.status!==item.status);if(!member) return;path='deposits/'+member.id;method='PATCH';body.status=member.status;}
+    else if(patch.notifications) {const offer=patch.notifications.find(item=>!group.notifications.some(old=>old.id===item.id));if(!offer) return;path='offers';method='POST';body={...body,clientId:offer.id,title:offer.title,body:offer.body,expiresAt:offer.expiresAt?new Date(offer.expiresAt).toISOString():''};}
+    else if(patch.itineraryConfirmed) {path='actions/confirm-schedule';method='POST';}
+    else throw Error('Thao tác chưa hợp lệ');
+    await api('/portal/groups/'+group.id+'/'+path,{method,body:JSON.stringify(body)});await load();
+  });
+  const staffDecision = (row,status) => run(async()=>{await api('/portal/staff-requests/'+row.id,{method:'PATCH',body:JSON.stringify({version:row.version,status,reviewNote:notes[row.id] || ''})});await load();});
+  const alerts = <>{error && <div role="alert" className="gm-form-error">{t(error)}</div>}{refreshError && <div role="status" className="gm-live-muted">{t(refreshError)}</div>}{success && <div role="status" className="gm-live-success"><Icon name="check" />{t(success)}</div>}</>;
+  if (getSession() && !me) return <div className="gomate-portal gm-connected"><main className="gm-session-loading"><Logo />
+    {error ? <><p role="alert" className="gm-form-error">{t(error)}</p><PillButton disabled={busy} onClick={() => void run(load)}>{t(busy ? 'Đang tải...' : 'Thử lại')}</PillButton><PillButton variant="secondary" disabled={busy} onClick={() => void run(async () => { await logout(); setMe(null); })}>{t('Đăng xuất')}</PillButton></> : <p role="status">{t('Đang tải không gian làm việc…')}</p>}
+  </main></div>;
+  if (!getSession() || !me || getSession()?.user.emailVerified === false) return <PortalAuth onAuthenticated={load} initialError={error} />;
+  const business = me.role === 'business', employee = me.role === 'business-staff', reviewing = me.role === 'admin';
+  const navigation = business ? [['wallet', 'Ví & đối soát', 'wallet'], ['create-post', 'Create Post', 'activity'], ['active-groups', 'Active Groups', 'activity'], ['locations', 'Location Library', 'grid'], ['business-staff', 'Business Staff', 'users'], ['posts', 'Bài đăng của tôi', 'activity']] : employee ? [['active-groups','Nhóm được phân công','activity']] : reviewing ? [['overview', 'Tổng quan', 'grid'], ['businesses', 'Hồ sơ doanh nghiệp', 'shield'], ['posts', 'Duyệt bài đăng', 'edit'], ...(me.role === 'admin' ? [['users', 'Tài khoản', 'users']] : [])] : [['overview', 'Xác minh doanh nghiệp', 'shield']];
+  return <div className="gomate-portal gm-connected"><div className="gm-dashboard"><aside className="gm-sidebar"><div className="gm-sidebar-brand"><Logo /></div><div className="gm-sidebar-role">{t(business ? 'Doanh nghiệp' : employee ? 'Nhân sự doanh nghiệp' : reviewing ? 'Quản trị GoMate' : 'Đăng ký đối tác')}</div><nav className="gm-sidebar-nav">{navigation.map(([id, label, icon]) => <button key={id} type="button" onClick={() => setSection(id)} className={`gm-nav-item ${section === id ? 'is-active' : ''}`}><Icon name={icon} />{t(label)}</button>)}</nav><div className="gm-sidebar-bottom"><a href="/" className="gm-nav-item">{t("Mở app GoMate ↗")}</a><button className="gm-nav-item" onClick={() => void run(async () => { await logout(); setMe(null); })}><Icon name="logout" />{t("Đăng xuất")}</button></div></aside><main className="gm-main"><header className="gm-topbar"><Logo compact /><div><strong>{t(me.application?.company || me.name)}</strong><p className="gm-live-muted">{t(business ? 'Doanh nghiệp đã xác minh' : employee ? 'Nhân sự doanh nghiệp' : me.role)}</p></div><PortalHeaderActions busy={busy} onRefresh={()=>void run(load)} notifications={notices} /></header><div className="gm-page-content"><div className="gm-page-intro"><div><span className="gm-eyebrow">{t("GOMATE WORKSPACE")}</span><h2>{t(navigation.find(([id]) => id === section)?.[1] || 'Tổng quan')}</h2><p>{t(business ? 'Sự kiện thật, ưu đãi rõ ràng, kết nối cộng đồng.' : reviewing ? 'Kiểm tra hồ sơ và sự kiện trước khi hiển thị trên app.' : employee ? 'Quản lý các nhóm được doanh nghiệp phân công.' : 'Xác minh để trở thành đơn vị tổ chức trên GoMate.')}</p></div></div>{t(alerts)}
+    {staffInvitations.map(invite=><section className="gm-panel" key={invite.id}><h3>Lời mời làm nhân sự</h3><p>{invite.businessName} · {invite.name} · {invite.title}</p><PillButton disabled={busy} onClick={()=>void run(async()=>{await api('/portal/staff-invitations/'+invite.id,{method:'PATCH',body:JSON.stringify({version:invite.version,status:'accepted'})});await load();})}>Đồng ý làm nhân sự</PillButton><PillButton disabled={busy} variant="secondary" onClick={()=>void run(async()=>{await api('/portal/staff-invitations/'+invite.id,{method:'PATCH',body:JSON.stringify({version:invite.version,status:'declined'})});await load();})}>Từ chối</PillButton></section>)}
+    {section === 'overview' && (business || reviewing) && <div className="gm-metric-grid">{(business ? [['Bài đăng', data.metrics.posts || 0, 'edit'], ['Chờ duyệt', data.metrics.pendingPosts || 0, 'shield'], ['Đã duyệt', data.metrics.approvedPosts || 0, 'check']] : [['Hồ sơ chờ duyệt', data.metrics.pendingBusinesses || 0, 'users'], ['Bài chờ duyệt', data.metrics.pendingPosts || 0, 'edit'], ['Tài khoản', data.metrics.users || 0, 'users']]).map(([label, value, icon]) => <MetricCard key={label} label={t(label)} value={value} icon={icon} tone="purple" />)}</div>}
+    {!business && !reviewing && !employee && <BusinessVerificationForm application={application} setApplication={setApplication} document={document} setDocument={setDocument} supplementalDocument={supplementalDocument} setSupplementalDocument={setSupplementalDocument} applicationDetails={applicationDetails} currentApplication={me.application} busy={busy} onSubmit={apply} />}
+    {business && section === 'create-post' && <div className="gm-multi-post-page"><section className="gm-panel gm-live-panel gm-multi-post-panel"><div className="gm-panel-heading"><div><span className="gm-eyebrow">{t("BUSINESS CAMPAIGN")}</span><h3>{t("Create one post and multiple groups")}</h3></div><StatusPill tone="green">{t(locations.length)} {t(" saved locations")}</StatusPill></div><MultiGroupPostComposer locations={locations} onSaveLocation={createLocationInline} onPublish={publishMultiGroupPost} busy={busy} /></section><section className="gm-panel gm-live-panel gm-generated-groups-panel"><div className="gm-panel-heading"><div><span className="gm-eyebrow">{t("GROUPS")}</span><h3>{t("Generated groups")}</h3></div><span className="gm-group-count">{t(businessGroups.length)} {t(" total")}</span></div>{businessGroups.length ? businessGroups.map(group => <article className="gm-generated-group-preview-row" key={group.id}><span><strong>{group.name}</strong><small>{group.promotionalPostTitle} {t(" · ")}{t(group.meetingPoint || group.location)} {t(" · ")}{t(format(group.startsAt))}</small></span><StatusPill>{t(group.status === 'draft' ? 'Draft' : group.status)}</StatusPill></article>) : <p className="gm-live-muted">{t("Groups created from a post will appear here and can be assigned to Business Staff.")}</p>}</section></div>}
+    {business && section === 'wallet' && <BusinessWallet />}
+    {(business || employee) && section === 'active-groups' && <ActiveCampaignDashboard posts={data.posts} onLifecycle={business ? postLifecycle : undefined} groups={businessGroups} locations={locations} onAction={groupChange} onCommand={groupCommand} busy={busy} />}
+    {business && section === 'locations' && <LocationLibrary locations={locations} onSave={saveLocation} onDelete={deleteLocation} />}
+    {business && section === 'business-staff' && <BusinessStaffManagement groups={businessGroups} accounts={businessStaff} onSave={saveBusinessStaff} onDelete={deleteBusinessStaff} />}
+    {me.role === 'admin' && ['overview', 'businesses'].includes(section) && <AdminBusinessReview applications={data.applications} staffRequests={staffRequests} onStaffDecision={staffDecision} busy={busy} notes={notes} setNotes={setNotes} onApplicationDecision={(row, status) => { decide('applications', row, status); setSuccess(''); }} onDownload={download} />}
+    {(business || reviewing) && ['overview', 'posts'].includes(section) && <section className="gm-panel gm-live-panel"><h3>{t(business ? 'Bài đăng của tôi' : 'Duyệt bài đăng')}</h3>{!data.posts.length && <p>{t("Chưa có bài đăng.")}</p>}{data.posts.map(row => <article className="gm-live-review" key={row.id}><div className="gm-live-review-title"><h4>{row.title}</h4><StatusPill tone={tone(row.status)}>{t(statusLabel[row.status])}</StatusPill></div><p>{row.businessName} {t(" · ")}{row.copy}</p>{row.event && <p>{t(format(row.event.startsAt))} {t(" → ")}{t(format(row.event.endsAt))} {t(" · ")}{t(row.event.location)} {t(" · ")}{t(row.event.maxParticipants)} {t(" người")}</p>}<p>{t(row.discountPercent ? `Giảm ${row.discountPercent}% · ` : '')}{t(row.offer || row.discount)}{t(row.offerTerms ? ' · ' + row.offerTerms : '')}</p>{row.reviewNote && <p>{t("Ghi chú: ")}{row.reviewNote}</p>}{business && ['pending','rejected'].includes(row.status) && <div><PillButton disabled={busy} onClick={()=>void run(async()=>{const {title,copy,badge,discount,border,premium,event,groups,discountPercent,offer,offerTerms}=row;await api('/portal/posts/'+row.id,{method:'PUT',body:JSON.stringify({title,copy,badge,discount,border,premium,event:eventPayload(event),groups:groups?.map(({name,locationId,depositAmount,event})=>({name,locationId,depositAmount,event:eventPayload(event)})),discountPercent,offer,offerTerms,version:row.version})});await load();})}>Gửi lại duyệt</PillButton><PillButton variant="secondary" disabled={busy} onClick={()=>void run(async()=>{await api('/portal/posts/'+row.id,{method:'DELETE',body:JSON.stringify({version:row.version})});await load();})}>Rút bài</PillButton></div>}<PostLifecycleActions post={row} busy={busy} onAction={postLifecycle} />{row.groups?.map(group=><div className="gm-post-group-row" key={group.activityId}><p>{group.name} · {format(group.event.startsAt)}{row.status==='approved' && !group.state && <a href={'/#/app/home/activityDetail/'+group.activityId}> · Xem nhóm trong app ↗</a>}</p>{group.state && <StatusPill>{group.state === 'deleted' ? 'Đã xóa nhóm' : 'Đã thu hồi nhóm'}</StatusPill>}<PostLifecycleActions post={row} group={group} busy={busy} onAction={postLifecycle} /></div>)}{row.activityId && row.status === 'approved' && <a href={`/#/app/home/activityDetail/${row.activityId}`}>{t("Xem sự kiện trong app ↗")}</a>}{reviewing && row.status === 'pending' && <><input aria-label={t('Ghi chú bài ' + row.title)} className={fieldStyle} placeholder={t("Ghi chú kiểm duyệt")} value={notes[row.id] || ''} onChange={event => setNotes(value => ({ ...value, [row.id]: event.target.value }))} /><div className="gm-live-actions"><PillButton disabled={busy} onClick={() => decide('posts', row, 'approved')}>{t("Duyệt và đưa lên app")}</PillButton><PillButton disabled={busy} variant="secondary" onClick={() => decide('posts', row, 'rejected')}>{t("Từ chối bài")}</PillButton></div></>}</article>)}</section>}
+    {me.role === 'admin' && section === 'users' && <section className="gm-panel gm-live-panel"><h3>{t("Tài khoản GoMate")}</h3>{data.users.map(row => <div className="gm-live-review" key={row.id}><strong>{row.name}</strong><span>{row.email}</span><StatusPill>{t(row.effectiveRole)}</StatusPill></div>)}</section>}
+  </div></main></div></div>;
 }
 
-export default GoMatePortal;
+
+export { ConnectedPortal as GoMatePortal };
+export function LoginPage(props) {
+  return <PortalAuth {...props} />;
+}
+export function Tickets() {
+  return null;
+}

@@ -367,6 +367,324 @@
 This file records completed development work. Keep the newest entry at the top
 and follow `templates/development-log-entry.md`.
 
+## 2026-10-30 - Copy-ready input data for two HCMC demo flows
+
+### Summary
+
+- Add the requested input values rather than presenter instructions: personal activity and business workshop in Ho Chi Minh City, with descriptions, locations, schedules, capacities, offers, verification fields, itinerary and chat text. Clearly label fictional business data and future-date requirements.
+
+### Files changed
+
+- `docs/DU_LIEU_NHAP_DEMO_HCM.txt`, `docs/DEVELOPMENT_LOG.md`.
+
+### Verification
+
+- Compared field names, lengths and sample values with the current composer and verification form. Documentation only; no application checks rerun.
+
+### Remaining work
+
+- Use an existing verified account for staff email and matching demo documents for verification; choose future dates if reusing later.
+
+## 2026-10-30 - Plain-text demo script and current-branch delivery
+
+### Summary
+
+- Add a Vietnamese plain-text script for the individual and business journeys, including Admin review, assigned staff, stable group allocation, inline locations, chat and withdrawal/deletion. Include setup, accounts, expected results and presenter checklist.
+- Deliver the accumulated FE/BE changes on their existing `quan_business` branches. Parent workspace launcher files are versioned under FE `tooling/workspace-root/` because the parent is not a Git repository.
+
+### Files changed
+
+- `docs/DEMO_HAI_LUONG.txt`, `docs/DEVELOPMENT_LOG.md`.
+
+### Verification
+
+- Reviewed instructions against current demo guide, launcher and verified portal flow. No source change in this documentation task; preceding entry records passing build, typecheck, browser regressions and backend tests.
+- Check staged whitespace and final remote branch SHAs during delivery.
+
+### Remaining work
+
+- None for the demo document. Existing lint/Expo Doctor limitations remain recorded below.
+
+## 2026-10-30 - Manual campaigns, stable group audiences and business group chat
+
+### Summary
+
+- Allow manual meeting points without a saved branch, with optional inline save and coordinates. Default to shared group information; split exact totals (20/3 = 7, 7, 6), explaining uneven splits before submission.
+- Move notices to the top-right bell; use refresh/settings icons. Settings is a placeholder. Redesign active-group search, cards and operational tabs; add owner/assigned-staff chat with history, polling, read receipts and authenticated attachments.
+- Persist one consumer group per campaign across discovery, direct URLs, joins, favorites, feed and chat. Owners/Admin/assigned staff retain scoped management access. New business group capacities count participants, excluding the organizer.
+- Add owner/Admin withdrawal/deletion of campaigns or groups, version checks and confirmation. Close requests/chat writes, retain history, notify affected users, and retry durable cleanup without resurrecting groups.
+
+### Files changed
+
+- FE: `src/gomate-portal/MultiGroupPostComposer.jsx`, `LocationLibrary.jsx`, `ConnectedPortal.jsx`, `ActiveCampaignDashboard.jsx`, `GoMatePortal.jsx`, `connected-portal.css`; new `BusinessGroupChat.jsx`, `PortalHeaderActions.jsx`, `PostLifecycleActions.jsx`; `tests/business-campaign-controls.web.cjs`, `package.json`, decision log.
+- BE: new `src/common/business-audience.js`, `src/modules/portal/post-lifecycle.js`; portal repository/routes/validation/operations, activity repository/routes/me-routes/chat-events, chat repository, database indexes; `tests/business-campaign-control.test.js`, `tests/business-workflow.test.js`, `docs/PORTAL_API.md`.
+
+### Verification
+
+- Relevant BE activity/business/chat/portal suite: 43 tests passed across 16 files. New campaign-control test passed again with injected post-commit chat failure, durable reconciliation, exactly-once notifications and no resurrection.
+- Root `npm run build:web`, FE `npm run typecheck`: passed. New `node tests/business-campaign-controls.web.cjs`: passed against isolated real BE/Mongo, including inline save, 20/3 split, approval, owner/staff chat and image download, withdrawal/deletion and mobile bounds. Screenshot inspected.
+- `node tests/portal-registration.web.cjs` and `node tests/verification-documents.web.cjs`: passed again against the final export, including session restoration and private document previews.
+- FE lint retains two unrelated Date.now render-purity errors and five warnings; Expo Doctor passes 20/21 checks with existing expo/expo-location/expo-sharing patch mismatches.
+
+### Remaining work
+
+- Settings intentionally has no action. Existing approved campaigns are not repartitioned or migrated to new participant counters. The full legacy native-app workflow test has a previously recorded unrelated staff-screen text expectation; the dedicated browser regression covers the new portal flow.
+
+## 2026-10-30 - Stable file picking, private image previews and complete Admin verification
+
+### Summary
+
+- Anchor the portal scroller to the viewport independently of Expo's fixed-height root. Anchor the native file input inside its upload control to avoid focus scrolling the document and exposing blank space after the picker closes.
+- Show local and saved image thumbnails for primary and supplemental verification documents in the business form/summary and Admin details. Load saved images through the existing authenticated owner/Admin download endpoint; revoke blob URLs and cancel obsolete requests. Refresh replaced files by application revision, including replacements with the same filename. PDFs keep a file card/download rather than an unsafe inline embed.
+- Use the complete application review panel on both Admin Overview and Business applications. Include every submitted business/contact field, account type, country, certificate/tax numbers, submission/update dates and both documents. Keep review state current after data refresh and show the modal above floating controls on mobile.
+
+### Files changed
+
+- `src/gomate-portal/VerificationDocumentPreview.jsx`, `BusinessVerificationForm.jsx`, `AdminBusinessReview.jsx`, `ConnectedPortal.jsx`, `connected-portal.css`.
+- `src/i18n/portalTranslations.ts`, `package.json`, `tests/verification-documents.web.cjs`, `tests/business-workflow.web.cjs`, `docs/DEVELOPMENT_LOG.md`.
+
+### Verification
+
+- Root `npm run build:web`, FE `npm run typecheck`, `git diff --check`: passed. Local `/portal` returns 200 and serves the latest bundle.
+- `node tests/verification-documents.web.cjs`: passed against an isolated real backend/database. Covers file chooser selection/cancel, viewport coverage without root scrolling, local image replacement, persisted private thumbnails, all submitted fields in Admin, rejection/resubmission with a same-name replacement and mobile rendering. Desktop/mobile screenshots inspected.
+- `node tests/portal-registration.web.cjs`: passed, including PDF submissions and restored-session/no-login-flash checks.
+- `npm run lint`: existing two Date.now render-purity errors and five warnings in unrelated files. `npx expo-doctor`: existing three patch mismatches; 20/21 checks passed.
+
+### Remaining work
+
+- Native picker coverage uses headless Chrome's file chooser automation; the exact original OS/DevTools repaint artifact was not independently reproduced. Image previews and viewport bounds pass the regression scenario without resizing or opening DevTools.
+
+## 2026-10-30 - Restore portal sessions without login flash and clarify Admin/Staff
+
+### Summary
+
+- Render a loading/retry workspace while a stored session resolves, rather than mounting email/password login. Keep sessions during temporary API failures; expired sessions still return to login.
+- Restrict platform review/management to Admin in FE and BE; reject assigning the retired global Staff role. Business Staff remains derived from business-created grants and retains group-scoped permissions.
+- Replace demo Staff with Admin and migrate only marked workshop demo accounts, preserving passwords/IDs and invalidating previous sessions. Applied the targeted migration locally without reseeding activities.
+
+### Files changed
+
+- FE: `src/gomate-portal/ConnectedPortal.jsx`, `DemoHub.jsx`, `connected-portal.css`, `src/i18n/portalTranslations.ts`, `tests/portal-registration.web.cjs`, demo/module documentation and logs.
+- BE: portal routes/repository, operator role command, `src/database/workshop-demo.js`, `workshop-demo-admin.js`, portal/business test fixtures, `tests/portal-authority.test.js`, `docs/PORTAL_API.md`.
+
+### Verification
+
+- `node --test tests/portal-authority.test.js tests/portal.test.js tests/business-events.test.js tests/business-verification.test.js tests/business-workflow.test.js`: 20 tests passed. Verifies Admin-only approval, legacy Staff/Business Staff denial, role assignment restrictions and safe/idempotent demo migration.
+- FE `node tests/portal-registration.web.cjs`: passed. DOM observer confirms no password form mounts during delayed reload or retry after HTTP 503; HTTP 401 clears the session and displays login. Demo card shows Admin; business registration/upload still passes.
+- Root `npm run build:web`, FE `npm run typecheck`: passed. Local demo migration returned demo.admin@gomate.local with admin role, retaining the existing password.
+- FE `npm run lint`: existing two Date.now render-purity errors and five warnings in unrelated files. `npx expo-doctor`: existing patch mismatches for expo, expo-location and expo-sharing (20/21 checks passed).
+
+### Remaining work
+
+- Real legacy Staff accounts require an explicit operator decision if they should become Admin; no automatic promotion is performed.
+
+## 2026-10-30 - Company and household business verification form
+
+### Summary
+
+- Remove the authenticated sidebar demo link; add company/individual account type, Vietnam region, explicit name/certificate guidance, 28 selectable industries with Other, and optional supplemental upload. Keep representative/contact information.
+- Persist schemaVersion 3 certificate identity, freeze certificate/type/region after submission and retain approval-based business access. Keep older application request shapes compatible.
+- Validate uploads on BE: matching PDF/PNG/JPEG/JPG formats, max 10 MB per file and parsed PDFs limited to 1–30 pages. Store supplemental files privately in a separate collection; expose metadata and owner/reviewer downloads only.
+
+### Files changed
+
+- FE: `src/gomate-portal/BusinessVerificationForm.jsx`, `ConnectedPortal.jsx`, `AdminBusinessReview.jsx`, `connected-portal.css`, `src/i18n/portalTranslations.ts`, `tests/portal-registration.web.cjs`, `tests/business-workflow.web.cjs`.
+- BE: `src/modules/portal/business-options.js`, `documents.js`, `validation.js`, `routes.js`, `repository.js`, `src/database/mongo.js`, package/lockfile, portal/business-workflow test fixtures, `tests/business-verification.test.js`, `docs/PORTAL_API.md`.
+- `docs/DECISIONS.md`, `docs/DEVELOPMENT_LOG.md`.
+
+### Verification
+
+- Root `npm run build:web`, FE `npm run typecheck`, both repository `git diff --check`: passed.
+- BE `node --test tests/business-verification.test.js tests/portal.test.js tests/business-workflow.test.js`: 18 tests passed. Includes PDF 30/31 page boundaries, malformed/oversized files, simultaneous two 10 MB uploads, allowed industries, certificate immutability, private supplemental downloads, rejection/resubmission and approval permissions.
+- FE `node tests/portal-registration.web.cjs`: passed with real isolated auth/portal APIs, household business upload plus supplemental PDF, industry selection and reload persistence; desktop/mobile screenshots inspected.
+- FE `node tests/business-workflow.web.cjs`: profile rejection/resubmission/approval and campaign publication stages passed. The wider suite then timed out on its unrelated staff-onboarding text expectation (Bạn là nhân sự quản lý nhóm doanh nghiệp, line 71); no staff UI was changed in this task. Updated selectors to match visible state rather than transient icon-containing alerts.
+- `npm run lint`: existing two Date.now render-purity errors and five warnings in unrelated app files. `npx expo-doctor`: existing three Expo package patch mismatches (20/21 checks passed).
+
+### Remaining work
+
+- PDF validation rejects unreadable/password-protected files. Only Vietnam is offered as requested. Real document identity/name matching is performed by reviewers, not OCR.
+
+## 2026-10-30 - Business registration directly inside the portal
+
+### Summary
+
+- Use the app's BrandLogo and Ionicons in the portal instead of the separate drawn logo/icons.
+- Add real account registration, password confirmation and email verification within `/portal`, followed by the existing business application form. Business permissions still require application approval.
+- Move demo and app access below authentication. State that downloads are unavailable, with a working web-app link. Include Vietnamese/English copy and mobile layout.
+
+### Files changed
+
+- `src/gomate-portal/PortalAuth.jsx`, `ConnectedPortal.jsx`, `GoMatePortal.jsx`, `connected-portal.css`.
+- `src/i18n/portalTranslations.ts`, `package.json`, `tests/portal-registration.web.cjs`.
+
+### Verification
+
+- `npm run build:web` (shared root), `npm run typecheck`: passed.
+- `node tests/portal-registration.web.cjs`: passed against an isolated MongoDB database and actual auth endpoints; covers mismatched passwords, account creation without business privileges, wrong/correct verification codes, authenticated business onboarding, reload persistence and mobile overflow. Inspected desktop and mobile screenshots.
+- `npm run lint`: existing two render-purity errors and five warnings in unrelated app files; no new reported errors. Portal JSX is excluded by the existing lint configuration.
+- `npx expo-doctor`: 20/21 checks passed; existing patch-version mismatches for expo, expo-location and expo-sharing.
+
+### Remaining work
+
+- No app download URL exists yet. Real email delivery requires the existing BE mail configuration; the test captures verification mail without external delivery.
+## 2026-10-30 - Standardize local web on port 3000
+
+### Summary
+
+- Replace the shared-root dual-server launcher with a fresh web export followed by BE watch mode on port 3000. Force same-origin `/api` during export; stop startup on export failure.
+- Add `dev` and `build:web` aliases, document manual rebuild/refresh after FE edits, and update demo URLs. Preserve native Expo commands.
+
+### Files changed
+
+- Shared parent `package.json`, `scripts/web-local.cjs`, `README.md`; versioned copies in `tooling/workspace-root/`.
+- `tooling/README.md`, `docs/DEMO_GUIDE.md`, `docs/DECISIONS.md`, `docs/DEVELOPMENT_LOG.md`.
+
+### Verification
+
+- `node --check scripts/web-local.cjs`, `npm run build:web`, `npm run typecheck`, launcher-copy equality and `git diff --check`: passed.
+- HTTP GET on existing local server: `/`, `/portal`, `/demo`, `/api/health` all returned 200 after the fresh export. An attempted second BE startup correctly failed with EADDRINUSE; the existing server was left running.
+- `npm run lint`: failed on existing Date.now render purity errors in HomeComponents.tsx and ActivityProgressScreen.tsx; five existing warnings. Those files were not changed.
+- `npx expo-doctor`: 20/21 passed; existing patch-version mismatches for expo, expo-location and expo-sharing.
+
+### Remaining work
+
+- Existing lint errors and Expo patch-version warnings remain outside this launcher change. Frontend edits require `npm run build:web` and a browser refresh.
+## 2026-10-29 - Surface approved business assignments in the staff app
+
+### Summary
+
+- Include approved, consented enterprise assignments in the staff member's activity list and home schedule without creating participant requests, consuming capacity or requiring a deposit.
+- Materialize missing group conversations when staff open their chat list, including older approved assignments. Keep current grants authoritative so edits/revocation remove access immediately.
+- Allow assigned staff to read their group's activity, members, attendance/updates and completed activity details. Show a manager badge and business portal shortcut in the app; hide the ordinary participant leave action for assigned managers.
+
+### Files changed
+
+- BE: `src/common/business-staff-access.js`; activity repository/routes; chat repository; `tests/business-workflow.test.js`; business API docs.
+- FE: `src/data/activities.ts`, `src/services/activityApi.ts`; `MainApp.tsx`, `ActivityDetailScreen.tsx`, `GroupScreen.tsx`, `MembershipViews.tsx`; `tests/business-workflow.web.cjs`.
+- Development and decision logs.
+
+### Verification
+
+- BE `npm.cmd test`: Passed, 120 tests. Added assignment visibility, automatic chat creation/idempotency, no participant request or capacity changes, completed-group reads, and immediate revocation coverage.
+- FE typecheck, lint and Expo web export: Passed.
+- `npx.cmd expo-doctor`: 17/18 passed; existing expo/expo-location/expo-sharing patch mismatches remain.
+- `npm.cmd run test:business:web`: Passed, including assigned staff activity visibility, automatic chat discovery, member list access and sending a real message without participant registration; full lifecycle/revocation and timeout recovery regressions also passed, with no browser runtime errors. Reviewed staff group screenshot.
+- `git diff --check`: Passed in both repositories. Existing unrelated working changes preserved.
+
+### Remaining work
+
+- Restart the running backend to load the new APIs, then refresh the app. Existing staff assignments need no database migration or reapproval.
+- Staff use the existing business portal for delegated management actions; ordinary activity owner write permissions remain restricted to the owner.
+
+## 2026-10-29 - Prevent overlapping portal refreshes and repeated timeout alerts
+
+### Summary
+
+- Share one in-flight portal load and wait for all endpoint requests to settle before starting another batch. Mutations wait for the prior refresh so stale responses do not race post-save reloads.
+- Replace the 10-second interval with a completion-based 15-second schedule and failure backoff (30/60/120 seconds). Skip hidden tabs and offline browsers.
+- Keep last successful data on background failures, show a persistent stale-data notice separately from action errors, and clear that notice after recovery. Manual actions still report failures.
+
+### Files changed
+
+- `src/gomate-portal/ConnectedPortal.jsx`
+- `tests/business-workflow.web.cjs`
+- `docs/DEVELOPMENT_LOG.md`
+
+### Verification
+
+- `npm.cmd run typecheck`, `npm.cmd run lint`, Expo web export: Passed.
+- `npx.cmd expo-doctor`: 17/18 passed; existing expo/expo-location/expo-sharing patch mismatches remain.
+- `npm.cmd run test:business:web`: Passed full business workflow plus a real 15-second staff API timeout: one request batch, cached data retained, no repeated red alert, recovery clears the stale notice, no browser runtime errors. Initial simulated-clock attempts did not exercise the timer reliably; final coverage uses real elapsed time.
+- Diff reviewed against existing working changes; no backend or dependency changes for this fix.
+
+### Remaining work
+
+- This corrects frontend request overlap and repeated background error alerts. Actual backend/network outages still require a successful connection; no production backend logs were available to attribute the original slow request.
+
+## 2026-10-29 - Business wallet reconciliation without unverified payouts
+
+### Summary
+
+- Add an owner-only wallet API and portal screen showing recorded deposits by group, estimated 10% fees rounded per participant, and estimated business proceeds.
+- Keep manual receipts separate from verified held funds and available balance (both zero). Completed activities do not create withdrawable money. Reuse existing business/staff/group lifecycle without changing shared staff authority.
+
+### Files changed
+
+- FE: `src/gomate-portal/BusinessWallet.jsx`, `ConnectedPortal.jsx`, `tests/business-workflow.web.cjs`.
+- BE: `src/modules/portal/wallet.js`, `operations.js`, `operations-routes.js`; `tests/business-wallet.test.js`, `business-workflow.test.js`; business API documentation.
+- `docs/DEVELOPMENT_LOG.md`, `docs/DECISIONS.md`.
+
+### Verification
+
+- FE `npm.cmd run typecheck`, `npm.cmd run lint`, Expo web export: Passed.
+- BE `node --test tests/business-wallet.test.js tests/business-workflow.test.js`: Passed, 10 tests including owner-only access, tenant isolation, receipt reversal and zero spendable funds after completion.
+- FE `npm.cmd run test:business:web`: Passed, full owner/admin/staff/participant lifecycle and wallet UI; no browser runtime errors. Used cached MongoDB binary after default cache access failed. Reviewed wallet screenshot.
+- `npx.cmd expo-doctor`: 17/18 passed; existing expo, expo-location and expo-sharing patch mismatches. Initial sandbox npm access failed; network-enabled retry completed.
+- `git diff --check`: Passed in both repositories; existing unrelated working changes preserved.
+
+### Remaining work
+
+- Payment integration is explicitly excluded by the user. No real collection, refunds, payouts, payment webhooks, dispute handling or financial fraud protection is implemented. The 10% fee is an estimate only, not a persisted contractual fee.
+- Business web self-registration and automatic capacity-based chat splitting were not added in this task; existing GoMate account/application and manually composed groups remain.
+- Existing Expo patch mismatches remain.
+
+## 2026-10-27 - Refine enterprise staff, shared group plans and mapped locations
+
+### Summary
+
+- Keep enterprise staff as consented, admin-reviewed group assignments. Notify the admin queue when businesses submit and recipients accept. Expose multiple approved managers per group without counting them as participants.
+- Preserve itinerary dates and saved-location selection; canonical business locations supply addresses and map coordinates. Assigned staff can quick-select locations belonging to their business, with server ownership checks on every save.
+- Add editable offer notifications with version conflict checks; update delivered notifications instead of duplicating them. Add participation/management views and deposit confirmation reversal controls to the business dashboard.
+
+### Files changed
+
+- BE: src/modules/portal/operations.js, operations-routes.js, repository.js; tests/business-workflow.test.js; docs/business-workflow.md.
+- FE: ActiveCampaignDashboard.jsx, ConnectedPortal.jsx, BusinessStaffManagement.jsx; tests/business-workflow.web.cjs; development and decision logs.
+
+### Verification
+
+- BE npm.cmd test: Passed, 118 tests, including multiple employees sharing a group, independent revocation, admin queue notifications, canonical coordinates/location references and stale offer edits.
+- BE node --test tests/business-workflow.test.js: Passed after the final canonical-address length guard.
+- npm.cmd run test:business:web: Passed with owner/admin/employee/participant accounts; confirms saved location coordinates, offer edits without duplicate notifications, participant access to the same plan, attendance/completion/rating and revocation. No browser runtime errors.
+- npm.cmd run typecheck, npm.cmd run lint and Expo web export: Passed.
+- npx.cmd expo-doctor: 17/18 passed; existing expo/expo-location/expo-sharing patch mismatches remain.
+- Git diff --check: Passed in both repositories.
+
+### Remaining work
+
+- Staff sign in with their own verified GoMate accounts; the business requests their enterprise role. No shared credentials or platform-staff permissions are granted.
+- Deposits remain a manual ledger. Existing Expo patch-version mismatches remain.
+
+## 2026-10-27 - Persist the complete business web workflow
+
+### Summary
+
+- Complete and validate company/tax/address/representative/license registration, private document access, rejection/resubmission, duplicate tax guards and versioned reviews.
+- Persist business locations, multi-group campaigns, assigned employees, plans, manual deposit receipts and offers. Publish real activities only after review; use stable IDs and reconcile interrupted publication.
+- Require employee consent and admin approval with group-scoped permissions; assignment edits/revocation remove delegated portal and chat access. Keep global account roles and participant counts unchanged.
+- Connect the existing web portal to these APIs and enforce participant/deposit/schedule/attendance guards through completion and existing mobile ratings.
+
+### Files changed
+
+- BE: src/modules/portal/{validation,operations,operations-routes,repository,routes}.js; src/database/mongo.js; activity-readiness, activities/chat repositories and server publication reconciliation.
+- BE: tests/business-workflow.test.js, portal.test.js, business-events.test.js; docs/business-workflow.md and README.md.
+- FE: ConnectedPortal, BusinessVerificationForm, BusinessStaffManagement, AdminBusinessReview, LocationLibrary, ActiveCampaignDashboard; MainApp business notification routing; BusinessIdentity and activity type expose the required deposit before joining.
+- FE: tests/business-workflow.web.cjs and business-demo.web.cjs; development and decision logs.
+
+### Verification
+
+- BE npm.cmd test: Passed, 117 tests against temporary MongoDB, including cross-business access, stale writes, consent/re-consent, chat revocation, publication interruption/retry and the full group lifecycle.
+- FE npm.cmd run typecheck and npm.cmd run lint: Passed.
+- Expo web export with EXPO_PUBLIC_API_BASE_URL=/api: Passed.
+- Activity lifecycle browser suite: Passed, including personal chat/planning/attendance/rating regression checks.
+- npm.cmd run test:business:web: Passed, four isolated accounts through registration/rejection/resubmission, real two-group publication, employee consent/approval, deposits/plans/offers, attendance/completion/rating and immediate revocation; no browser runtime errors.
+- npx.cmd expo-doctor: 17/18 checks passed; existing Expo/expo-location/expo-sharing patch-version mismatch remains.
+
+### Remaining work
+
+- Deposits are an audited manual ledger, without a payment gateway/refunds. Business verification is staff document review, without a government registry integration.
+- Existing Expo/expo-location/expo-sharing patch mismatches remain; dependencies were not changed. Restart BE to create the new indexes and serve the matching FE export.
+
 ## 2026-10-26 - Allow the Expo web fallback port through backend CORS
 
 ### Summary

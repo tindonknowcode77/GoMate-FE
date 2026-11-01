@@ -1,4 +1,4 @@
-import { useFeedbackState } from '../services/feedback';
+import { promptProfileCompletion, useFeedbackState } from '../services/feedback';
 import { deleteActivityDraft, loadActivityDraft, restoreDraftPhotos, saveActivityDraft } from '../services/activityDraftService';
 import { placeRegionFields } from '../services/mapsService';
 import { AddressAutocomplete } from '../components/AddressAutocomplete';
@@ -9,7 +9,7 @@ import * as ImagePicker from 'expo-image-picker';
 
 import { DateRangeField, TimeField } from '../components/DateTimeField';
 import { CreateGroupFields } from '../components/CreateGroupFields';
-import { emptyPreferences } from '../components/ActivityChoices';
+import { canUserParticipate, emptyPreferences, isBasicProfileComplete, missingBasicProfileLabels } from '../components/ActivityChoices';
 import { LocationField } from '../components/LocationField';
 import { FormField } from '../components/FormField';
 import { GradientButton } from '../components/GradientButton';
@@ -59,7 +59,7 @@ function draftFromActivity(activity?: ActivityDto, province?: string): ActivityD
     financialConfig: { ...createInitialDraft().financialConfig, estimatedCostPerMember: activity.estimatedCost } };
 }
 
-export function CreateActivityScreen({ onCreated, initialActivity, onCancel }: { onCreated: (activity?: ActivityDto) => void; initialActivity?: ActivityDto; onCancel?: () => void }) {
+export function CreateActivityScreen({ onCreated, initialActivity, onCancel, onRequireProfile }: { onCreated: (activity?: ActivityDto) => void; initialActivity?: ActivityDto; onCancel?: () => void; onRequireProfile?: () => void }) {
   const { profile } = useProfile();
   const defaultRegion = profileRegions.includes(normalizeRegion(profile?.location || '')) ? normalizeRegion(profile?.location || '') : 'TP. Hồ Chí Minh';
   const fileBusy = false;
@@ -125,6 +125,10 @@ export function CreateActivityScreen({ onCreated, initialActivity, onCancel }: {
     setError(undefined);
     try { validateActivityDraft(draft, Math.min(step, 4)); } catch (reason) { setError(reason instanceof Error ? reason.message : 'Invalid input'); return; }
     if (step === 3) { try { validateActivityDraft(draft, 4); } catch (reason) { setError(reason instanceof Error ? reason.message : 'Chi phí không hợp lệ'); return; } }
+    if ((step === 3 || step === 4) && profile && !canUserParticipate(draft.participantPreferences, profile)) {
+      promptProfileCompletion('Hồ sơ của người đăng chưa đáp ứng điều kiện nhóm đã chọn (độ tuổi, giới tính, ngôn ngữ hoặc tùy chọn cá nhân). Vui lòng bổ sung hồ sơ hoặc điều chỉnh lại điều kiện nhóm.');
+      return;
+    }
     if (step < 4) { scroll.current?.scrollTo({ y: 0, animated: false }); setStep((current) => current + 1); return; }
     if (publishing.current) return;
     publishing.current = true; setBusy(true);
@@ -137,6 +141,17 @@ export function CreateActivityScreen({ onCreated, initialActivity, onCancel }: {
   };
 
   if (draftLoading || draftLoadError) return <View style={{ flex: 1, padding: 24, gap: 16, alignItems: 'center', justifyContent: 'center' }}>{draftLoading ? <ActivityIndicator color={colors.primary} /> : <><Text accessibilityRole="alert">{draftLoadError}</Text><Pressable onPress={() => { setDraftLoading(true); setDraftRetry(value => value + 1); }}><Text style={{ color: colors.primary }}>Tải lại bản nháp</Text></Pressable></>}</View>;
+  if (profile && !isBasicProfileComplete(profile)) {
+    const missing = missingBasicProfileLabels(profile);
+    return <View style={[styles.screen, { justifyContent: 'center', alignItems: 'center', padding: 24 }]}>
+      <View style={[styles.card, { maxWidth: 420, width: '100%', alignItems: 'center', padding: 24 }]}>
+        <Ionicons color={colors.primary} name="person-circle-outline" size={48} />
+        <Text style={[styles.title, { fontSize: 20, textAlign: 'center' }]}>Hoàn thiện hồ sơ trước khi đăng bài</Text>
+        <Text style={{ color: colors.textSecondary, textAlign: 'center', lineHeight: 20 }}>Hồ sơ của bạn còn thiếu: {missing.join(', ')}. Vui lòng bổ sung thông tin cơ bản để tạo hoạt động.</Text>
+        <GradientButton label="Bổ sung thông tin ngay" onPress={() => onRequireProfile ? onRequireProfile() : promptProfileCompletion(`Bạn cần bổ sung đủ thông tin cơ bản (${missing.join(', ')}) trước khi tạo bài đăng.`)} style={{ alignSelf: 'stretch' }} />
+      </View>
+    </View>;
+  }
   return <View style={styles.screen}>
     <View style={styles.header}><View><Text style={styles.title}>{initialActivity ? 'Chỉnh sửa hoạt động' : 'Tạo hoạt động'}</Text><Text style={styles.subtitle}>Bước {step}/4 · {stepNames[step - 1]}</Text></View><View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>{!initialActivity && <Pressable accessibilityRole="button" accessibilityLabel="Lưu nháp" disabled={draftSaving || busy || fileBusy} onPress={() => void storeDraft()} style={{ padding: 9, borderRadius: 12, backgroundColor: colors.primarySoft }}><Text style={{ color: colors.primary, fontWeight: '700', fontSize: 12 }}>{draftSaving ? 'Đang lưu...' : 'Lưu nháp'}</Text></Pressable>}<View style={styles.stepBadge}><Text style={styles.stepBadgeText}>{step}</Text></View></View></View>
     {!initialActivity && <View style={{ paddingHorizontal: 18, gap: 6 }}>{draftNotice ? <Text accessibilityLiveRegion="polite" style={{ color: colors.primary, fontSize: 12 }}>{draftNotice}</Text> : null}{hasSavedDraft && <Pressable accessibilityRole="button" disabled={draftSaving || busy} onPress={() => setDiscarding(true)}><Text style={{ color: colors.textMuted, fontSize: 12 }}>Bỏ bản nháp và tạo mới</Text></Pressable>}</View>}
@@ -147,7 +162,7 @@ export function CreateActivityScreen({ onCreated, initialActivity, onCancel }: {
       {initialActivity && <View><Text style={styles.noteText}>{draft.replacePhotos ? 'Ảnh hiện tại sẽ được xóa khi lưu.' : 'Ảnh hiện tại được giữ lại. Chọn ảnh mới để thay thế bộ ảnh.'}</Text><Pressable onPress={() => setField('replacePhotos', !draft.replacePhotos)}><Text style={styles.editText}>{draft.replacePhotos ? 'Giữ lại ảnh hiện tại' : 'Xóa bộ ảnh hiện tại'}</Text></Pressable></View>}
       {step === 1 && <BasicStep customCategory={customCategory} draft={draft} onCustomCategory={() => { setCustomCategory(true); setField('category', ''); }} onPickPhoto={pickPhoto} onPresetCategory={(category) => { setCustomCategory(false); setField('category', category); }} onRemovePhoto={(index) => setField('photos', draft.photos.filter((_, itemIndex) => itemIndex !== index))} setField={setField} />}
       {step === 2 && <WhenWhereStep draft={draft} setField={setField} onSuggestionsLayout={() => scroll.current?.scrollToEnd({ animated: true })} />}
-      {step === 3 && <View style={{ gap: 18 }}><GroupStep draft={draft} setField={setField} editing={Boolean(initialActivity)} existingMembers={initialActivity ? initialActivity.memberCount - (initialActivity.reservedSeats ?? 0) : 1} onCompanionChange={(index, patch) => { draftRevision.current++; setDraftNotice(''); setDraft(current => ({ ...current, companions: Array.from({ length: current.reservedSeats ?? 0 }, (_, at) => ({ name: '', note: '', ...current.companions?.[at], ...(at === index ? patch : {}) })) })); }} /><View style={styles.card}><FormField label="Yêu cầu tham gia" multiline value={draft.requirements} onChangeText={value => setField('requirements', value)} placeholder="Mỗi yêu cầu một dòng" /><Text>Kế hoạch chuyến đi được tạo và chỉnh sửa trong nhóm chat sau khi đăng hoạt động.</Text></View></View>}
+      {step === 3 && <View style={{ gap: 18 }}><GroupStep draft={draft} setField={setField} editing={Boolean(initialActivity)} existingMembers={initialActivity ? initialActivity.memberCount - (initialActivity.reservedSeats ?? 0) : 1} onCompanionChange={(index, patch) => { draftRevision.current++; setDraftNotice(''); setDraft(current => ({ ...current, companions: Array.from({ length: current.reservedSeats ?? 0 }, (_, at) => ({ name: '', note: '', ...current.companions?.[at], ...(at === index ? patch : {}) })) })); }} /><View style={styles.card}><FormField label="Yêu cầu tham gia" multiline value={draft.requirements} onChangeText={value => setField('requirements', value)} placeholder="Mỗi yêu cầu một dòng" /></View></View>}
       {step === 4 && <ActivityDraftPreview draft={draft} initialActivity={initialActivity} host={{ id: profile?.id || '', name: profile?.name || '' }} />}
 
     </View></ScrollView>
@@ -156,7 +171,7 @@ export function CreateActivityScreen({ onCreated, initialActivity, onCancel }: {
 }
 
 function BasicStep({ customCategory, draft, onCustomCategory, onPickPhoto, onPresetCategory, onRemovePhoto, setField }: StepProps & { customCategory: boolean; onCustomCategory: () => void; onPickPhoto: () => void; onPresetCategory: (category: string) => void; onRemovePhoto: (index: number) => void }) {
-  return <View><StepHeading icon="sparkles-outline" title="Thông tin cơ bản" note="Ảnh rõ, tên ngắn và mô tả cụ thể giúp hoạt động dễ được quan tâm hơn." />
+  return <View>
     <Text style={styles.fieldLabel}>Ảnh hoạt động <Text style={styles.optional}>· tối đa 6 ảnh, mỗi ảnh tối đa 10 MB</Text></Text>
     <View style={styles.photoGrid}>{draft.photos.map((photo, index) => <View key={photo.uri} style={styles.photoTile}><Image source={photo} style={styles.photo} />{index === 0 && <View style={styles.coverBadge}><Text style={styles.coverBadgeText}>Ảnh bìa</Text></View>}<Pressable accessibilityLabel="Xóa ảnh" onPress={() => onRemovePhoto(index)} style={styles.removePhoto}><Ionicons color={colors.white} name="close" size={15} /></Pressable></View>)}{draft.photos.length < 6 && <Pressable onPress={onPickPhoto} style={styles.addPhoto}><Ionicons color={colors.primary} name="add" size={27} /><Text style={styles.addPhotoText}>Thêm ảnh</Text></Pressable>}</View>
     <View style={styles.card}><FormField icon="text-outline" label="Tên hoạt động" onChangeText={(value) => setField('name', value)} placeholder="Ví dụ: Cà phê cuối tuần" value={draft.name} /><View style={{ gap: 12 }}><StringSelectionField label="Danh mục" options={activityCategories} value={customCategory ? 'Khác' : draft.category} onChange={value => value === 'Khác' ? onCustomCategory() : onPresetCategory(value)} emptyLabel="Tìm và chọn danh mục" /><Text style={styles.optional}>Phổ biến trên GoMate</Text><View style={styles.choiceRow}>{popularActivityCategories.map(category => <Pressable accessibilityRole="button" key={category} onPress={() => onPresetCategory(category)} style={[styles.choice, draft.category === category && styles.selectedChoice]}><Text style={[styles.choiceText, draft.category === category && styles.selectedChoiceText]}>{category}</Text></Pressable>)}</View></View>{customCategory && <FormField icon="create-outline" label="Danh mục của bạn" onChangeText={(value) => setField('category', value)} placeholder="Ví dụ: Nhiếp ảnh đường phố" value={draft.category} />}<FormField icon="reader-outline" label="Mô tả" multiline onChangeText={(value) => setField('description', value)} placeholder="Mục tiêu, trải nghiệm và những điều thành viên cần biết" value={draft.description} /></View>
@@ -164,14 +179,14 @@ function BasicStep({ customCategory, draft, onCustomCategory, onPickPhoto, onPre
 }
 
 function WhenWhereStep({ draft, setField, onSuggestionsLayout }: StepProps & { onSuggestionsLayout: () => void }) {
-  return <View><StepHeading icon="calendar-outline" title="Thời gian & địa điểm" note="Cung cấp lịch chi tiết và điểm gặp rõ ràng để mọi người dễ sắp xếp." /><View style={styles.card}>
+  return <View><View style={styles.card}>
     <DateRangeField start={draft.date} end={draft.endDate} onChange={(date, endDate) => { setField('date', date); setField('endDate', endDate); }} />
     <View style={styles.twoColumns}><View style={styles.column}><TimeField label="Bắt đầu" value={draft.startTime} onChange={(value) => setField('startTime', value)} /></View><View style={styles.column}><TimeField label="Kết thúc" value={draft.endTime} onChange={(value) => setField('endTime', value)} /></View></View>
     <RegistrationDeadlineField draft={draft} onChange={patch => { setField('registrationDeadline', patch.registrationDeadline || ''); setField('deadlineHoursBefore', patch.deadlineHoursBefore); setField('deadlineCustom', patch.deadlineCustom); }} />
-    <ActivityLocationFields province={draft.province} district={draft.district} ward={draft.ward} onChange={patch => { if (patch.province !== undefined) { setField('province', patch.province); setField('coordinates', null); } if (patch.district !== undefined) setField('district', patch.district); if (patch.ward !== undefined) setField('ward', patch.ward); }} />
-    <Text style={{ color: colors.textSecondary }}>Ghim địa điểm để mọi người thấy khoảng cách chính xác.</Text>
-    <LocationField value={draft.coordinates} onChange={point => setField('coordinates', point)} onPlaceSelected={place => { const fields = placeRegionFields(place, draft.province); if (fields.province) setField('province', fields.province); setField('district', fields.district); setField('ward', fields.ward); setField('address', fields.address); }} />
     <AddressAutocomplete value={draft.address} bias={draft.coordinates} onSuggestionsLayout={onSuggestionsLayout} onChangeText={value => { setField('address', value); setField('coordinates', null); }} onSelect={place => { const fields = placeRegionFields(place, draft.province); if (fields.province) setField('province', fields.province); setField('district', fields.district); setField('ward', fields.ward); setField('address', fields.address); setField('coordinates', place.point); }} />
+    <ActivityLocationFields province={draft.province} district={draft.district} ward={draft.ward} onChange={patch => { if (patch.province !== undefined) { setField('province', patch.province); setField('coordinates', null); } if (patch.district !== undefined) setField('district', patch.district); if (patch.ward !== undefined) setField('ward', patch.ward); }} />
+
+    <LocationField value={draft.coordinates} onChange={point => setField('coordinates', point)} onPlaceSelected={place => { const fields = placeRegionFields(place, draft.province); if (fields.province) setField('province', fields.province); setField('district', fields.district); setField('ward', fields.ward); setField('address', fields.address); }} />
     <FormField icon="navigate-outline" label="Điểm tập trung / hướng dẫn gặp mặt" onChangeText={(value) => setField('meetingPoint', value)} placeholder="Ví dụ: trước cổng chính, bàn số 8" value={draft.meetingPoint} />
 
   </View></View>;

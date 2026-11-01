@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useFeedbackState } from '../services/feedback';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,14 +12,16 @@ const CODE_LENGTH = 6;
 
 export function VerifyEmailScreen({ email, onVerified, onBack }: { email: string; onVerified: () => void; onBack: () => void }) {
   const [code, setCode] = useState<string[]>(Array(CODE_LENGTH).fill(''));
+  const [cooldown, setCooldown] = useState(0);
+  useEffect(() => { if (!cooldown) return; const timer = setTimeout(() => setCooldown(value => Math.max(0, value - 1)), 1000); return () => clearTimeout(timer); }, [cooldown]);
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useFeedbackState('');
   const submit = async (resend = false) => {
-    if (busy) return;
+    if (busy || resend && cooldown > 0) return;
     if (!resend && code.some(digit => !digit)) { setFeedback('Vui lòng nhập đủ mã xác nhận 6 số.'); return; }
     setBusy(true); setFeedback('');
     try {
-      if (resend) { await post('/auth/resend-verification', { email }); setFeedback('Đã yêu cầu gửi lại mã. Vui lòng đợi ít nhất 60 giây.'); }
+      if (resend) { await post('/auth/resend-verification', { email }); setCooldown(60); setFeedback('Đã gửi mã xác minh.'); }
       else { await verifyEmail(email, code.join('')); onVerified(); }
     } catch (reason) { setFeedback(reason instanceof Error ? reason.message : 'Xác minh thất bại'); }
     finally { setBusy(false); }
@@ -27,6 +29,7 @@ export function VerifyEmailScreen({ email, onVerified, onBack }: { email: string
   const inputs = useRef<(TextInput | null)[]>([]);
 
   const updateDigit = (value: string, index: number) => {
+    setFeedback('');
     const digits = value.replace(/\D/g, '').slice(0, CODE_LENGTH);
     const start = digits.length === CODE_LENGTH ? 0 : index;
     setCode(current => {
@@ -47,12 +50,11 @@ export function VerifyEmailScreen({ email, onVerified, onBack }: { email: string
       <View style={styles.page}>
         <View style={styles.header}>
           <Pressable accessibilityLabel="Back" hitSlop={8} onPress={onBack} style={styles.headerButton}><Ionicons color={colors.textSecondary} name="chevron-back" size={24} /></Pressable>
-          <Pressable accessibilityLabel="More options" hitSlop={8} style={styles.headerButton}><Ionicons color={colors.text} name="ellipsis-horizontal" size={22} /></Pressable>
         </View>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.body}>
           <View>
             <Text style={styles.title}>Kiểm tra email</Text>
-            <Text style={styles.subtitle}>{`Nhập mã xác minh 6 số đã gửi tới ${email}. Xác minh xong, bạn sẽ tự động đăng nhập.`}</Text>
+            <Text style={styles.subtitle}>{`Nhập mã 6 số gửi tới ${email}.`}</Text>
             <View style={styles.codeRow}>
               {code.map((digit, index) => (
                 <TextInput
@@ -72,7 +74,7 @@ export function VerifyEmailScreen({ email, onVerified, onBack }: { email: string
                 />
               ))}
             </View>
-            <View style={styles.resendRow}><Text style={styles.resendHint}>Chưa nhận được mã?</Text><Pressable disabled={busy} onPress={() => void submit(true)}><Text style={styles.resend}>Gửi lại mã</Text></Pressable></View>
+            <View style={styles.resendRow}><Text style={styles.resendHint}>Chưa nhận được mã?</Text><Pressable disabled={busy || cooldown > 0} onPress={() => void submit(true)}><Text style={styles.resend}>{cooldown > 0 ? `Gửi lại sau ${cooldown}s` : 'Gửi lại mã'}</Text></Pressable></View>
           </View>
           {feedback ? <Text accessibilityRole="alert">{feedback}</Text> : null}<Pressable accessibilityRole="button" disabled={busy || code.some(digit => !digit)} onPress={() => void submit()} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}><Text style={styles.primaryButtonLabel}>{busy ? 'Đang xác nhận...' : 'Xác nhận email'}</Text></Pressable>
         </ScrollView></KeyboardAvoidingView>

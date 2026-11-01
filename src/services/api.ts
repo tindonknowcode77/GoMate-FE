@@ -11,7 +11,7 @@ export const apiBaseUrl = resolveApiBaseUrl({
   webOrigin: Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.origin : undefined,
 });
 
-export type Session = { accessToken: string; user: { id: string; name: string; email: string } };
+export type Session = { accessToken: string; user: { id: string; name: string; email: string; emailVerified?: boolean } };
 const sessionKey = 'gomate.session';
 function restoreSession(): Session | null {
   if (Platform.OS !== 'web') return null;
@@ -63,7 +63,7 @@ if (Platform.OS === 'web' && typeof window !== 'undefined') window.addEventListe
 });
 
 export class ApiError extends Error {
-  constructor(message: string, public status: number) { super(message); }
+  constructor(message: string, public status: number, public code?: string) { super(message); }
 }
 
 export async function api<T>(path: string, options: RequestInit & { timeoutMs?: number } = {}): Promise<T> {
@@ -82,15 +82,15 @@ export async function api<T>(path: string, options: RequestInit & { timeoutMs?: 
     if (token !== session?.accessToken) throw new ApiError('Phiên đăng nhập đã thay đổi. Vui lòng thử lại.', 409);
     if (!response.ok) {
       if (response.status === 401 && token && session?.accessToken === token) { setSession(null); onUnauthorized?.(); }
-      throw new ApiError(payload?.error || `Yêu cầu thất bại (${response.status})`, response.status);
+      throw new ApiError(payload?.error || `Yêu cầu thất bại (${response.status})`, response.status, payload?.code);
     }
-    if (payload === null) throw new Error('API trả về dữ liệu không hợp lệ. Kiểm tra địa chỉ BE.');
+    if (payload === null) throw new Error('Không tải được dữ liệu. Vui lòng thử lại.');
     return payload as T;
   } catch (error) {
     if (error instanceof ApiError) throw error;
     throw new Error(error instanceof Error && error.name === 'AbortError'
       ? 'Kết nối quá thời gian. Vui lòng thử lại.'
-      : 'Không kết nối được BE. Kiểm tra mạng và EXPO_PUBLIC_API_BASE_URL.');
+      : 'Không thể kết nối. Kiểm tra mạng và thử lại.');
   } finally { clearTimeout(timeout); }
 }
 

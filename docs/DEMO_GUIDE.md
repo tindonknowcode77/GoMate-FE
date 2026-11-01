@@ -5,9 +5,9 @@
 Đặt hai repository cạnh nhau: `GoMate-FE` và `GoMate-BE`. Dùng nhánh `fe-ui2` ở cả hai vì luồng doanh nghiệp cần API mới.
 
 1. Cài dependency theo lockfile bằng `npm ci` trong từng repository.
-2. Cấu hình `GoMate-BE/.env` với MongoDB local/Atlas. Tại BE chạy `npm run dev`.
-3. Tại FE chạy `npm run demo:seed`, rồi `npm run web`.
-4. Mở <http://localhost:8081/demo>. Có thể mở portal tại <http://localhost:8081/portal>.
+2. Cấu hình `GoMate-BE/.env` với MongoDB local/Atlas. Chạy `npm run dev:all` tại thư mục gốc để build web và mở server cổng 3000.
+3. Tại FE chạy `npm run demo:seed`, không cần chạy Expo web riêng.
+4. Mở <http://localhost:3000/demo>. Có thể mở portal tại <http://localhost:3000/portal>.
 
 Seed chỉ tạo tài khoản/dữ liệu minh họa có tên riêng, không xóa dữ liệu hiện có. Chạy lại giữ nguyên mật khẩu, thành viên và trạng thái hoạt động đã lưu. Khi bài mẫu đã hết hạn/kết thúc, seed tạo mẫu sắp diễn ra mới. Lệnh này bị chặn khi `NODE_ENV=production`; không chạy seed trên database thật của môi trường production.
 
@@ -18,7 +18,7 @@ Mật khẩu mặc định khi tạo lần đầu: `DemoGoMate123!`. Có thể �
 | `demo.host@gomate.local` | Host cá nhân, có bài mẫu “DEMO · Cà phê kết bạn” |
 | `demo.member@gomate.local` | Người tham gia ở trình duyệt thứ hai |
 | `demo.business@gomate.local` | Doanh nghiệp đã xác minh, tạo sự kiện/ưu đãi |
-| `demo.staff@gomate.local` | Staff duyệt hồ sơ và bài đăng |
+| `demo.admin@gomate.local` | Admin duyệt hồ sơ và bài đăng |
 | `demo.newbusiness@gomate.local` | Tài khoản đối tác mới để thử gửi hồ sơ xác minh |
 
 ## Luồng cá nhân
@@ -35,9 +35,9 @@ Hai tab thường trong cùng một trình duyệt dùng chung phiên đăng nh�
 ## Luồng doanh nghiệp
 
 1. Chọn doanh nghiệp đã xác minh để tạo sự kiện ngay. Nếu muốn thử từ bước đăng ký, chọn đối tác mới và tải hồ sơ PDF/PNG/JPEG (tối đa 10 MB).
-2. Staff mở portal, kiểm tra hồ sơ và duyệt doanh nghiệp. Đối tác bấm **Làm mới** để thấy quyền tạo sự kiện.
-3. Doanh nghiệp nhập lịch, địa điểm, sức chứa, giá sau ưu đãi, % giảm, nội dung và điều kiện ưu đãi; gửi cho staff.
-4. Staff bấm **Duyệt và đưa lên app**. Bài chờ duyệt/từ chối không xuất hiện trong tìm kiếm hoạt động.
+2. Admin mở portal, kiểm tra hồ sơ và duyệt doanh nghiệp. Đối tác bấm **Làm mới** để thấy quyền tạo sự kiện.
+3. Doanh nghiệp nhập lịch, địa điểm, sức chứa, giá sau ưu đãi, % giảm, nội dung và điều kiện ưu đãi; gửi cho Admin.
+4. Admin bấm **Duyệt và đưa lên app**. Bài chờ duyệt/từ chối không xuất hiện trong tìm kiếm hoạt động.
 5. Người tham gia tìm tên bài trong app. Thẻ có viền xanh, nhãn **Doanh nghiệp đã xác minh**, % giảm và ưu đãi. Mở chi tiết để đọc điều kiện.
 6. Thành viên tự đăng ký và chờ doanh nghiệp xác nhận. Nhóm doanh nghiệp dùng lịch chính thức đã duyệt; không giữ chỗ khách hoặc thêm bạn bè trực tiếp. Doanh nghiệp vẫn điều hành chat, kế hoạch, điểm danh và kết thúc.
 
@@ -45,7 +45,7 @@ Giá/ưu đãi là thông tin do đơn vị tổ chức công bố; GoMate chưa
 
 ## Kiểm thử tự động
 
-- `npm run test:business:web`: gửi hồ sơ, staff duyệt, tạo/duyệt bài, tìm thẻ ưu đãi, join và chat giữa các phiên độc lập; kiểm tra thư viện/menu và responsive.
+- `npm run test:business:web`: gửi hồ sơ, Admin duyệt, tạo/duyệt bài, tìm thẻ ưu đãi, join và chat giữa các phiên độc lập; kiểm tra thư viện/menu và responsive.
 - `npm run test:lifecycle:web`: nhóm cá nhân, kế hoạch, chốt lịch, điểm danh, kết thúc và rating.
 - `npm run test:trip:web`, `npm run test:web`, `npm run test:community:web`, `npm run test:maps:web`: hồi quy các luồng hiện có.
 

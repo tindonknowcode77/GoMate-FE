@@ -16,7 +16,7 @@ export function HomeScreen({ onMatchPress, onMyActivitiesPress, onNotificationsP
   const wide = width >= 768;
   const loader = useCallback(async () => {
     const [joined, owned] = await Promise.all([listJoined(), listOwned()]);
-    return [...joined, ...owned].filter(row => row.status !== 'completed' && (!row.endsAt || new Date(row.endsAt).getTime() > Date.now()))
+    return [...joined, ...owned].filter(row => !['completed', 'expired', 'cancelled'].includes(row.status || '') && (!row.endsAt || new Date(row.endsAt).getTime() > Date.now()))
       .sort((a, b) => a.startsAt.localeCompare(b.startsAt)).map(row => toActivity(row, joined.some(item => item.id === row.id) ? 'approved' : undefined));
   }, []);
   const remote = useRemote(loader, []);

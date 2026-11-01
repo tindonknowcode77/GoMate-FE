@@ -27,7 +27,7 @@ export function LocationField({ value, onChange, radiusKm, onPlaceSelected }: { 
       <Pressable accessibilityRole="button" onPress={() => setOpen(!open)}><Text style={{ color: colors.primary }}>{open ? 'Ẩn bản đồ' : 'Chọn trên bản đồ'}</Text></Pressable>
       {value && <Pressable accessibilityRole="button" onPress={() => onChange(null)}><Text>Xóa vị trí đã chọn</Text></Pressable>}
     </View>
-    {value && <Text>{value.latitude.toFixed(5)}, {value.longitude.toFixed(5)}</Text>}
+    {value && <Text style={{ color: colors.textSecondary, fontSize: 12 }}>Đã ghim vị trí trên bản đồ</Text>}
     {open && <><Text>Chạm bản đồ để chọn điểm chính xác.</Text><ActivityMap point={value ?? { latitude: 10.7769, longitude: 106.7009 }} radiusKm={radiusKm} editable onChange={onChange} /></>}
     {searching && <PlacePicker bias={value} onClose={() => setSearching(false)} onSelect={place => { onChange(place.point); onPlaceSelected?.(place); setOpen(true); setSearching(false); }} />}
     {error ? <Text style={{ color: colors.danger }}>{error}</Text> : null}

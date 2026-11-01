@@ -1,8 +1,8 @@
 import type { ChatAttachment, ChatLocation } from './chatContent';
 import { api, post } from './api';
 import { allPages } from './activityApi';
-export type ChatMessage = { id: string; conversationId: string; senderId: string; senderName?: string; text: string; attachments?: ChatAttachment[]; location?: ChatLocation | null; links?: string[]; clientMessageId: string; createdAt: string };
-export type Conversation = { id: string; type: 'direct' | 'group'; name: string; activityTitle: string; activityId?: string; participantIds?: string[]; lastMessage: ChatMessage | null; unreadCount: number; messageCount: number; avatarUrl?: string | null; hostId?: string; memberCount?: number; activityStatus?: 'published' | 'in-progress' | 'completed'; scheduleConfirmedAt?: string | null; startsAt?: string; createdAt?: string };
+export type ChatMessage = { id: string; conversationId: string; senderId: string; senderName?: string; kind?: 'message' | 'update' | 'system'; eventId?: string; text: string; attachments?: ChatAttachment[]; location?: ChatLocation | null; links?: string[]; clientMessageId: string; createdAt: string };
+export type Conversation = { id: string; type: 'direct' | 'group'; name: string; activityTitle: string; activityId?: string; participantIds?: string[]; lastMessage: ChatMessage | null; unreadCount: number; messageCount: number; avatarUrl?: string | null; hostId?: string; memberCount?: number; activityStatus?: 'published' | 'in-progress' | 'completed' | 'expired' | 'cancelled'; scheduleConfirmedAt?: string | null; startsAt?: string; createdAt?: string };
 export const listConversations = () => allPages<Conversation>('/conversations');
 export const getConversation = async (id: string) => (await api<{ conversation: Conversation }>(`/conversations/${encodeURIComponent(id)}`)).conversation;
 export const createConversation = async (target: { type: 'direct'; userId: string } | { type: 'group'; activityId: string }) => (await post<{ conversation: Conversation }>('/conversations', target)).conversation;

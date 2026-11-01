@@ -1,0 +1,278 @@
+DỮ LIỆU COPY VÀO INPUT DEMO GOMATE - TP.HCM
+
+Copy dòng giá trị ngay dưới tên trường vào ô tương ứng.
+Tên doanh nghiệp, địa điểm workshop và thông tin liên hệ là dữ liệu giả lập.
+Ngày giờ mẫu theo giờ Việt Nam; nếu demo sau ngày này, chọn ngày tương lai.
+
+============================================================
+LUỒNG 1: CÁ NHÂN - ĐI BỘ, CHỤP ẢNH VÀ KẾT BẠN
+============================================================
+
+Tên bài đăng / Tên hoạt động:
+Dạo phố Nguyễn Huệ - Chụp ảnh và kết bạn cuối tuần
+
+Mô tả:
+Cùng gặp gỡ những người bạn mới tại trung tâm TP.HCM, đi bộ thư giãn trên phố Nguyễn Huệ và chụp vài tấm ảnh kỷ niệm. Hoạt động nhẹ nhàng, phù hợp với người tham gia một mình hoặc muốn mở rộng vòng bạn bè. Mỗi người tự chuẩn bị nước uống, trang phục thoải mái và đến điểm hẹn trước 10 phút.
+
+Danh mục:
+Cà phê
+
+Tên địa điểm / Điểm hẹn:
+Khu vực phía trước số 42 Nguyễn Huệ
+
+Tỉnh / Thành phố:
+Ho Chi Minh City
+
+Địa chỉ:
+42 Nguyễn Huệ, TP. Hồ Chí Minh
+
+Vĩ độ (nếu có ô tọa độ):
+10.7739
+
+Kinh độ (nếu có ô tọa độ):
+106.7043
+
+Ngày bắt đầu:
+07/11/2026
+
+Giờ bắt đầu:
+16:00
+
+Ngày kết thúc:
+07/11/2026
+
+Giờ kết thúc:
+18:00
+
+Sức chứa:
+6
+
+Chi phí dự kiến / người (VND):
+50000
+
+Lời nhắn xin tham gia:
+Chào mọi người, mình đang sống ở TP.HCM và muốn tham gia buổi đi bộ để làm quen bạn mới. Mình sẽ có mặt đúng giờ tại điểm hẹn.
+
+Tên mốc lịch trình 1:
+Tập trung và làm quen
+
+Thời gian mốc 1:
+16:00
+
+Nội dung mốc 1:
+Gặp nhau phía trước số 42 Nguyễn Huệ, giới thiệu ngắn và thống nhất lịch đi bộ.
+
+Tên mốc lịch trình 2:
+Đi bộ và chụp ảnh nhóm
+
+Thời gian mốc 2:
+16:30
+
+Nội dung mốc 2:
+Đi dọc phố Nguyễn Huệ, trò chuyện và chụp ảnh kỷ niệm tại khu vực đi bộ.
+
+Tên mốc lịch trình 3:
+Tổng kết và chia tay
+
+Thời gian mốc 3:
+17:45
+
+Tin nhắn của host:
+Chào cả nhà! Mình sẽ đứng phía trước số 42 Nguyễn Huệ lúc 15:50. Mọi người nhớ mang nước uống nhé.
+
+Tin nhắn của thành viên:
+Mình đã thấy điểm hẹn rồi, hẹn gặp mọi người lúc 16:00 nhé!
+
+Nội dung đánh giá:
+Buổi đi bộ vui, mọi người thân thiện, điểm hẹn dễ tìm và lịch trình vừa sức. Mình muốn tham gia thêm những hoạt động tương tự ở TP.HCM.
+
+============================================================
+LUỒNG 2: DOANH NGHIỆP - WORKSHOP TÔ TƯỢNG TẠI TP.HCM
+============================================================
+
+A. HỒ SƠ XÁC MINH (BỎ QUA NẾU DÙNG DOANH NGHIỆP ĐÃ DUYỆT)
+
+Loại tài khoản:
+Doanh nghiệp
+
+Quốc gia / Khu vực:
+Việt Nam
+
+Tên doanh nghiệp:
+CONG TY TNHH WORKSHOP SAC MAU SAI GON DEMO
+
+Ngành:
+Thủ công, mỹ thuật và workshop
+
+Địa chỉ chi tiết:
+Không gian demo Sắc Màu, đường Nguyễn Đình Chiểu, TP. Hồ Chí Minh
+
+Trang web công ty:
+https://sacmau-demo.example.com
+
+Số giấy chứng nhận (giả lập, chỉ dùng với tài liệu demo cùng nội dung):
+DEMO-HCM-2026-001
+
+Họ và tên người đại diện:
+Nguyễn Minh Anh
+
+Chức vụ:
+Giám đốc
+
+Email liên hệ:
+minhanh@example.com
+
+Số điện thoại demo:
+0900000000
+
+Ghi chú Admin khi duyệt hồ sơ:
+Đã đối chiếu thông tin và tài liệu minh họa. Chấp thuận hồ sơ doanh nghiệp phục vụ buổi demo.
+
+B. TẠO BÀI ĐĂNG NHIỀU NHÓM
+
+Tiêu đề bài đăng:
+Workshop tô tượng Sắc Màu Sài Gòn - Gặp bạn mới, thêm sắc màu
+
+Giới thiệu bài đăng:
+Dành một buổi sáng cuối tuần để thư giãn cùng workshop tô tượng tại TP.HCM. Bạn sẽ được hướng dẫn phối màu, tự tay hoàn thiện một sản phẩm nhỏ và làm quen với những người bạn có cùng sở thích. Không cần kinh nghiệm trước đó. Chương trình cung cấp tượng, màu vẽ, cọ và một phần nước uống; thành phẩm được mang về sau buổi workshop.
+
+Giảm giá (%):
+20
+
+Ưu đãi:
+Giảm 20%, tặng một phần nước và mang thành phẩm về nhà.
+
+Điều kiện ưu đãi:
+Áp dụng cho người đăng ký qua GoMate và được doanh nghiệp xác nhận. Chi phí sau ưu đãi là 120.000 đồng/người, đã gồm dụng cụ và một phần nước. Không cộng dồn với ưu đãi khác.
+
+Tổng số người tham gia:
+20
+
+Số nhóm muốn tách:
+3
+
+Tùy chọn:
+Bật dùng chung lịch, địa điểm và chi phí cho các nhóm.
+
+Tên nhóm 1:
+Sắc Màu - Nhóm Cam
+
+Sức chứa nhóm 1:
+7
+
+Tên nhóm 2:
+Sắc Màu - Nhóm Xanh
+
+Sức chứa nhóm 2:
+7
+
+Tên nhóm 3:
+Sắc Màu - Nhóm Tím
+
+Sức chứa nhóm 3:
+6
+
+Danh mục nhóm:
+Workshop
+
+Chọn nhanh địa điểm:
+Nhập địa điểm thủ công
+
+Tên địa điểm / Điểm hẹn:
+Không gian demo Sắc Màu - Khu vực đón khách
+
+Tỉnh / Thành phố:
+Ho Chi Minh City
+
+Địa chỉ địa điểm:
+Không gian demo Sắc Màu, đường Nguyễn Đình Chiểu, TP. Hồ Chí Minh
+
+Ngày bắt đầu:
+08/11/2026
+
+Giờ bắt đầu:
+09:00
+
+Ngày kết thúc:
+08/11/2026
+
+Giờ kết thúc:
+11:30
+
+Chi phí dự kiến / người (VND):
+120000
+
+Tiền cọc / người (VND):
+0
+
+Ghi chú Admin khi duyệt bài (nếu có ô):
+Nội dung, lịch và sức chứa hợp lệ cho buổi demo. Duyệt đăng bài và ba nhóm lên app.
+
+C. NHÂN SỰ, LỊCH TRÌNH VÀ CHAT
+
+Tên nhân sự:
+Trần Hoàng Nam
+
+Email nhân sự:
+Dùng email tài khoản đã đăng ký và xác minh trong hệ thống.
+
+Số điện thoại demo:
+0900000000
+
+Chức vụ:
+Điều phối workshop
+
+Nhóm phân công:
+Sắc Màu - Nhóm Cam
+
+Tên mốc lịch trình 1:
+Đón khách và nhận dụng cụ
+
+Thời gian mốc 1:
+09:00
+
+Nội dung mốc 1:
+Điểm danh, nhận tượng và bộ dụng cụ, chọn chỗ ngồi theo nhóm được phân công.
+
+Tên mốc lịch trình 2:
+Hướng dẫn phối màu và tô tượng
+
+Thời gian mốc 2:
+09:20
+
+Nội dung mốc 2:
+Điều phối viên hướng dẫn kỹ thuật cơ bản; mọi người tự chọn màu và sáng tạo sản phẩm.
+
+Tên mốc lịch trình 3:
+Chụp ảnh và nhận thành phẩm
+
+Thời gian mốc 3:
+11:00
+
+Nội dung mốc 3:
+Chụp ảnh nhóm, chia sẻ ý tưởng và đóng gói thành phẩm để mang về.
+
+Tin nhắn doanh nghiệp:
+Chào mừng mọi người đến với workshop Sắc Màu! Buổi trải nghiệm bắt đầu lúc 09:00. Các bạn đến trước 10 phút và báo tên tại khu vực đón khách nhé.
+
+Tin nhắn nhân sự:
+Mình là Nam, phụ trách nhóm Cam. Mình sẽ hỗ trợ nhận dụng cụ và hướng dẫn phối màu trong suốt buổi workshop.
+
+Tin nhắn người tham gia:
+Mình mới thử tô tượng lần đầu, nhờ anh Nam hướng dẫn giúp mình nhé. Hẹn gặp mọi người vào sáng Chủ nhật!
+
+Tiêu đề thông báo ưu đãi:
+Tặng thêm màu nhũ cho thành viên workshop
+
+Nội dung thông báo ưu đãi:
+Mỗi người tham gia được sử dụng thêm một màu nhũ để hoàn thiện sản phẩm, không phát sinh chi phí.
+
+Nội dung đánh giá:
+Không gian dễ tìm, nhân sự hướng dẫn nhiệt tình và dụng cụ đầy đủ. Mình thích cách chia nhóm nhỏ để mọi người dễ trò chuyện và hỗ trợ nhau.
+
+Ghi nhớ khi nhập:
+- Các số tiền nhập liền, không có dấu chấm hoặc ký hiệu đồng.
+- Ô ngày/giờ dùng bộ chọn của trình duyệt, không dán cả tên trường.
+- Tọa độ mẫu ở luồng cá nhân là gần điểm hẹn, không dùng cho workshop giả lập.
+- Email đăng ký và email nhân sự phải là tài khoản thực sự dùng được khi demo.
+- Ngành chọn trong dropdown; tên pháp lý/số chứng nhận khớp tài liệu tải lên.
