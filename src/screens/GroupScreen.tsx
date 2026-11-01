@@ -13,6 +13,8 @@ import { MembersPanel } from './MembershipViews';
 import { ChatScreen } from './ChatScreen';
 import { createConversation } from '../services/chatService';
 import { getActivity, listRequests, toActivity } from '../services/activityApi';
+import { getActivityPaymentInfo, ActivityPaymentInfo } from '../services/paymentService';
+import { VietQrPaymentModal } from '../components/VietQrPaymentModal';
 import { apiBaseUrl, getSession } from '../services/api';
 import { useRemote } from '../services/useRemote';
 import { colors, layout } from '../theme';
@@ -29,6 +31,14 @@ const tabs = [
 export function GroupScreen({ activity, onBack, onStart, onLeft, initialTab = 'chat' }: Props) {
   const [tab, setTab] = useState<GroupTab>(initialTab);
   const [sharedConversationId, setSharedConversationId] = useState(''), [chatRefresh, setChatRefresh] = useState(0), [headerError, setHeaderError] = useState('');
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentInfo, setPaymentInfo] = useState<ActivityPaymentInfo | null>(null);
+  const loadPayment = useCallback(() => {
+    if (activity.organizerType === 'business' || activity.business?.depositAmount) {
+      void getActivityPaymentInfo(activity.id).then(setPaymentInfo).catch(() => {});
+    }
+  }, [activity.id, activity.organizerType, activity.business?.depositAmount]);
+  useEffect(() => { loadPayment(); }, [loadPayment]);
   const load = useCallback(() => getActivity(activity.id), [activity.id]);
   const remote = useRemote(load, null);
   const reload = remote.reload;
@@ -43,7 +53,7 @@ export function GroupScreen({ activity, onBack, onStart, onLeft, initialTab = 'c
   const noticeBody = current.backendStatus === 'cancelled' ? 'Hoạt động đã bị hủy bởi người tổ chức.' : current.backendStatus === 'expired' ? 'Hoạt động chưa bắt đầu trước khi hết lịch; không mở đánh giá.' : current.backendStatus === 'completed' ? 'Xem tổng kết và đánh giá trong mục Kế hoạch.' : current.backendStatus === 'in-progress' ? 'Host đang điều hành và điểm danh cho nhóm.' : remote.data?.scheduleConfirmedAt ? `${current.time} · ${current.meetingPoint || current.location}` : '';
   return <SafeAreaView style={styles.safe} edges={['top', 'left', 'right', 'bottom']}>
     <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Quay lại" hitSlop={12} onPress={onBack}><Ionicons name="chevron-back" size={27} color={colors.text} /></Pressable><Image source={current.image} style={styles.avatar} /><View style={{ flex: 1, gap: 4 }}><Text numberOfLines={1} style={styles.title}>{current.title}</Text><Text style={styles.subtitle}>{current.members} thành viên · {current.backendStatus === 'cancelled' ? 'Đã hủy' : current.backendStatus === 'expired' ? 'Đã hết hạn' : current.backendStatus === 'completed' ? 'Đã kết thúc' : current.backendStatus === 'in-progress' ? 'Đang diễn ra' : remote.data?.scheduleConfirmedAt ? 'Đã chốt lịch đi' : 'Đang lên kế hoạch'}</Text></View><ChatHeaderActions sharePath={`/app/home/activityDetail/${activity.id}`} onShared={() => { setHeaderError(''); void createConversation({ type: 'group', activityId: activity.id }).then(row => setSharedConversationId(row.id)).catch(reason => setHeaderError(reason.message)); }} onRefresh={() => { void remote.reload(); setChatRefresh(value => value + 1); }} onPlan={() => setTab('plan')} onMembers={() => setTab('members')} onManage={isHost ? () => setTab('manage') : undefined} /></View>
-    {isOfficial && <View style={[styles.notice, { backgroundColor: '#EEF2FF', justifyContent: 'space-between', alignItems: 'center' }]}><View style={{ flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}><Text style={[styles.noticeTitle, { color: colors.primary }]}>✓ Nhóm sự kiện doanh nghiệp</Text>{current.business?.offer ? <Text style={styles.noticeBody}>· Ưu đãi: {current.business.offer}</Text> : null}{current.business?.depositAmount ? <Text style={styles.noticeBody}>· Cọc: {current.business.depositAmount.toLocaleString('vi-VN')}đ/người</Text> : null}</View>{(current.isBusinessManager || current.hostId === getSession()?.user.id) && <Pressable accessibilityRole="button" onPress={() => { if (Platform.OS === 'web') window.location.assign('/portal'); else void Linking.openURL(apiBaseUrl.replace(/\/api\/?$/, '') + '/portal'); }}><Text style={[styles.noticeTitle, { textDecorationLine: 'underline' }]}>Mở trang quản lý doanh nghiệp</Text></Pressable>}</View>}
+    {isOfficial && <View style={[styles.notice, { backgroundColor: '#EEF2FF', justifyContent: 'space-between', alignItems: 'center' }]}><View style={{ flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}><Text style={[styles.noticeTitle, { color: colors.primary }]}>✓ Nhóm sự kiện doanh nghiệp</Text>{current.business?.offer ? <Text style={styles.noticeBody}>· Ưu đãi: {current.business.offer}</Text> : null}{current.business?.depositAmount ? <Text style={styles.noticeBody}>· Cọc: {current.business.depositAmount.toLocaleString('vi-VN')}đ/người</Text> : null}{current.business?.depositAmount && paymentInfo?.isPaid ? <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#D1FAE5', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 }}><Ionicons name="checkmark-circle" size={13} color="#059669" /><Text style={{ fontSize: 11, fontWeight: '700', color: '#059669' }}>Đã đóng cọc</Text></View> : null}{current.business?.depositAmount && !paymentInfo?.isPaid && !isHost ? <Pressable accessibilityRole="button" onPress={() => setShowPaymentModal(true)} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.primary, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 }}><Ionicons name="qr-code-outline" size={13} color="#FFF" /><Text style={{ fontSize: 11, fontWeight: '700', color: '#FFF' }}>Quét VietQR cọc</Text></Pressable> : null}</View>{(current.isBusinessManager || current.hostId === getSession()?.user.id) && <Pressable accessibilityRole="button" onPress={() => { if (Platform.OS === 'web') window.location.assign('/portal'); else void Linking.openURL(apiBaseUrl.replace(/\/api\/?$/, '') + '/portal'); }}><Text style={[styles.noticeTitle, { textDecorationLine: 'underline' }]}>Mở trang quản lý doanh nghiệp</Text></Pressable>}</View>}
     <View style={styles.tabBar}>{tabs.filter(item => item.id !== 'manage' || isHost).map(item => <Pressable key={item.id} accessibilityRole="tab" accessibilityState={{ selected: activeTab === item.id }} accessibilityLabel={item.label} onPress={() => setTab(item.id)} style={[styles.tab, activeTab === item.id && styles.activeTab]}><Ionicons name={item.icon} size={19} color={activeTab === item.id ? colors.primary : colors.textMuted} /><Text style={[styles.tabText, activeTab === item.id && { color: colors.primary }]}>{item.label}{item.id === 'members' && pendingRequests.data.length > 0 ? ` (${pendingRequests.data.length})` : ''}</Text></Pressable>)}</View>
     {activeTab === 'chat' ? <><View style={styles.notice}><Ionicons name="information-circle-outline" size={18} color={colors.primary} /><View style={{ flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}><Text accessibilityLiveRegion="polite" style={styles.noticeTitle}>{noticeTitle}</Text>{noticeBody ? <Text style={styles.noticeBody}>· {noticeBody}</Text> : null}</View></View><ActivityChat activityId={activity.id} onBack={onBack} refreshKey={chatRefresh} /></> : <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
       {activeTab === 'plan' && <ActivityPlanPanel activityId={activity.id} onChanged={remote.setData} onManage={isHost ? () => setTab('manage') : undefined} onProgress={row => onStart(toActivity(row))} />}
@@ -53,6 +63,19 @@ export function GroupScreen({ activity, onBack, onStart, onLeft, initialTab = 'c
     {remote.error ? <Text accessibilityRole="alert" style={{ color: colors.danger, padding: 10 }}>{remote.error}</Text> : null}
     {headerError ? <Text accessibilityRole="alert" style={{ color: colors.danger, padding: 10 }}>{headerError}</Text> : null}
     {sharedConversationId ? <SharedChatLibrary conversationId={sharedConversationId} onClose={() => setSharedConversationId('')} /> : null}
+    <VietQrPaymentModal
+      visible={showPaymentModal}
+      activityId={activity.id}
+      activityTitle={current.title}
+      amount={current.business?.depositAmount}
+      type="activity_deposit"
+      onClose={() => setShowPaymentModal(false)}
+      onSuccess={() => {
+        setShowPaymentModal(false);
+        void remote.reload();
+        loadPayment();
+      }}
+    />
   </SafeAreaView>;
 }
 
