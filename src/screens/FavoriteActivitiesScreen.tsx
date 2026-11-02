@@ -1,4 +1,3 @@
-import { useFeedbackState } from '../services/feedback';
 import { useRef, useState } from 'react';
 import { Image, Pressable, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,7 +16,7 @@ async function loadFavoriteActivities() {
 export function FavoriteActivitiesScreen({ onBack, onOpen, onChanged }: { onChanged: () => void; onBack: () => void; onOpen: (activity: Activity) => void }) {
   const remote = useRemote(loadFavoriteActivities, []);
   const lock = useRef(false);
-  const [busy, setBusy] = useState(false), [error, setError] = useFeedbackState('');
+  const [busy, setBusy] = useState(false), [error, setError] = useState('');
   const remove = async (id: string) => {
     if (lock.current) return;
     lock.current = true; setBusy(true); setError('');

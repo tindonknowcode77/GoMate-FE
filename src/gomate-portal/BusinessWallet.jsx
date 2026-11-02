@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../services/api';
+import { usePortalNotice } from './PortalNotifications';
+import { portalActionError } from './portalActionError';
 import { MetricCard, StatusPill, PillButton, Icon } from './GoMatePortal';
 
 const money = (amount) =>
@@ -20,6 +22,7 @@ const escrowText = (status) =>
       : 'Đang tạm giữ Escrow';
 
 export default function BusinessWallet() {
+  const notify = usePortalNotice();
   const [wallet, setWallet] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -29,8 +32,11 @@ export default function BusinessWallet() {
     setError('');
     try {
       setWallet(await api('/portal/wallet'));
+      notify('Đã cập nhật dữ liệu ví và đối soát tiền cọc.');
     } catch (reason) {
-      setError(reason.message || 'Không thể tải thông tin ví doanh nghiệp.');
+      const message = portalActionError('làm mới dữ liệu ví và đối soát tiền cọc', reason);
+      setError(message);
+      notify(message, 'error');
     } finally {
       setBusy(false);
     }

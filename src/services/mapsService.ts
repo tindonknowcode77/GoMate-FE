@@ -10,6 +10,7 @@ export type MapPlace = { id: string; provider?: SearchProvider; address: string;
 export type MapRoute = { distanceMeters: number; durationSeconds: number; encodedPolyline: string };
 export type MapRouteOverlay = { encodedPolyline: string; origin: Coordinates };
 export const getMapsConfig = () => api<MapsConfig>('/maps/config');
+export const reversePlace = async (point: Coordinates) => (await post<{ place: MapPlace }>('/maps/places/reverse', { point })).place;
 export const placePredictions = async (input: string, sessionToken: string, bias?: Coordinates | null) => (await post<{ items: PlacePrediction[] }>('/maps/places/autocomplete', { input, sessionToken, ...(bias ? { bias } : {}) })).items;
 export const placeDetails = async (prediction: PlacePrediction, sessionToken: string) => ({ ...(await post<{ place: Omit<MapPlace, 'title'> }>('/maps/places/details', { id: prediction.id, sessionToken })).place, title: prediction.title });
 export const findRoute = async (origin: Coordinates, destination: Coordinates, mode: 'DRIVE' | 'WALK') => (await post<{ route: MapRoute }>('/maps/routes', { origin: { latitude: origin.latitude, longitude: origin.longitude }, destination: { latitude: destination.latitude, longitude: destination.longitude }, mode })).route;

@@ -4,6 +4,9 @@ This directory is the shared project memory for the web and mobile apps.
 
 ## Files
 
+- `BACKEND_GAPS.md`: comparison of the mobile UI with the local backend,
+  missing features, integration mismatches and proposed implementation order.
+
 - `DEVELOPMENT_LOG.md`: chronological record of completed coding work, newest
   entry first.
 - `DECISIONS.md`: important technical and product decisions whose context should

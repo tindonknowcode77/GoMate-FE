@@ -1,5 +1,111 @@
 # Decision log
 
+## 2026-11-02 - Open the existing Staff workspace from the mobile app
+
+Allow accounts whose effective role is `staff` on `/portal/me` to use the regular app and switch to the existing `/staff` portal from their profile. Reuse its API-backed screens in a native WebView, recheck the staff role when opening it, pass the current session through the WebView bridge, and discard WebView data when it closes. Staff access does not require completing the member profile; Admin and Business mobile access remains web-only.
+
+Consequences: the native build must be able to load the Staff website. Set `EXPO_PUBLIC_STAFF_PORTAL_URL` when that site does not share the API host. Backend role checks continue to authorize every staff operation.
+
+## 2026-11-01 - Reverse geocode points selected on maps
+
+Resolve map-selected coordinates through the authenticated GoMate-BE Maps proxy, using VIETMAP Reverse v4's current administrative format or permanent Mapbox Geocoding v6 results. Keep provider credentials on BE and use the returned address components to fill available location fields while preserving the exact selected coordinates.
+
+Consequences: tapping the map requires an enabled reverse-geocoding provider and a restarted BE with the new route. Address fields remain editable when a provider returns incomplete components.
+
+## 2026-11-01 - Keep profile images optional during completion
+
+Supersedes the profile-image requirement in the decision below. A profile image is optional during onboarding and does not block access or mark an otherwise complete profile as incomplete. Keep the initials fallback where no image is available.
+
+## 2026-11-01 - Require consent and a profile image at completion
+
+Superseded by the decision above. Separate affirmative agreement to the Terms of Service and Privacy Policy is still required before creating an account. Phone verification remains unavailable until the BE provides an SMS flow.
+
+Consequences: the signup UI captures explicit consent, but published legal text and links still need to be supplied. Profile completion follows the BE's `profileComplete` calculation and reports required missing fields individually. SMS verification remains follow-up backend work.
+
+## 2026-10-20 - API-backed partner workspace
+
+Use PartnerPortal at /business and /portal for all authenticated email domains. Keep the existing /staff and /admin workspaces. Remove the obsolete mock dashboards and local mock authentication; retain only their shared visual components. Load event categories from backend validation options and require business-entered event details instead of seeded form values. Permit authenticated workspace users to follow /#/app/ activity links, with backend authorization unchanged.
+
+## 2026-10-16 - Role-specific web workspaces
+
+Use separate Admin, Staff and Business layout components at /admin, /staff and /business, retaining shared API-backed forms and lists. Resolve the effective role via /api/portal/me (including approved business applications), never trust a client-selected role. Keep backend authorization as the access boundary. The main app gates user onboarding on this lookup and offers retry on network failure. Native privileged users are directed to the web workspace. /portal remains a compatibility entry for partner registration and existing links.
+
+
+### 2026-10-16 - Server-authorized portal and administrative entitlements
+
+- **Status:** Accepted.
+- **Decision:** Mount the portal at /portal with a platform-specific Expo web entry and use the shared bearer session. Resolve admin/staff roles and business approvals in BE on every request; no role selector grants access. Business announcements use a distinct moderated feed.
+- **Billing:** Per user direction, Free/Plus and active/paused/cancelled are administratively managed entitlements. No payment gateway or fabricated revenue is introduced.
+- **Consequences:** Staff/Admin provisioning requires an operator command against a verified account; changing roles revokes sessions. Unverified users use existing email verification before applying. Portal UI displays actual counts and persisted workflow state.
+
+### 2026-10-16 - Shared session and compatibility during fe-ui2 merge
+
+- **Status:** Accepted.
+- **Decision:** Use the incoming integrated screen flow and src/services/api.ts session storage. Keep the original activity/profile contracts in legacy modules while preserving their callers and tests. authService.ts delegates authentication to the shared API.
+- **Consequences:** The application retains the newer activity, profile and verification flows without a second authentication store. Original forms remain available in source; they are not added as duplicate routes to MainApp.
+
+### 2026-10-04 - Activity host CRUD with soft deletion
+
+- **Status:** Accepted.
+- **Decision:** Publish real activities directly, deriving ownership and initial
+  membership on BE. Share the create/edit form; show only server-loaded hosted
+  activities in management. Soft-delete records and remove them from discovery.
+- **Consequences:** Date entry uses UTC+7 and supports multi-day activities.
+  Cloudinary is required only for a cover image. Started activities cannot be
+  edited. Joined-activity lists and approval UI await their APIs; no fake approval.
+
+### 2026-10-04 - Search published activities through the backend
+
+- **Status:** Accepted.
+- **Decision:** Discovery queries `/api/activities` with explicit structured
+  filters, paging and opt-in location. Availability matches start time in UTC+7.
+  Keep API creation and join approval outside this search change.
+- **Consequences:** Empty DB means an empty Match screen; no sample fallback or
+  fake successful join. Other prototype screens still use existing local data.
+
+### 2026-10-04 - Store new avatars in Cloudinary
+
+- **Status:** Accepted; supersedes MongoDB binary storage for new avatars below.
+- **Decision:** Keep ImagePicker/base64 FE requests; BE validates and uploads to
+  Cloudinary with server-only credentials. FE displays the returned HTTPS URL.
+- **Consequences:** No client API secret or upload preset needed. Legacy avatar
+  URLs still work. BE now requires Cloudinary configuration for new uploads.
+
+### 2026-10-04 - Persist own profile and avatar through the backend
+
+- **Status:** Accepted.
+- **Decision:** Use a shared create/edit form and authenticated `/api/profile/me`
+  endpoints. Upload base64 image data separately; BE validates and converts it
+  to a small WebP stored in MongoDB. Avatar URLs are public and versioned.
+- **Consequences:** No new cloud storage credentials or local server disk are
+  needed. Profile fields can save even if the subsequent image upload fails;
+  the UI explicitly reports that case. Own profile no longer shows fake reviews
+  or activity statistics. Larger media/storage needs will require a separate design.
+
+### 2026-10-03 - Email authentication with an in-memory session
+
+- **Status:** Accepted for the current integration.
+- **Decision:** Follow BE's register → verify-email → login contract. Keep the
+  password only in component state while verification is pending; clear pending
+  credentials on success/back. Keep the bearer session in the auth service's
+  memory, with no disk/browser storage of credentials or tokens.
+- **Consequences:** Automatic login happens only after successful verification;
+  reopening the app requires login. Secure persistent storage and session
+  restoration are future work. Social buttons cannot bypass authentication.
+
+### 2026-10-03 - Resolve the stash against the mobile application
+
+- **Status:** Accepted.
+- **Context:** Applying the local Vite/auth stash after pulling `fe-ui2`
+  conflicted with its Expo/TypeScript migration.
+- **Decision:** Keep `index.ts`, `App.tsx` and the upstream mobile dependency
+  set. Preserve the previous web implementation outside the app in
+  `C:\GoMate\backups\fe-stash-20261003`, including ZIP snapshots of the tracked
+  and untracked stash contents; retain the original stash.
+- **Consequences:** The mobile UI remains a prototype awaiting API integration.
+  Web export now uses Expo rather than Vite. The legacy web auth implementation
+  and tests are reference material, not part of the active mobile build.
+
 Record decisions here when they materially affect architecture, dependencies,
 security, the data model, or product behavior. Keep the newest decision at the
 top. Small implementation details belong only in `DEVELOPMENT_LOG.md`.
@@ -597,3 +703,15 @@ top. Small implementation details belong only in `DEVELOPMENT_LOG.md`.
 - **Consequences:** What becomes easier, harder, or constrained?
 - **Supersedes:** Link or title of an older decision, if applicable.
 
+
+## 2026-10-16 - Admin role assignment
+
+Expose user/staff/admin role changes only to Admin through a dedicated backend endpoint. Disallow self changes, require verified target email, and invalidate existing target sessions atomically with the role update. Retain business approval as a separate source of effective permissions rather than allowing role assignment to bypass document review.
+
+## 2026-10-16 - Separate Admin roles and subscription management
+
+Use seven functional navigation items matching the requested operator workflow. User role assignment and subscription editing have independent screens backed by the existing user list API. Dashboard cards use server aggregates only; no fabricated trends or revenue. Operator support focuses on responding to requests; customer ticket creation remains in Business.
+
+## 2026-10-16 - Immediate role assignment
+
+Supersedes the verified-target requirement: Admin can assign roles to any existing account, regardless of email verification. Preserve the email verification flag and login rules; role changes do not assert ownership of an email.

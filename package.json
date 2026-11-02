@@ -21,7 +21,11 @@
     "demo:seed": "npm --prefix ../GoMate-BE run db:seed-workshop",
     "test:community:web": "node tests/community.web.cjs",
     "test:maps:web": "node tests/mapbox-maps.web.cjs",
-    "test:maps:live": "node tests/mapbox-live.web.cjs"
+    "test:maps:live": "node tests/mapbox-live.web.cjs",
+    "dev": "expo start",
+    "build": "expo export --platform web --output-dir dist",
+    "build:mobile": "expo export --platform android --platform ios --output-dir dist-native",
+    "test:portal:web": "node tests/portal.web.cjs"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
@@ -46,6 +50,8 @@
     "react-native-webview": "13.16.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "@types/node": "^26.6.5",
     "@types/react": "~19.2.2",
     "eslint": "^9.39.5",
     "eslint-config-expo": "~57.0.2",

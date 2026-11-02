@@ -1,7 +1,15 @@
-﻿# Shared workspace web launcher
+# Shared workspace development launcher
 
-`workspace-root/` versions the files installed in the parent of the separate GoMate-FE and GoMate-BE repositories. Copy its contents, including `scripts/`, to that parent after reviewing existing files.
+`workspace-root/` versions the files that live outside the two separate Git
+repositories. The checked-in package runs Expo and the API with `npm run dev:all`.
 
-Run `npm run dev:all` in the parent. It exports current web source with same-origin `/api`, then starts the backend on port 3000. Open http://localhost:3000/portal. No Metro server is started. After frontend edits, run `npm run build:web` and refresh. Native Expo development remains available through the FE scripts.
+After cloning `GoMate-FE` and `GoMate-BE` side by side, copy the contents of
+`GoMate-FE/tooling/workspace-root/` into their shared parent directory. Review any
+existing root files before replacing them. Then run `npm install` in that parent
+directory and follow its README. Install dependencies in both child projects too.
 
-Install both projects' dependencies and configure BE MongoDB first. Do not run the launcher inside this template directory.
+Do not run the launcher directly inside this template folder: its relative paths
+assume the shared parent containing `GoMate-FE` and `GoMate-BE`.
+
+The existing workspace root remains ready to use. Runtime environment files and
+installed dependencies are not included in Git.

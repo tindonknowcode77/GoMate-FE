@@ -1,7 +1,558 @@
 # Development log
 
+## 2026-11-02 - Add the Staff workspace to the app
+
+### Summary
+
+- Let only accounts confirmed as `staff` by `/portal/me` open a Staff switch from their profile. Embed the existing API-backed `/staff` workspace in the native app and reuse it directly on web.
+- Recheck staff access when opening the native view, pass the current session through the WebView bridge, and use an ephemeral WebView session. Staff accounts can reach the switch without completing the member profile.
+- Align `expo`, `expo-location` and `expo-sharing` to the patch versions required by Expo SDK 57 after Expo Doctor reported mismatches.
+
+### Files changed
+
+- `App.tsx`; `src/screens/MainApp.tsx`; `src/screens/ProfileViews.tsx`; `src/screens/StaffWorkspaceScreen.tsx`; `src/screens/StaffWorkspaceScreen.native.tsx`; `src/screens/StaffWorkspaceScreen.web.tsx`.
+- `src/PortalEntry.web.tsx`; `src/gomate-portal/ConnectedPortal.jsx`; `.env.example`; `README.md`; `package.json`; `package-lock.json`; `docs/DECISIONS.md`; `docs/DEVELOPMENT_LOG.md`.
+
+### Verification
+
+- `npm.cmd run typecheck`: Passed.
+- `npm.cmd run lint`: Passed.
+- `git diff --check`: Passed.
+- `npx.cmd expo install expo@~57.0.31 expo-location@~57.0.22 expo-sharing@~57.0.24`: Completed; npm reported 28 audit findings (2 low, 24 moderate, 2 high), not investigated here.
+- `npx.cmd expo-doctor`: Passed, 21/21 checks, after aligning the three Expo package versions.
+- Automated tests: Not run; they were not requested.
+
+### Remaining work
+
+- Native WebView behavior was not exercised on an Android/iOS device. Set `EXPO_PUBLIC_STAFF_PORTAL_URL` if the deployed Staff website does not share the API host. The npm audit findings were not investigated.
+
+## 2026-11-01 - Remove cost estimate helper text
+
+### Summary
+
+- Remove the approximate-cost example from activity creation while retaining the cost input and optional cost-sharing note.
+
+### Files changed
+
+- `src/screens/CreateActivityScreen.tsx`; `docs/DEVELOPMENT_LOG.md`.
+
+### Verification
+
+- `npm.cmd run typecheck`: Passed.
+- `npm.cmd run lint`: Passed.
+- `git diff --check`: Passed.
+- `npx.cmd expo-doctor`: Did not complete; produced no output after 50 seconds and was interrupted.
+
+### Remaining work
+
+- None.
+
+## 2026-11-01 - Fill address fields from map selections
+
+### Summary
+
+- Reverse-geocode tapped map points through the authenticated BE Maps proxy and use the returned address components to fill province, district, ward and address in activity creation. Show the in-progress state and preserve manual address selection.
+
+### Files changed
+
+- `src/components/LocationField.tsx`; `src/screens/CreateActivityScreen.tsx`; `src/services/mapsService.ts`; `docs/DECISIONS.md`; `docs/DEVELOPMENT_LOG.md`.
+
+### Verification
+
+- `npm.cmd run typecheck`: Passed.
+- `npm.cmd run lint`: Passed.
+- FE and BE `git diff --check`: Passed.
+- BE `node --check src/modules/maps/routes.js` and `node --check src/modules/maps/service.js`: Passed.
+- `npx.cmd expo-doctor`: Did not complete; produced no output after 50 seconds and was interrupted.
+
+### Remaining work
+
+- Restart GoMate-BE to expose the new reverse-geocoding route before using map taps.
+
+## 2026-11-01 - Remove static interests prompt
+
+### Summary
+
+- Remove the default “Chọn sở thích phù hợp với bạn · tối đa 12” helper text from the interests picker while retaining search-result feedback.
+
+### Files changed
+
+- `src/components/ProfilePickers.tsx`; `docs/DEVELOPMENT_LOG.md`.
+
+### Verification
+
+- `npm.cmd run typecheck`: Passed.
+- `npm.cmd run lint`: Passed.
+- `git diff --check`: Passed.
+- `npx.cmd expo-doctor`: Did not complete; produced no output after 50 seconds and was interrupted.
+
+### Remaining work
+
+- None.
+
+## 2026-11-01 - Make profile image optional
+
+### Summary
+
+- Remove the avatar requirement from profile validation and completion gating. Profiles without an image can finish onboarding; existing initials fallbacks remain in place.
+
+### Files changed
+
+- `src/screens/MainApp.tsx`; `src/screens/ProfileViews.tsx`; `src/screens/ProfileAccountScreens.tsx`; `src/services/profileService.ts`; `docs/DECISIONS.md`; `docs/DEVELOPMENT_LOG.md`.
+
+### Verification
+
+- `npm.cmd run typecheck`: Passed.
+- `npm.cmd run lint`: Passed.
+- `git diff --check`: Passed.
+- `npx.cmd expo-doctor`: Did not complete; produced no output after 50 seconds and was interrupted.
+
+### Remaining work
+
+- None.
+
+## 2026-11-01 - Refine onboarding and activity forms
+
+### Summary
+
+- Add password visibility and separate required Terms/Privacy acknowledgments during registration. Show profile completion errors per missing field, require a profile image in the client completion flow, and simplify the interests hint.
+- Make trip planning collapsible and optional, hide empty plan sections, add a schedule edit shortcut in the final preview, clarify cost estimation, add a phone-verification status placeholder, and align the business application form with BE-required fields.
+- Defer the partner portal's initial data load by one microtask so it satisfies the current React effect lint rule.
+
+### Files changed
+
+- `src/components/FormField.tsx`; `src/components/ProfilePickers.tsx`; `src/components/TripPlanEditor.tsx`; `src/components/match/MatchPrimitives.tsx`; `src/gomate-portal/PartnerPortal.jsx`; `src/screens/ActivityDetailScreen.tsx`; `src/screens/AuthScreen.tsx`; `src/screens/CreateActivityScreen.tsx`; `src/screens/MainApp.tsx`; `src/screens/ProfileAccountScreens.tsx`; `src/screens/ProfileViews.tsx`; `src/services/profileService.ts`; `docs/DECISIONS.md`; `docs/DEVELOPMENT_LOG.md`.
+
+### Verification
+
+- `npm.cmd run typecheck`: Passed.
+- `npm.cmd run lint`: Passed.
+- `npx.cmd expo-doctor`: Did not complete; produced no output within 60 seconds and was interrupted.
+- `git diff --check`: Passed.
+- Tests not run: this UI task did not request test execution.
+
+### Remaining work
+
+- Phone verification is display-only because the BE has no SMS verification endpoint. The business submission flow was matched to the BE validator but could not be verified end-to-end while the local BE/MongoDB service is stopped.
+
+## 2026-11-01 - Remove stale local API override
+
+### Summary
+
+- Clear the stale LAN `EXPO_PUBLIC_API_BASE_URL` override so the existing development resolver chooses the API host from the web origin or Expo host.
+
+### Files changed
+
+- `.env`; `docs/DEVELOPMENT_LOG.md`.
+
+### Verification
+
+- `npm.cmd run typecheck`: Passed.
+- `npm.cmd run lint`: Failed on the existing `react-hooks/set-state-in-effect` error in `src/gomate-portal/PartnerPortal.jsx:142`.
+- `npx.cmd expo-doctor`: Did not complete; produced no output within 60 seconds and was interrupted.
+- Frontend HTTP check at `localhost:8081`: HTTP 200. API TCP check at port 3000: unreachable. The configured MongoDB service is stopped, and starting it failed with a Windows service access error, so an end-to-end API request was not verified.
+
+### Remaining work
+
+- Start the MongoDB service with sufficient Windows permissions, start the BE, and restart Expo; then verify sign-in. For a physical device, configure the BE to bind to the LAN.
+
+## 2026-10-20 - Complete API-backed staff workspace
+
+### Summary
+
+- Remove unsupported fixed shift, readiness, 24/7 and SLA claims. Render missing or failed metrics as unavailable instead of zero and clear old metrics when refreshing.
+- Add staff business-application navigation and pending counts using existing authenticated APIs. Display event schedule, location, cost, itinerary and offer terms before moderation.
+- Initialize support reply status from the persisted ticket so closed tickets are not silently reopened.
+
+### Files changed
+
+- src/gomate-portal/StaffDashboard.jsx; src/gomate-portal/ConnectedPortal.jsx; tests/staff.web.cjs; src/gomate-portal/README.md.
+
+### Verification
+
+- npm.cmd run typecheck, npm.cmd run lint, npm.cmd run build: Passed.
+- node tests/staff.web.cjs: Passed with isolated MongoDB and real HTTP APIs: metrics, application and event approval, published feed, report resolution, support persistence/status, failed metrics and retry, mobile width. Inspected desktop screenshot.
+- Backend portal tests: 7 passed including staff aggregate assertions.
+- npx.cmd --no-install expo-doctor: Blocked by npm registry EACCES.
+
+### Remaining work
+
+- Run expo-doctor with registry access. Reload the backend if running without watch to pick up the additional metric.
+
+## 2026-10-20 - Connect partner workspace and remove mock business data
+
+### Summary
+
+- Serve the API-backed partner workspace at /business and /portal without demo-email routing. Preserve backend role enforcement and allow activity deep links for workspace users.
+- Remove mock accounts, login, dashboards, posts, chat and fabricated metrics from GoMatePortal; keep shared visual components.
+- Fetch categories from /portal/options; leave event prices, capacity, location, dates and discounts blank and submit the business-entered itinerary. Add API-backed support and subscription views, loading/error states and session-expiry handling.
+
+### Files changed
+
+- App.tsx; src/gomate-portal/{PartnerPortal,ConnectedPortal,GoMatePortal}.jsx; src/gomate-portal/index.js and README.md; tests/business-demo.web.cjs; docs/DECISIONS.md.
+
+### Verification
+
+- npm.cmd run typecheck, npm.cmd run lint, npm.cmd run build: Passed.
+- npm.cmd run test:business:web: Passed against isolated MongoDB and real API; verified application review, /business entry, empty defaults, custom itinerary persistence, event publication, support persistence after reload, membership/chat and responsive layouts. Inspected generated mobile screenshot.
+- Backend portal and business-event tests: 8 passed; options contract also passed after adding its assertion.
+- git diff --check: Passed for frontend.
+- npx.cmd expo-doctor: Could not complete; npm registry access failed with EACCES in this environment.
+
+### Remaining work
+
+- Run expo-doctor when npm registry access is available. Explicit /demo accounts remain test fixtures using real authentication; no production database records were deleted.
+
+## 2026-10-16 - Allow immediate Admin role assignment
+
+### Summary
+- Removed target email verification prerequisite from role API and role editor at the user's request. Self-role protection and session revocation remain. Assignment does not mark email as verified or change login verification.
+
+### Files changed
+- BE portal/repository.js, tests/portal.test.js, docs/PORTAL_API.md; FE ConnectedPortal.jsx and docs/DECISIONS.md.
+
+### Verification
+- Backend portal tests: 7/7 passed, including assignment to an unverified account without changing email_verified.
+
+### Remaining work
+- None.
+
+
+## 2026-10-16 - Admin dashboard redesign into seven functional sections
+
+### Summary
+- Organized Admin navigation into overview, users, business approvals, post moderation, reports, support and subscriptions. Split role editing from plan editing.
+- Added AdminDashboard with live metrics, refresh/error states, JSON export, clickable statistic cards and six functional shortcuts.
+- Redesigned Admin with teal sidebar, section descriptions, welcome banner, responsive statistic grid and consistent forms/cards. Removed the customer ticket creation form from operator workspaces.
+
+### Files changed
+- src/gomate-portal/AdminDashboard.jsx, WorkspaceLayouts.jsx, ConnectedPortal.jsx, portal-connected.css; tests/portal.web.cjs.
+
+### Verification
+- Typecheck, lint, web build: passed. Expo Doctor: 21/21 passed.
+- Browser portal integration: passed with temporary MongoDB, including business approvals, subscription changes in the separate section, role changes, revoked sessions, moderation, support, JSON export and responsive widths.
+- Reviewed the generated Admin dashboard screenshot at test-results/portal-admin.png.
+
+### Remaining work
+- None within this redesign scope. No real billing was introduced.
+
+
+## 2026-10-16 - Admin user role management
+
+### Summary
+- Added Admin-only PATCH /api/portal/users/:id/role for user, staff and admin. Requires verified email, blocks self changes, records actor/time and increments credential version atomically to revoke previous sessions.
+- Added role editor and save feedback to Admin user cards, separate from subscription changes. Business access still derives from approved applications and is explained in the UI.
+
+### Files changed
+- BE portal routes/repository, portal tests, Postman collection and PORTAL_API.md.
+- FE ConnectedPortal.jsx and portal.web.cjs.
+
+### Verification
+- Backend portal tests: 7/7 passed using temporary MongoDB, including authorization, validation, self protection, session revocation and business effective roles.
+- Browser portal workflow: passed, including UI role assignment and old session rejection.
+- FE typecheck, final lint and web build passed; Expo Doctor 21/21 passed.
+
+### Remaining work
+- None within role assignment scope. Business approval remains a separate workflow.
+
+
+## 2026-10-16 - Separate Admin, Staff and Business workspaces
+
+### Summary
+- Added dedicated /admin, /staff and /business web workspaces with distinct layouts, navigation and visual themes. /portal remains a compatible entry.
+- Resolve effective role from the backend before rendering the main user app; privileged accounts bypass user onboarding and redirect to their workspace. Wrong workspace URLs normalize to the authenticated role.
+- Native privileged sessions show guidance to use the web workspace instead of entering user surveys.
+
+### Files changed
+- App.tsx; src/gomate-portal/ConnectedPortal.jsx; WorkspaceLayouts.jsx; portal-connected.css; tests/portal.web.cjs; docs/DECISIONS.md.
+
+### Verification
+- npm run typecheck and npm run lint: passed.
+- Expo web export with /api base URL: passed.
+- npm run test:portal:web: passed with temporary MongoDB and Chrome; includes role redirects from root and incorrect workspace URLs, existing workflows, responsive widths and screenshots.
+- npx expo-doctor: 21/21 passed (rerun with network access after sandbox registry EACCES).
+- Reviewed Admin, Staff and Business screenshots.
+
+### Remaining work
+- Native workspaces are web-only. Staff provisioning and account locking UI are outside this interface separation task; existing API capabilities remain unchanged.
+
+
+## 2026-10-16 - Connect Business, Staff and Admin portal to the backend
+
+### Summary
+
+- Replace demo credentials and local-only dashboard mutations with shared authentication and persisted portal APIs. Add the platform-specific /portal entry, verified business applications, private document submission, moderation, support threads, real metrics and JSON export.
+- Manage Free/Plus entitlements and status without payment collection. Reuse the existing configured Google login. Remove nonfunctional Apple/demo controls from the portal; the main app is unchanged.
+- Add loading/error/retry handling, prevent duplicate submissions, handle expired sessions, and make the portal scroll correctly inside the Expo web root.
+- Enable JSX lint checks and add a browser regression covering three roles against an isolated MongoDB backend.
+
+### Files changed
+
+- App.tsx, src/PortalEntry*, src/gomate-portal/*, gomate-portal-preview.html.
+- package.json, eslint.config.js, tests/portal.web.cjs, docs/DECISIONS.md.
+
+### Verification
+
+- Frontend unit tests: 13 passed.
+- Expo Doctor: 21/21 passed.
+- Web export with EXPO_PUBLIC_API_BASE_URL=/api: passed. Clear Metro cache when changing the baked API URL.
+- npm run typecheck and npm run lint: passed with no warnings (including portal JSX).
+- node tests/portal.web.cjs: passed against isolated MongoDB; login, document submission, business approval, Plus assignment, post submission/moderation/feed, support replies, reload persistence, metrics download and desktop/mobile width/scroll checks.
+- Reviewed desktop/mobile screenshots in test-results; git diff --check passed.
+
+### Remaining work
+
+- Configure real email/Google providers as needed and provision the first verified admin using the documented operator CLI. No real accounts or database permissions were changed during tests.
+- Business announcements appear in the portal feed, separate from mobile personal activities. Apple sign-in, native push and payment processing remain outside this portal task.
+
+## 2026-10-16 - Resolve fe-ui2 merge conflicts
+
+### Summary
+
+- Resolved all 16 conflicted files using the integrated fe-ui2 screens, API session flow, Expo configuration and matching dependency lockfile.
+- Preserved local development/build scripts and the original profile/activity forms and service contracts under explicit legacy modules. Adapted the original discovery screen to the new match callback contract.
+- Routed legacy authentication through the shared API session so old and new screens cannot maintain separate logins. Kept existing service tests and added a shared-session regression test.
+
+### Files changed
+
+- App.tsx, .env.example, app.json, package.json, package-lock.json.
+- Conflicted screens, src/components/match/MatchPrimitives.tsx, src/services/activityService.ts, src/services/profileService.ts.
+- src/services/authService.ts, legacyActivityService.ts, legacyProfileService.ts, discoveryService.ts; src/hooks/useProfile.ts.
+- src/screens/LegacyCreateActivityScreen.tsx, ActivityManagerScreen.tsx, DiscoverScreen.tsx, ProfileScreen.tsx; tests/*Service.test.cjs, tests/auth-compat.test.cjs.
+
+### Verification
+
+- npm.cmd ci --ignore-scripts --no-audit --no-fund: Passed; installed the merged lockfile.
+- npm.cmd run typecheck: Passed.
+- npm.cmd run lint: Passed with no warnings.
+- node --test tests/*.test.cjs: Passed, 13 tests.
+- npx.cmd --yes expo-doctor: Passed, 21/21 checks.
+- git diff --check and conflict-marker scan: Passed.
+
+### Remaining work
+
+- Complete the local merge commit after reviewing the staged resolution. Browser/device checks against a running backend remain manual.
+
+## 2026-10-04 - Real activity creation and host CRUD screens
+
+### Summary
+
+- Replaced local activity publishing with API POST/PATCH, UTC+7 date conversion
+  and optional cover upload. Shared the four-step form for creation and editing;
+  added multi-day end date, optional coordinates, busy/error states.
+- Added paginated hosted-activity list and API detail with owner edit/delete and
+  explicit delete confirmation. Match selections now open API details.
+
+### Files changed
+
+- `src/services/activityService.ts`, `src/screens/CreateActivityScreen.tsx`,
+  `ActivityManagerScreen.tsx`, `MainApp.tsx`, `DiscoverScreen.tsx`
+- `tests/activityService.test.cjs`, README and project documentation
+
+### Verification
+
+- Typecheck and lint passed. Service tests: 3/3 passed, including multi-day dates,
+  UTC+7 conversion, malformed input, auth headers, CRUD routes and 204 handling.
+- Backend suite: 46/46 passed on isolated MongoDB with cloud mocked.
+- Physical-device UI and real Cloudinary cover upload not tested.
+
+### Remaining work
+
+- Joined activities and host approval are not implemented. Some home/group/chat
+  screens still use demo data. FE session persistence remains separate work.
+
+## 2026-10-04 - Connect Match discovery and filters
+
+### Summary
+
+- Replaced discovery sample filtering with authenticated activity search,
+  keyword input, pagination, retry and optional foreground location lookup.
+- Connected categories, VND budget and ISO weekday/hour filters; retain search
+  and location when returning from filters. Added the Expo location dependency.
+- Removed false match success from API discovery; join requests remain future
+  work. Hide unavailable host ratings and fabricated extra photos on match cards.
+
+### Files changed
+
+- `src/services/discoveryService.ts`, `src/screens/DiscoverScreen.tsx`,
+  `MainApp.tsx`, `MatchScreen.tsx`, `FilterScreen.tsx`
+- `src/components/match/MatchPrimitives.tsx`, `tests/discoveryService.test.cjs`
+- `app.json`, package/lockfile, documentation
+
+### Verification
+
+- Typecheck and lint passed. FE discovery/profile service tests: 2/2 passed.
+- BE suite: 40/40 passed with isolated MongoDB, including geospatial filtering.
+- Expo Doctor: 21/21 passed. `git diff --check`: Passed.
+- No real-device GPS/UI test or production data changes.
+
+### Remaining work
+
+- Activity creation and join/approval APIs remain separate work. Database without
+  published future activities shows an empty list. Other activity screens remain
+  prototypes; skip/undo state is not persisted.
+
+## 2026-10-04 - Document Cloudinary avatar storage
+
+### Summary
+
+- Recorded the switch to backend Cloudinary storage; existing ImagePicker and
+  base64 API calls already support local image selection and absolute image URLs.
+
+### Files changed
+
+- `docs/DECISIONS.md`, `docs/DEVELOPMENT_LOG.md`
+
+### Verification
+
+- Backend tests: 35/35 passed with a fake Cloudinary provider.
+- No FE source changes; no live cloud test because credentials are missing.
+
+### Remaining work
+
+- Configure Cloudinary on BE and test local image upload end to end.
+
+## 2026-10-04 - Connect profile editing and avatar upload
+
+### Summary
+
+- Load and save the signed-in user's name, username, bio, location and interests
+  through the profile API. Share the profile form between onboarding and editing.
+- Upload selected image data, display the persisted avatar and real profile in
+  the profile tab/own preview. Removed fabricated reviews/stats from own profile.
+- Show loading, retry, save errors and partial-success feedback when photo upload
+  fails after profile fields are saved; prevent repeated save submissions.
+
+### Files changed
+
+- `src/services/profileService.ts`, `src/hooks/useProfile.ts`
+- `src/screens/ProfileScreen.tsx`, `EditProfileScreen.tsx`,
+  `UserProfileScreen.tsx`, `MainApp.tsx`
+- `tests/profileService.test.cjs`, README and profile-related docs
+
+### Verification
+
+- `npm.cmd run typecheck`, `npm.cmd run lint`: Passed.
+- `npx.cmd expo-doctor`: 21/21 passed.
+- `node --test tests/profileService.test.cjs`: Passed request/response smoke test.
+- Backend integration suite: 32/32 passed using isolated MongoDB 8.3.
+- `git diff --check`: Passed. Physical-device image selection not tested.
+
+### Remaining work
+
+- Avatar deletion and public member profiles are not part of this API.
+- Other activity/community screens still use sample data. Persistent login on
+  FE remains separate work; backend support is already documented.
+
+## 2026-10-03 - Connect email authentication to the backend
+
+### Summary
+
+- Connected registration, six-digit email verification, resend, automatic login
+  after verification, password login and logout. Added validation, busy states,
+  API errors and recovery for unverified accounts and failed automatic login.
+- Replaced mock authentication shortcuts with unavailable-feature feedback.
+- Added Expo API URL configuration; kept credentials and sessions in memory.
+
+### Files changed
+
+- `src/services/authService.ts`, `src/screens/AuthScreen.tsx`,
+  `src/screens/VerifyEmailScreen.tsx`, `App.tsx`
+- `.env` (local URL setting), `.env.example`, `README.md`,
+  `docs/BACKEND_GAPS.md`, `docs/DECISIONS.md`, `docs/DEVELOPMENT_LOG.md`
+
+### Verification
+
+- `npm.cmd run typecheck`, `npm.cmd run lint`: Passed.
+- `npx.cmd expo-doctor`: Passed, 21/21 checks after retry with network access.
+- Node/TypeScript service smoke checks with mocked fetch: Passed registration
+  payload/password preservation, leading-zero OTP, API errors, session creation,
+  failed logout retention, bearer token and session clearing on successful logout.
+- `git diff --check`: Passed. Reviewed changed application files.
+- Live SMTP and device end-to-end tests not run; require a reachable configured
+  backend and an email inbox. No real registration/email was sent during testing.
+
+### Remaining work
+
+- Sessions do not survive app restarts. Google/Apple, password recovery and
+  profile persistence remain unconnected. Configure a reachable API URL for the
+  target device, restart Expo and verify the full flow against SMTP.
+
+## 2026-10-03 - Resolve mobile migration conflicts and review backend gaps
+
+### Summary
+
+- Resolved stash conflicts using the upstream Expo/TypeScript application.
+- Archived tracked/untracked stash snapshots and moved legacy web auth code,
+  tests and the previous native starter to `C:\GoMate\backups\fe-stash-20261003`.
+  Preserved the original stash and `.env`; no commit or push was made.
+- Kept root build compatibility through Expo web export and added mobile
+  export/dev scripts. Updated Expo to 57.0.26 as required by Expo Doctor.
+- Documented UI/backend gaps, including the five-digit versus six-digit OTP
+  mismatch and mock authentication/activity flows.
+
+### Files changed
+
+- `.gitignore`, `package.json`, `package-lock.json`, `README.md`
+- Removed conflicted legacy paths from the active tree: `src/App.jsx`,
+  `src/App.css`, `src/index.css`, `src/services/http.js`, `vite.config.js`.
+  Their contents remain in the backup and stash.
+- `docs/BACKEND_GAPS.md`, `docs/README.md`, `docs/DECISIONS.md`,
+  `docs/DEVELOPMENT_LOG.md`
+
+### Verification
+
+- `npm ci`: Passed before the Expo patch update; update via `expo install` passed.
+- `npm run typecheck`: Passed.
+- `npm run lint`: Passed.
+- `npm run build:mobile` and `npm run build`: Passed.
+- After the patch update, `npx expo-doctor`: Passed all 21 checks;
+  `npx expo export --platform all --output-dir dist-native`: Passed Android,
+  iOS and web export.
+- `git diff --name-only --diff-filter=U`: Empty; no unresolved conflicts.
+- Device runtime and backend integration: Not tested; this task resolves the
+  merge and reviews source code, without implementing API integration.
+
+### Remaining work
+
+- Connect the new mobile UI to backend APIs; see `BACKEND_GAPS.md`.
+- npm reports 23 dependency advisories (7 moderate, 16 high); no unrelated
+  forced dependency upgrades were applied.
+- Existing staged `.env.example` edits and placeholder deletions were preserved.
+
 This file records completed development work. Keep the newest entry at the top
 and follow `templates/development-log-entry.md`.
+
+## 2026-11-02 - Merge quang-ui into quan_business
+
+### Summary
+
+- Merge `origin/quang-ui` (`c1e0450`) into `quan_business`, preferring the existing business workflows when implementations conflict.
+- Keep the current portal, VietQR escrow, session isolation, activity lifecycle, invitations, live counts, profile validation and Google directions. Retain compatible incoming UI changes and new compatibility services/screens.
+- Restore files deleted by the incoming branch that are still needed by the current application. Fix the incoming portal entry import and preserve existing npm test commands.
+- Restore the wallet refresh success/error notices alongside the current VietQR wallet.
+
+### Files changed
+
+- Incoming UI components/screens, compatibility services, Playwright configuration/tests and package manifests.
+- `src/PortalEntry.web.tsx`, `src/services/mapsService.ts`, `src/gomate-portal/BusinessWallet.jsx`.
+- `docs/DEVELOPMENT_LOG.md`.
+
+### Verification
+
+- `npm.cmd run typecheck`: Passed.
+- `npm.cmd run lint`: Passed with five existing warnings.
+- `npx.cmd expo-doctor`: Passed, 21/21 checks.
+- Six Node tests covering activity input, directions, compatibility authentication/activity/profile services and discovery: Passed.
+- Expo web export with `EXPO_PUBLIC_API_BASE_URL=/api`: Passed after the final wallet notice fix.
+- Explicit ESLint on `BusinessWallet.jsx` with `--no-ignore`: Passed.
+- Business campaign browser test: Passed, including campaign creation, split groups, scoped chat, staff accounts, withdrawal, admin deletion, wallet refresh notice and mobile layout. The initial run exposed the missing wallet refresh notice, now corrected.
+- `npm.cmd run test:web`: Login, persisted session and browser navigation passed; the test then timed out looking for the obsolete label `Gửi yêu cầu tham gia`. The preserved `quan_business` detail screen uses `Yêu cầu tham gia`; the remaining smoke assertions were not reached.
+- `git diff --cached --check`: Passed.
+
+### Remaining work
+
+- Five existing lint warnings; update the user smoke test for current join/cancel labels. Native devices and the incoming branch's alternate portal tests have not been validated.
 
 ## 2026-11-01 - Contextual portal action errors
 

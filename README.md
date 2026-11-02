@@ -1,5 +1,20 @@
 # GoMate Mobile
 
+Sau khi gộp `fe-ui2`, app dùng `index.ts` và `App.tsx`. Code web cũ được
+sao lưu tại `C:\GoMate\backups\fe-stash-20261003`; stash vẫn được giữ nguyên.
+Đã nối API đăng ký, xác minh email 6 số, gửi lại mã, đăng nhập và đăng xuất.
+Sau xác minh, FE tự gọi đăng nhập rồi mở bước hoàn thiện hồ sơ.
+
+- `npm.cmd run dev`: chạy Expo.
+- `npm.cmd run build`: xuất bản web vào `dist` cho lệnh build ở thư mục gốc.
+- `npm.cmd run build:mobile`: xuất bundle Android/iOS vào `dist-native`.
+- Cấu hình `EXPO_PUBLIC_API_BASE_URL` trong `.env` thành URL BE có đuôi `/api`,
+  rồi khởi động lại Expo. Điện thoại thật dùng IP LAN của máy chạy BE;
+  Android emulator dùng `http://10.0.2.2:3000/api`. Web cần BE cho phép origin qua CORS.
+- Token chỉ giữ trong bộ nhớ; mở lại app cần đăng nhập lại. Google/Apple và
+  quên mật khẩu chưa được nối. Hồ sơ cá nhân đã nối API lấy/sửa và upload ảnh;
+  tạo/sửa/xóa, danh sách hoạt động tổ chức, chi tiết và Match đã nối API.
+  Nhóm/chat và các mục hoạt động mẫu trên trang chủ vẫn chưa nối đầy đủ.
 Demo hai trình duyệt, portal doanh nghiệp và quy trình staff duyệt bài: [hướng dẫn demo](docs/DEMO_GUIDE.md). Tạo dữ liệu bằng `npm run demo:seed`, mở `/demo` hoặc `/portal` trên web.
 
 Ứng dụng tìm người cùng tham gia một hoạt động cụ thể, được xây dựng bằng React
@@ -56,6 +71,7 @@ trường hợp đó cần cấu hình URL API riêng.
 Sao chép `.env.example` thành `.env.local`. Dùng `EXPO_PUBLIC_API_BASE_URL` theo
 [quy tắc biến môi trường Expo](https://docs.expo.dev/guides/environment-variables/).
 
+- Trên app Android/iOS, tài khoản có role `staff` có thể mở giao diện Staff từ Hồ sơ. Màn hình dùng chung portal web `/staff`; nếu website FE không cùng host với API, đặt `EXPO_PUBLIC_STAFF_PORTAL_URL` thành origin website FE (ví dụ `https://gomate.app`).
 - Expo web: `http://localhost:3000/api`, BE `CORS_ORIGIN=http://localhost:8081,http://127.0.0.1:8081`.
 - Android emulator: `http://10.0.2.2:3000/api`.
 - Điện thoại thật: `http://<IP-LAN-máy-tính>:3000/api`, BE `HOST=0.0.0.0`; điện thoại và máy tính cùng mạng.
