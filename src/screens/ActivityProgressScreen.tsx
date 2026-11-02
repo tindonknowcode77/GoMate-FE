@@ -24,7 +24,8 @@ export function ActivityProgressScreen({ activity, onBack, onEnd }: { activity: 
   const isHost = remote.data?.current.hostId === getSession()?.user.id || Boolean(remote.data?.current.isBusinessManager);
   const isRunning = remote.data?.current.status === 'in-progress';
   const canChange = isHost && ['published', 'in-progress'].includes(remote.data?.current.status || '');
-  const canCorrect = isHost && remote.data?.current.status === 'completed' && Boolean(remote.data?.current.autoCompletedAt && Date.now() - new Date(remote.data.current.autoCompletedAt).getTime() < 86400000);
+  const [now] = useState(() => Date.now());
+  const canCorrect = isHost && remote.data?.current.status === 'completed' && Boolean(remote.data?.current.autoCompletedAt && now - new Date(remote.data.current.autoCompletedAt).getTime() < 86400000);
   const canPostUpdate = isHost && ['published', 'in-progress'].includes(remote.data?.current.status || '');
   const noteAttempt = useRef<{ text: string; id: string } | null>(null);
   const run = async (action: () => Promise<void>) => {

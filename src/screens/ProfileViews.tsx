@@ -131,9 +131,10 @@ export function ProfilePreview({ profile }: { profile: UserProfile }) {
 }
 function InfoLine({ icon, text }: { icon: IconName; text: string }) { return text ? <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}><Ionicons name={icon} size={20} color={colors.primary} /><Text style={{ flex: 1 }}>{text}</Text></View> : null; }
 
-export function UserProfileScreen({ onEdit, onPreview, onVerification, onReviews, onMyActivities, onNotifications, onSettings, onFriends }: { onEdit: () => void; onPreview: () => void; onVerification: () => void; onReviews: () => void; onMyActivities: () => void; onFriends: () => void; onNotifications: () => void; onSettings: () => void }) {
+export function UserProfileScreen({ onEdit, onPreview, onVerification, onReviews, onMyActivities, onNotifications, onSettings, onFriends, onWallet }: { onEdit: () => void; onPreview: () => void; onVerification: () => void; onReviews: () => void; onMyActivities: () => void; onFriends: () => void; onNotifications: () => void; onSettings: () => void; onWallet?: () => void }) {
   const remote = useProfile(), profile = remote.profile;
   const menu: { label: string; icon: IconName; action: () => void }[] = [
+    ...(onWallet ? [{ label: 'Ví & Lịch sử thanh toán', icon: 'wallet-outline' as IconName, action: onWallet }] : []),
     { label: 'Xác minh tài khoản', icon: 'shield-checkmark-outline', action: onVerification }, { label: 'Điểm đánh giá của tôi', icon: 'star-outline', action: onReviews },
     { label: 'Bạn bè', icon: 'people-outline', action: onFriends }, { label: 'Hoạt động của tôi', icon: 'calendar-outline', action: onMyActivities }, { label: 'Thông báo', icon: 'notifications-outline', action: onNotifications }, { label: 'Cài đặt', icon: 'settings-outline', action: onSettings },
   ];

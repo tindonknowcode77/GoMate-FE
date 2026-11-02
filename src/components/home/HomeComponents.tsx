@@ -1,6 +1,6 @@
 import { ProfileAvatar } from '../ProfileAvatar';
 import { UnreadDot } from '../UnreadDot';
-import { ComponentProps } from 'react';
+import { ComponentProps, useState } from 'react';
 import { Image, ImageBackground, Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useProfile } from '../../services/ProfileContext';
@@ -41,7 +41,8 @@ export function HomeHeader({ activityCount, onCalendarPress, onNotificationsPres
 }
 
 export function NextActivityCard({ activity, onGroup, onPlan }: { activity: Activity; onGroup: () => void; onPlan: () => void }) {
-  const diffMs = activity.startsAt ? new Date(activity.startsAt).getTime() - Date.now() : 0;
+  const [now] = useState(() => Date.now());
+  const diffMs = activity.startsAt ? new Date(activity.startsAt).getTime() - now : 0;
   const countdown = !activity.startsAt ? '' : diffMs <= 0 ? '◷ Đang diễn ra' : diffMs < 3600000 ? `◷ Còn ${Math.max(1, Math.ceil(diffMs / 60000))} phút` : diffMs < 86400000 ? `◷ Còn ${Math.ceil(diffMs / 3600000)} giờ` : `◷ Còn ${Math.ceil(diffMs / 86400000)} ngày`;
   const endTime = activity.endsAt ? ` – ${new Date(activity.endsAt).toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', hour12: false })}` : '';
   return (

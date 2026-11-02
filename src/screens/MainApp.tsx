@@ -46,6 +46,7 @@ import { SettingsScreen, SettingsPage } from './SettingsScreen';
 import { ProfilePreview } from './ProfileViews';
 import { MyReviewsScreen, VerificationStatusScreen } from './ProfileAccountScreens';
 import { UserProfileScreen } from './UserProfileScreen';
+import { UserWalletScreen } from './UserWalletScreen';
 import { ActivitySearchScreen } from './ActivitySearchScreen';
 
 type PeopleSource = { name: 'discover' } | { name: 'pending' } | { name: 'manage' } | { name: 'detail'; activity: Activity };
@@ -67,6 +68,7 @@ type FullScreenRoute =
   | { name: 'settings'; section?: SettingsPage }
   | { name: 'verification' }
   | { name: 'myReviews' }
+  | { name: 'wallet' }
   | { name: 'activityDetail'; activity: Activity; source: 'home' | 'discover' | 'pending' }
   | { name: 'group'; activity: Activity; source: 'home' | 'myActivities'; initialTab?: 'chat' | 'plan' | 'members' | 'manage' }
   | { name: 'progress'; activity: Activity }
@@ -94,7 +96,7 @@ function decodeNavigation(path: string): Navigation {
   if (['activityDetail', 'group', 'progress', 'summary', 'rating'].includes(name) && id) {
     try { return { activeTab, route: { name: 'activityLink', id: decodeURIComponent(id), target: name as 'activityDetail' | 'group' | 'progress' | 'summary' | 'rating' } }; } catch { return { activeTab, route: null }; }
   }
-  const route = ['friends', 'discover', 'searchActivities', 'filter', 'favorites', 'pending', 'manage', 'notifications', 'myActivities', 'editProfile', 'ownProfilePreview', 'settings', 'verification', 'myReviews'].includes(name) ? { name } as FullScreenRoute : null;
+  const route = ['friends', 'discover', 'searchActivities', 'filter', 'favorites', 'pending', 'manage', 'notifications', 'myActivities', 'editProfile', 'ownProfilePreview', 'settings', 'verification', 'myReviews', 'wallet'].includes(name) ? { name } as FullScreenRoute : null;
   return { activeTab, route };
 }
 
@@ -276,6 +278,7 @@ function MainAppContent({ onLogout }: { onLogout: () => void }) {
   if (route?.name === 'ownProfilePreview') return <SafeAreaView style={styles.safeArea}><ScreenHeader title="Xem trước hồ sơ" onBack={() => setRoute(null)} right={<Pressable accessibilityRole="button" onPress={() => setRoute({ name: 'editProfile', source: 'ownProfilePreview' })}><Text style={{ color: colors.primary }}>Chỉnh sửa</Text></Pressable>} /><ScrollView contentContainerStyle={{ width: '100%', maxWidth: 800, alignSelf: 'center', padding: 18 }}>{userProfile.profile && <ProfilePreview profile={userProfile.profile} />}</ScrollView></SafeAreaView>;
   if (route?.name === 'verification') return <VerificationStatusScreen onBack={() => setRoute(null)} />;
   if (route?.name === 'myReviews') return <MyReviewsScreen onBack={() => setRoute(null)} />;
+  if (route?.name === 'wallet') return <UserWalletScreen onBack={() => setRoute(null)} />;
   if (route?.name === 'notifications') return <NotificationsScreen onBack={() => setRoute(null)} onOpen={async notice => {
     if (notice.type.startsWith('business-')) { if (Platform.OS === 'web') window.location.assign('/portal'); else await Linking.openURL(apiBaseUrl.replace(/\/api\/?$/, '') + '/portal'); return; }
     if (notice.type === 'activity-invitation') { setRoute({ name: 'friends' }); return; }
@@ -309,7 +312,7 @@ function MainAppContent({ onLogout }: { onLogout: () => void }) {
         {activeTab === 'match' && <MatchHubScreen onProfile={() => setActiveTab('profile')} onFavorites={() => setRoute({ name: 'favorites' })} onDiscover={() => setRoute({ name: 'discover' })} onManage={() => setRoute({ name: 'manage' })} onNotifications={() => setRoute({ name: 'notifications' })} onPending={() => setRoute({ name: 'pending' })} onPreviewProfile={() => setRoute({ name: 'ownProfilePreview' })} />}
         {activeTab === 'create' && <CreateActivityScreen onRequireProfile={() => setRoute({ name: 'editProfile' })} onCreated={() => { void discovery.reload(); setRoute({ name: 'manage' }); }} />}
         {activeTab === 'messages' && <MessagesScreen onFriends={() => setRoute({ name: 'friends' })} onOpenChat={(conversation) => setRoute({ name: 'chat', conversation })} />}
-        {activeTab === 'profile' && <UserProfileScreen onFriends={() => setRoute({ name: 'friends' })} onPreview={() => setRoute({ name: 'ownProfilePreview' })} onVerification={() => setRoute({ name: 'verification' })} onReviews={() => setRoute({ name: 'myReviews' })} onEdit={() => setRoute({ name: 'editProfile' })} onMyActivities={() => setRoute({ name: 'myActivities' })} onNotifications={() => setRoute({ name: 'notifications' })} onSettings={() => setRoute({ name: 'settings' })} />}
+        {activeTab === 'profile' && <UserProfileScreen onWallet={() => setRoute({ name: 'wallet' })} onFriends={() => setRoute({ name: 'friends' })} onPreview={() => setRoute({ name: 'ownProfilePreview' })} onVerification={() => setRoute({ name: 'verification' })} onReviews={() => setRoute({ name: 'myReviews' })} onEdit={() => setRoute({ name: 'editProfile' })} onMyActivities={() => setRoute({ name: 'myActivities' })} onNotifications={() => setRoute({ name: 'notifications' })} onSettings={() => setRoute({ name: 'settings' })} />}
       </View>
       <BottomNav activeTab={activeTab} onChange={(tab) => {
         if (tab === 'create' && userProfile.profile && !isBasicProfileComplete(userProfile.profile)) {
