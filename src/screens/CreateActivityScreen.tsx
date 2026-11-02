@@ -149,7 +149,18 @@ export function CreateActivityScreen({ onCreated, initialActivity, onCancel }: {
       {step === 1 && <BasicStep customCategory={customCategory} draft={draft} onCustomCategory={() => { setCustomCategory(true); setField('category', ''); }} onPickPhoto={pickPhoto} onPresetCategory={(category) => { setCustomCategory(false); setField('category', category); }} onRemovePhoto={(index) => setField('photos', draft.photos.filter((_, itemIndex) => itemIndex !== index))} setField={setField} />}
       {step === 2 && <WhenWhereStep draft={draft} setField={setField} onSuggestionsLayout={() => scroll.current?.scrollToEnd({ animated: true })} />}
       {step === 3 && <View style={{ gap: 18 }}><GroupStep draft={draft} setField={setField} editing={Boolean(initialActivity)} onCompanionChange={(index, patch) => { draftRevision.current++; setDraftNotice(''); setDraft(current => ({ ...current, companions: Array.from({ length: current.reservedSeats ?? 0 }, (_, at) => ({ name: '', note: '', ...current.companions?.[at], ...(at === index ? patch : {}) })) })); }} /><FinancialStep draft={draft} setField={setField} /><View style={styles.card}><TripPlanEditor value={{ itinerary: draft.itinerary || [], planLink: draft.planLink || '', planAttachment: draft.planAttachment, planFile: draft.planFile }} onChange={patch => { draftRevision.current++; setDraftNotice(''); setDraft(current => ({ ...current, ...patch })); }} startDate={draft.date} endDate={draft.endDate || draft.date} startTime={draft.startTime} endTime={draft.endTime} onBusyChange={setFileBusy} /></View></View>}
-      {step === 4 && <ActivityDraftPreview draft={draft} initialActivity={initialActivity} host={{ id: profile?.id || '', name: profile?.name || '' }} />}
+      {step === 4 && <>
+        <View style={styles.card}>
+          <View style={styles.reviewSectionHeading}>
+            <Text style={styles.sectionTitle}>Thời gian hoạt động</Text>
+            <Pressable accessibilityRole="button" onPress={() => { setError(undefined); scroll.current?.scrollTo({ y: 0, animated: false }); setStep(2); }}>
+              <Text style={styles.editText}>Chỉnh sửa</Text>
+            </Pressable>
+          </View>
+          <Text style={styles.summaryText}>{draft.endDate && draft.endDate !== draft.date ? `${draft.date}, ${draft.startTime} – ${draft.endDate}, ${draft.endTime}` : `${draft.date} · ${draft.startTime} – ${draft.endTime}`}</Text>
+        </View>
+        <ActivityDraftPreview draft={draft} initialActivity={initialActivity} host={{ id: profile?.id || '', name: profile?.name || '' }} />
+      </>}
 
     </View></ScrollView>
     <View style={styles.footerShell}>{error && <View accessibilityRole="alert" style={[styles.errorBanner, { marginHorizontal: 18, marginBottom: 0, maxWidth: layout.maxWidth - 36, width: '92%', alignSelf: 'center' }]}><Ionicons color={colors.danger} name="alert-circle" size={18} /><Text style={styles.errorText}>{error}</Text></View>}<View style={styles.footer}>{step > 1 && <Pressable onPress={() => { setError(undefined); scroll.current?.scrollTo({ y: 0, animated: false }); setStep((current) => current - 1); }} style={styles.backButton}><Text style={styles.backText}>Quay lại</Text></Pressable>}<GradientButton disabled={busy || fileBusy || draftSaving} label={busy ? 'Đang lưu...' : fileBusy ? 'Đang đọc tệp...' : step === 4 ? (initialActivity ? 'Lưu thay đổi' : 'Đăng hoạt động') : 'Tiếp tục'} onPress={next} style={styles.nextButton} trailing={<Ionicons color={colors.white} name={step === 4 ? 'checkmark' : 'arrow-forward'} size={19} />} /></View></View>
@@ -171,7 +182,7 @@ function WhenWhereStep({ draft, setField, onSuggestionsLayout }: StepProps & { o
     <RegistrationDeadlineField draft={draft} onChange={patch => { setField('registrationDeadline', patch.registrationDeadline || ''); setField('deadlineHoursBefore', patch.deadlineHoursBefore); setField('deadlineCustom', patch.deadlineCustom); }} />
     <ActivityLocationFields province={draft.province} district={draft.district} ward={draft.ward} onChange={patch => { if (patch.province !== undefined) { setField('province', patch.province); setField('coordinates', null); } if (patch.district !== undefined) setField('district', patch.district); if (patch.ward !== undefined) setField('ward', patch.ward); }} />
     <Text style={{ color: colors.textSecondary }}>Ghim địa điểm để mọi người thấy khoảng cách chính xác.</Text>
-    <LocationField value={draft.coordinates} onChange={point => setField('coordinates', point)} onPlaceSelected={place => { const fields = placeRegionFields(place, draft.province); if (fields.province) setField('province', fields.province); setField('district', fields.district); setField('ward', fields.ward); setField('address', fields.address); }} />
+    <LocationField value={draft.coordinates} onChange={point => { setField('coordinates', point); if (point) { setField('province', ''); setField('district', ''); setField('ward', ''); setField('address', ''); } }} onPlaceSelected={place => { const fields = placeRegionFields(place, draft.province); if (fields.province) setField('province', fields.province); setField('district', fields.district); setField('ward', fields.ward); setField('address', fields.address); }} />
     <AddressAutocomplete value={draft.address} bias={draft.coordinates} onSuggestionsLayout={onSuggestionsLayout} onChangeText={value => { setField('address', value); setField('coordinates', null); }} onSelect={place => { const fields = placeRegionFields(place, draft.province); if (fields.province) setField('province', fields.province); setField('district', fields.district); setField('ward', fields.ward); setField('address', fields.address); setField('coordinates', place.point); }} />
     <FormField icon="navigate-outline" label="Điểm tập trung / hướng dẫn gặp mặt" onChangeText={(value) => setField('meetingPoint', value)} placeholder="Ví dụ: trước cổng chính, bàn số 8" value={draft.meetingPoint} />
 
@@ -184,12 +195,12 @@ function FinancialStep({ draft, setField }: StepProps) {
   const config = draft.financialConfig;
   const setConfig = (patch: Partial<ActivityDraft['financialConfig']>) => setField('financialConfig', { ...config, ...patch });
   return <View><StepHeading icon="wallet-outline" title="Chi phí dự kiến" note="Thông tin tham khảo để thành viên sắp xếp ngân sách." />
-    <View style={styles.card}><MoneyField label="Chi phí dự kiến / người (không bắt buộc)" onChange={(value) => setConfig({ estimatedCostPerMember: value })} value={config.estimatedCostPerMember} /><FormField label="Chi phí bao gồm / cách chia" value={draft.costNote || ''} onChangeText={value => setField('costNote', value)} multiline placeholder="Ví dụ: gồm xe và vé; ăn uống tự túc; chia đều chi phí thực tế." /><Text style={styles.summaryText}>Để 0 nếu miễn phí. Đây là dự toán tham khảo cho mỗi người.</Text></View>
+    <View style={styles.card}><MoneyField label="Chi phí dự kiến / người (không bắt buộc)" onChange={(value) => setConfig({ estimatedCostPerMember: value })} value={config.estimatedCostPerMember} /><FormField label="Chi phí bao gồm / cách chia (không bắt buộc)" value={draft.costNote || ''} onChangeText={value => setField('costNote', value)} multiline placeholder="Ví dụ: gồm xe và vé; ăn uống tự túc; chia đều chi phí thực tế." /></View>
   </View>;
 }
 
 function StepHeading({ icon, title, note }: { icon: IconName; title: string; note: string }) { return <View style={styles.stepHeading}><View style={styles.stepIcon}><Ionicons color={colors.primary} name={icon} size={23} /></View><View style={styles.stepCopy}><Text style={styles.stepTitle}>{title}</Text><Text style={styles.stepNote}>{note}</Text></View></View>; }
-function MoneyField({ label, onChange, value }: { label: string; onChange: (value: number) => void; value?: number }) { return <FormField icon="cash-outline" keyboardType="number-pad" label={label} onChangeText={(text) => onChange(toAmount(text))} placeholder="0đ" value={value ? value.toLocaleString('vi-VN') : ''} />; }
+function MoneyField({ label, onChange, value }: { label: string; onChange: (value: number) => void; value?: number }) { return <FormField icon="cash-outline" keyboardType="number-pad" label={label} onChangeText={(text) => onChange(toAmount(text))} placeholder="Ví dụ: 60.000đ" value={value ? value.toLocaleString('vi-VN') : ''} />; }
 
 const styles = StyleSheet.create({
   footerShell: { backgroundColor: colors.surface, paddingTop: 8 },

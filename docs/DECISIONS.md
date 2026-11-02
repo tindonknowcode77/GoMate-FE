@@ -1,5 +1,27 @@
 # Decision log
 
+## 2026-11-02 - Open the existing Staff workspace from the mobile app
+
+Allow accounts whose effective role is `staff` on `/portal/me` to use the regular app and switch to the existing `/staff` portal from their profile. Reuse its API-backed screens in a native WebView, recheck the staff role when opening it, pass the current session through the WebView bridge, and discard WebView data when it closes. Staff access does not require completing the member profile; Admin and Business mobile access remains web-only.
+
+Consequences: the native build must be able to load the Staff website. Set `EXPO_PUBLIC_STAFF_PORTAL_URL` when that site does not share the API host. Backend role checks continue to authorize every staff operation.
+
+## 2026-11-01 - Reverse geocode points selected on maps
+
+Resolve map-selected coordinates through the authenticated GoMate-BE Maps proxy, using VIETMAP Reverse v4's current administrative format or permanent Mapbox Geocoding v6 results. Keep provider credentials on BE and use the returned address components to fill available location fields while preserving the exact selected coordinates.
+
+Consequences: tapping the map requires an enabled reverse-geocoding provider and a restarted BE with the new route. Address fields remain editable when a provider returns incomplete components.
+
+## 2026-11-01 - Keep profile images optional during completion
+
+Supersedes the profile-image requirement in the decision below. A profile image is optional during onboarding and does not block access or mark an otherwise complete profile as incomplete. Keep the initials fallback where no image is available.
+
+## 2026-11-01 - Require consent and a profile image at completion
+
+Superseded by the decision above. Separate affirmative agreement to the Terms of Service and Privacy Policy is still required before creating an account. Phone verification remains unavailable until the BE provides an SMS flow.
+
+Consequences: the signup UI captures explicit consent, but published legal text and links still need to be supplied. Profile completion follows the BE's `profileComplete` calculation and reports required missing fields individually. SMS verification remains follow-up backend work.
+
 ## 2026-10-20 - API-backed partner workspace
 
 Use PartnerPortal at /business and /portal for all authenticated email domains. Keep the existing /staff and /admin workspaces. Remove the obsolete mock dashboards and local mock authentication; retain only their shared visual components. Load event categories from backend validation options and require business-entered event details instead of seeded form values. Permit authenticated workspace users to follow /#/app/ activity links, with backend authorization unchanged.

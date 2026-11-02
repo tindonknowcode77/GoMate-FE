@@ -55,9 +55,17 @@ function ProfileForm({ profile, required, onSaved }: { profile: UserProfile; req
     if (lock.current) return;
     lock.current = true; setBusy(true); setError('');
     try {
-      const birthDate = birthDateIso(draft.birthDate);
-      if (!draft.gender || draft.name.trim().length < 2 || !profileRegions.includes(draft.location) || !draft.languages.length) throw new Error('Bổ sung họ tên, ngày sinh, giới tính, tỉnh / thành phố và ít nhất một ngôn ngữ.');
-      if (step !== 'basic' && (!draft.bio.trim() || !draft.interests.length)) throw new Error('Thêm giới thiệu và ít nhất một sở thích để người đồng hành hiểu bạn hơn.');
+      const missing: string[] = [];
+      if (draft.name.trim().length < 2) missing.push('Nhập họ và tên (ít nhất 2 ký tự).');
+      let birthDate = '';
+      try { birthDate = birthDateIso(draft.birthDate); }
+      catch (reason) { missing.push(reason instanceof Error ? reason.message : 'Chọn ngày sinh hợp lệ.'); }
+      if (!draft.gender) missing.push('Chọn giới tính.');
+      if (!profileRegions.includes(draft.location)) missing.push('Chọn tỉnh/thành phố.');
+      if (!draft.languages.length) missing.push('Chọn ít nhất một ngôn ngữ.');
+      if (step !== 'basic' && !draft.bio.trim()) missing.push('Thêm phần giới thiệu về bạn.');
+      if (step !== 'basic' && !draft.interests.length) missing.push('Chọn ít nhất 1 sở thích.');
+      if (missing.length) throw new Error(missing.join('\n'));
       let updated = await saveProfile({ ...draft, birthDate });
       if (photo) { updated = await uploadAvatar(photo.base64); setPhoto(null); }
       remote.update(updated);
@@ -126,8 +134,9 @@ export function ProfilePreview({ profile }: { profile: UserProfile }) {
 }
 function InfoLine({ icon, text }: { icon: IconName; text: string }) { return text ? <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}><Ionicons name={icon} size={20} color={colors.primary} /><Text style={{ flex: 1 }}>{text}</Text></View> : null; }
 
-export function UserProfileScreen({ onEdit, onPreview, onVerification, onReviews, onMyActivities, onNotifications, onSettings }: { onEdit: () => void; onPreview: () => void; onVerification: () => void; onReviews: () => void; onMyActivities: () => void; onNotifications: () => void; onSettings: () => void }) {
+export function UserProfileScreen({ onEdit, onPreview, onVerification, onReviews, onMyActivities, onNotifications, onSettings, onStaffWorkspace }: { onEdit: () => void; onPreview: () => void; onVerification: () => void; onReviews: () => void; onMyActivities: () => void; onNotifications: () => void; onSettings: () => void; onStaffWorkspace?: () => void }) {
   const remote = useProfile(), profile = remote.profile;
+  const missingFields = profile?.missingFields ?? [];
   const menu: { label: string; icon: IconName; action: () => void }[] = [
     { label: 'Xác minh tài khoản', icon: 'shield-checkmark-outline', action: onVerification }, { label: 'Điểm đánh giá của tôi', icon: 'star-outline', action: onReviews },
     { label: 'Hoạt động của tôi', icon: 'calendar-outline', action: onMyActivities }, { label: 'Thông báo', icon: 'notifications-outline', action: onNotifications }, { label: 'Cài đặt', icon: 'settings-outline', action: onSettings },
@@ -135,12 +144,13 @@ export function UserProfileScreen({ onEdit, onPreview, onVerification, onReviews
   return <ScrollView contentContainerStyle={styles.page}><Text style={styles.title}>Hồ sơ của tôi</Text><RemoteState loading={remote.loading} error={remote.error} onRetry={remote.reload} />
     {profile && !remote.loading && !remote.error && <>
       <View style={styles.card}>{profile.coverUrl && <Image source={{ uri: imageUrl(profile.coverUrl) }} style={{ width: '100%', aspectRatio: 8 / 3, borderRadius: 16, marginBottom: 12 }} />}<View style={styles.avatarArea}>{profile.avatarUrl ? <Image source={{ uri: imageUrl(profile.avatarUrl) }} style={styles.avatar} /> : <View style={styles.avatar}><Text style={styles.initial}>{profile.name.charAt(0)}</Text></View>}<Text style={styles.profileName}>{profile.name}</Text>{profile.username ? <Text style={styles.note}>@{profile.username}</Text> : null}<Text>{profile.location || 'Chưa chọn khu vực'}</Text></View>
-        {!profile.profileComplete && <Text style={styles.note}>Cần bổ sung: {profile.missingFields.map(key => missingFieldLabels[key] || key).join(', ')}.</Text>}
+        {missingFields.length > 0 && <Text style={styles.note}>Cần bổ sung: {missingFields.map(key => missingFieldLabels[key] || key).join(', ')}.</Text>}
         <Text style={styles.note}>{profile.bio || 'Chia sẻ một chút về bạn với người đồng hành.'}</Text>
         <View style={{ flexDirection: 'row', gap: 10 }}>{([{ label: 'Chỉnh sửa hồ sơ', icon: 'create-outline', action: onEdit }, { label: 'Xem trước hồ sơ', icon: 'eye-outline', action: onPreview }] as const).map(item => <Pressable key={item.label} accessibilityRole="button" accessibilityLabel={item.label} onPress={item.action} style={{ flex: 1, backgroundColor: colors.primarySoft, borderRadius: 14, padding: 12, alignItems: 'center', gap: 7 }}><Ionicons name={item.icon} size={20} color={colors.primary} /><Text style={[styles.link, { textAlign: 'center' }]}>{item.label}</Text></Pressable>)}</View>
       </View>
       <View style={styles.menu}>{menu.map(item => <Pressable accessibilityRole="button" key={item.label} onPress={item.action} style={styles.menuRow}><View style={styles.menuIcon}><Ionicons name={item.icon} size={22} color={colors.primary} /></View><Text style={styles.menuLabel}>{item.label}</Text><Ionicons name="chevron-forward" size={18} color={colors.textMuted} /></Pressable>)}</View>
     </>}
+    {onStaffWorkspace && <Pressable accessibilityRole="button" onPress={onStaffWorkspace} style={[styles.menuRow, { backgroundColor: colors.primarySoft }]}><View style={styles.menuIcon}><Ionicons name="swap-horizontal-outline" size={22} color={colors.primary} /></View><View style={{ flex: 1, gap: 3 }}><Text style={styles.menuLabel}>Chuyển sang giao diện Staff</Text><Text style={styles.note}>Duyệt hồ sơ, bài đăng và xử lý hỗ trợ</Text></View><Ionicons name="chevron-forward" size={18} color={colors.textMuted} /></Pressable>}
   </ScrollView>;
 }
 const styles = StyleSheet.create({

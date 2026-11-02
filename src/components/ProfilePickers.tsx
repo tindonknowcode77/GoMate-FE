@@ -113,7 +113,7 @@ export function InterestField({ value, onChange }: { value: string[]; onChange: 
   return <View style={{ gap: 12 }}><Text style={styles.label}>Sở thích của bạn · {value.length}/12</Text>
     <View style={styles.chips}>{value.map(interest => <Pressable key={interest} accessibilityRole="button" accessibilityLabel={`Bỏ sở thích ${interest}`} onPress={() => onChange(value.filter(item => item !== interest))} style={styles.chip}><Text style={styles.link}>{interest} ×</Text></Pressable>)}</View>
     <FormField label="Tìm kiếm sở thích" placeholder="Chạy bộ, cắm trại, nhiếp ảnh..." value={query} onChangeText={setQuery} icon="search-outline" />
-    <Text style={styles.hint}>{query ? `${rows.length} sở thích phù hợp` : `Khám phá ${profileInterests.length} sở thích · chọn tối đa 12`}</Text>
+    {query ? <Text style={styles.hint}>{rows.length} sở thích phù hợp</Text> : null}
     <View style={styles.chips}>{rows.slice(0, query ? 30 : 12).map(interest => <Pressable accessibilityRole="button" disabled={value.length >= 12} key={interest} style={[styles.suggestion, value.length >= 12 && { opacity: 0.4 }]} onPress={() => add(interest)}><Text>{interest}</Text></Pressable>)}</View>
     {custom && !profileInterests.some(item => searchKey(item) === searchKey(custom)) && !value.includes(custom) && <Pressable accessibilityRole="button" disabled={value.length >= 12} onPress={() => add(custom)}><Text style={styles.link}>+ Thêm sở thích “{custom}”</Text></Pressable>}
   </View>;

@@ -9,6 +9,7 @@ import { colors } from '../theme';
 
 export function TripPlanEditor({ value, onChange, startDate, endDate, startTime = '09:00', endTime = '18:00', onBusyChange }: { value: PlanDraft; onChange: (patch: Partial<PlanDraft>) => void; startDate: string; endDate: string; startTime?: string; endTime?: string; onBusyChange?: (busy: boolean) => void }) {
   const [expanded, setExpanded] = useState(''), [error, setError] = useState(''), [busy, setBusy] = useState(false);
+  const [showPlan, setShowPlan] = useState(() => Boolean(value.itinerary.length || value.planLink || value.planAttachment || value.planFile));
   const fileLock = useRef(false);
   const patch = (id: string, fields: Partial<ItineraryStep>) => onChange({ itinerary: value.itinerary.map(step => step.id === id ? { ...step, ...fields } : step) });
   const add = () => {
@@ -38,8 +39,17 @@ export function TripPlanEditor({ value, onChange, startDate, endDate, startTime 
   };
   const fileName = value.planAttachment === null ? '' : value.planAttachment?.name || value.planFile?.name;
   return <View style={{ gap: 14 }}>
-    <Text style={{ fontSize: 20, fontWeight: '700' }}>Kế hoạch chuyến đi</Text>
-    <Text style={{ color: colors.textSecondary }}>Thêm mốc theo ngày, giờ và địa điểm; hoặc chia sẻ kế hoạch có sẵn.</Text>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+      <View style={{ flex: 1, gap: 4 }}>
+        <Text style={{ fontSize: 18, fontWeight: '700' }}>Kế hoạch chuyến đi (không bắt buộc)</Text>
+        <Text style={{ color: colors.textSecondary, fontSize: 12 }}>Có thể bỏ qua nếu bạn chưa cần lên lịch chi tiết.</Text>
+      </View>
+      <Pressable accessibilityRole="button" accessibilityState={{ expanded: showPlan }} onPress={() => setShowPlan(value => !value)} style={{ padding: 10, borderRadius: 12, backgroundColor: colors.primarySoft }}>
+        <Text style={{ color: colors.primary, fontWeight: '700' }}>{showPlan ? 'Thu gọn' : 'Thêm kế hoạch'}</Text>
+      </Pressable>
+    </View>
+    {showPlan && <View style={{ gap: 14 }}>
+    <Text style={{ color: colors.textSecondary }}>Thêm các mốc theo ngày, giờ và địa điểm; hoặc chia sẻ kế hoạch có sẵn.</Text>
     {!value.itinerary.length && <Pressable accessibilityRole="button" onPress={template} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: 14, backgroundColor: colors.primarySoft }}><Ionicons name="sparkles-outline" size={22} color={colors.primary} /><Text style={{ color: colors.primary, fontWeight: '700' }}>Tạo gợi ý 3 mốc</Text></Pressable>}
     {value.itinerary.map((step, index) => <View key={step.id} style={{ padding: 14, borderWidth: 1, borderColor: colors.border, borderRadius: 16, gap: 10 }}>
       <Pressable accessibilityRole="button" accessibilityLabel={'Sửa mốc ' + (index + 1)} onPress={() => setExpanded(expanded === step.id ? '' : step.id)}>
@@ -64,5 +74,6 @@ export function TripPlanEditor({ value, onChange, startDate, endDate, startTime 
     <Text style={{ color: colors.textMuted, fontSize: 12 }}>Tệp .xlsx/.xls tối đa 3 MB, mở/tải từ kế hoạch. Các mốc nhập ở trên được lưu riêng.</Text>
     {fileName ? <View style={{ flexDirection: 'row', gap: 16 }}><Text style={{ flex: 1 }}>{fileName}</Text><Pressable accessibilityRole="button" onPress={() => onChange({ planAttachment: null })}><Text style={{ color: colors.danger }}>Bỏ tệp Excel</Text></Pressable></View> : null}
     {error ? <Text style={{ color: colors.danger }}>{error}</Text> : null}
+    </View>}
   </View>;
 }

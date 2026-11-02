@@ -1,5 +1,161 @@
 # Development log
 
+## 2026-11-02 - Add the Staff workspace to the app
+
+### Summary
+
+- Let only accounts confirmed as `staff` by `/portal/me` open a Staff switch from their profile. Embed the existing API-backed `/staff` workspace in the native app and reuse it directly on web.
+- Recheck staff access when opening the native view, pass the current session through the WebView bridge, and use an ephemeral WebView session. Staff accounts can reach the switch without completing the member profile.
+- Align `expo`, `expo-location` and `expo-sharing` to the patch versions required by Expo SDK 57 after Expo Doctor reported mismatches.
+
+### Files changed
+
+- `App.tsx`; `src/screens/MainApp.tsx`; `src/screens/ProfileViews.tsx`; `src/screens/StaffWorkspaceScreen.tsx`; `src/screens/StaffWorkspaceScreen.native.tsx`; `src/screens/StaffWorkspaceScreen.web.tsx`.
+- `src/PortalEntry.web.tsx`; `src/gomate-portal/ConnectedPortal.jsx`; `.env.example`; `README.md`; `package.json`; `package-lock.json`; `docs/DECISIONS.md`; `docs/DEVELOPMENT_LOG.md`.
+
+### Verification
+
+- `npm.cmd run typecheck`: Passed.
+- `npm.cmd run lint`: Passed.
+- `git diff --check`: Passed.
+- `npx.cmd expo install expo@~57.0.31 expo-location@~57.0.22 expo-sharing@~57.0.24`: Completed; npm reported 28 audit findings (2 low, 24 moderate, 2 high), not investigated here.
+- `npx.cmd expo-doctor`: Passed, 21/21 checks, after aligning the three Expo package versions.
+- Automated tests: Not run; they were not requested.
+
+### Remaining work
+
+- Native WebView behavior was not exercised on an Android/iOS device. Set `EXPO_PUBLIC_STAFF_PORTAL_URL` if the deployed Staff website does not share the API host. The npm audit findings were not investigated.
+
+## 2026-11-01 - Remove cost estimate helper text
+
+### Summary
+
+- Remove the approximate-cost example from activity creation while retaining the cost input and optional cost-sharing note.
+
+### Files changed
+
+- `src/screens/CreateActivityScreen.tsx`; `docs/DEVELOPMENT_LOG.md`.
+
+### Verification
+
+- `npm.cmd run typecheck`: Passed.
+- `npm.cmd run lint`: Passed.
+- `git diff --check`: Passed.
+- `npx.cmd expo-doctor`: Did not complete; produced no output after 50 seconds and was interrupted.
+
+### Remaining work
+
+- None.
+
+## 2026-11-01 - Fill address fields from map selections
+
+### Summary
+
+- Reverse-geocode tapped map points through the authenticated BE Maps proxy and use the returned address components to fill province, district, ward and address in activity creation. Show the in-progress state and preserve manual address selection.
+
+### Files changed
+
+- `src/components/LocationField.tsx`; `src/screens/CreateActivityScreen.tsx`; `src/services/mapsService.ts`; `docs/DECISIONS.md`; `docs/DEVELOPMENT_LOG.md`.
+
+### Verification
+
+- `npm.cmd run typecheck`: Passed.
+- `npm.cmd run lint`: Passed.
+- FE and BE `git diff --check`: Passed.
+- BE `node --check src/modules/maps/routes.js` and `node --check src/modules/maps/service.js`: Passed.
+- `npx.cmd expo-doctor`: Did not complete; produced no output after 50 seconds and was interrupted.
+
+### Remaining work
+
+- Restart GoMate-BE to expose the new reverse-geocoding route before using map taps.
+
+## 2026-11-01 - Remove static interests prompt
+
+### Summary
+
+- Remove the default “Chọn sở thích phù hợp với bạn · tối đa 12” helper text from the interests picker while retaining search-result feedback.
+
+### Files changed
+
+- `src/components/ProfilePickers.tsx`; `docs/DEVELOPMENT_LOG.md`.
+
+### Verification
+
+- `npm.cmd run typecheck`: Passed.
+- `npm.cmd run lint`: Passed.
+- `git diff --check`: Passed.
+- `npx.cmd expo-doctor`: Did not complete; produced no output after 50 seconds and was interrupted.
+
+### Remaining work
+
+- None.
+
+## 2026-11-01 - Make profile image optional
+
+### Summary
+
+- Remove the avatar requirement from profile validation and completion gating. Profiles without an image can finish onboarding; existing initials fallbacks remain in place.
+
+### Files changed
+
+- `src/screens/MainApp.tsx`; `src/screens/ProfileViews.tsx`; `src/screens/ProfileAccountScreens.tsx`; `src/services/profileService.ts`; `docs/DECISIONS.md`; `docs/DEVELOPMENT_LOG.md`.
+
+### Verification
+
+- `npm.cmd run typecheck`: Passed.
+- `npm.cmd run lint`: Passed.
+- `git diff --check`: Passed.
+- `npx.cmd expo-doctor`: Did not complete; produced no output after 50 seconds and was interrupted.
+
+### Remaining work
+
+- None.
+
+## 2026-11-01 - Refine onboarding and activity forms
+
+### Summary
+
+- Add password visibility and separate required Terms/Privacy acknowledgments during registration. Show profile completion errors per missing field, require a profile image in the client completion flow, and simplify the interests hint.
+- Make trip planning collapsible and optional, hide empty plan sections, add a schedule edit shortcut in the final preview, clarify cost estimation, add a phone-verification status placeholder, and align the business application form with BE-required fields.
+- Defer the partner portal's initial data load by one microtask so it satisfies the current React effect lint rule.
+
+### Files changed
+
+- `src/components/FormField.tsx`; `src/components/ProfilePickers.tsx`; `src/components/TripPlanEditor.tsx`; `src/components/match/MatchPrimitives.tsx`; `src/gomate-portal/PartnerPortal.jsx`; `src/screens/ActivityDetailScreen.tsx`; `src/screens/AuthScreen.tsx`; `src/screens/CreateActivityScreen.tsx`; `src/screens/MainApp.tsx`; `src/screens/ProfileAccountScreens.tsx`; `src/screens/ProfileViews.tsx`; `src/services/profileService.ts`; `docs/DECISIONS.md`; `docs/DEVELOPMENT_LOG.md`.
+
+### Verification
+
+- `npm.cmd run typecheck`: Passed.
+- `npm.cmd run lint`: Passed.
+- `npx.cmd expo-doctor`: Did not complete; produced no output within 60 seconds and was interrupted.
+- `git diff --check`: Passed.
+- Tests not run: this UI task did not request test execution.
+
+### Remaining work
+
+- Phone verification is display-only because the BE has no SMS verification endpoint. The business submission flow was matched to the BE validator but could not be verified end-to-end while the local BE/MongoDB service is stopped.
+
+## 2026-11-01 - Remove stale local API override
+
+### Summary
+
+- Clear the stale LAN `EXPO_PUBLIC_API_BASE_URL` override so the existing development resolver chooses the API host from the web origin or Expo host.
+
+### Files changed
+
+- `.env`; `docs/DEVELOPMENT_LOG.md`.
+
+### Verification
+
+- `npm.cmd run typecheck`: Passed.
+- `npm.cmd run lint`: Failed on the existing `react-hooks/set-state-in-effect` error in `src/gomate-portal/PartnerPortal.jsx:142`.
+- `npx.cmd expo-doctor`: Did not complete; produced no output within 60 seconds and was interrupted.
+- Frontend HTTP check at `localhost:8081`: HTTP 200. API TCP check at port 3000: unreachable. The configured MongoDB service is stopped, and starting it failed with a Windows service access error, so an end-to-end API request was not verified.
+
+### Remaining work
+
+- Start the MongoDB service with sufficient Windows permissions, start the BE, and restart Expo; then verify sign-in. For a physical device, configure the BE to bind to the LAN.
+
 ## 2026-10-20 - Complete API-backed staff workspace
 
 ### Summary

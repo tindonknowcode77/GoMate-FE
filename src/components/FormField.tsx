@@ -1,5 +1,5 @@
 import { Text } from './LocalizedText';
-import { StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { ComponentProps } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -21,6 +21,7 @@ type FormFieldProps = {
   multiline?: boolean;
   rightIcon?: IconName;
   onRightPress?: () => void;
+  rightIconAccessibilityLabel?: string;
 };
 
 export function FormField({
@@ -36,6 +37,7 @@ export function FormField({
   multiline,
   rightIcon,
   onRightPress,
+  rightIconAccessibilityLabel,
 }: FormFieldProps) {
   const { translate } = useLanguage();
   return (
@@ -59,7 +61,16 @@ export function FormField({
           value={value}
         />
         {rightIcon && (
-          <Ionicons color={colors.textMuted} name={rightIcon} onPress={onRightPress} size={20} />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={rightIconAccessibilityLabel || 'Thao tác với trường nhập'}
+            disabled={!onRightPress}
+            hitSlop={8}
+            onPress={onRightPress}
+            style={styles.rightAction}
+          >
+            <Ionicons color={colors.textMuted} name={rightIcon} size={20} />
+          </Pressable>
         )}
       </View>
     </View>
@@ -100,6 +111,7 @@ const styles = StyleSheet.create({
     includeFontPadding: true,
   },
   inputWithoutIcon: { marginLeft: 0 },
+  rightAction: { alignItems: 'center', justifyContent: 'center', minHeight: 40, minWidth: 32 },
   multilineInput: {
     minHeight: 46,
     textAlignVertical: 'top',

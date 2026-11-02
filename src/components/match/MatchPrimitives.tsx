@@ -71,7 +71,7 @@ export function ActivityMatchCard({ preview = false, favorite = false, onFavorit
             </View>
           </DetailSection>
           {activity.requirements.length > 0 && <DetailSection title="Lưu ý">{activity.requirements.map((item) => <Bullet key={item} text={item} />)}</DetailSection>}
-          <DetailSection title="Kế hoạch dự kiến"><TripPlanView activityId={activity.id} itinerary={activity.itinerary} plan={activity.plan} planLink={activity.planLink} planFile={activity.planFile} preview={preview} /></DetailSection>
+          {Boolean(activity.itinerary?.length || activity.plan?.length || activity.planLink || activity.planFile) && <DetailSection title="Kế hoạch dự kiến"><TripPlanView activityId={activity.id} itinerary={activity.itinerary} plan={activity.plan} planLink={activity.planLink} planFile={activity.planFile} preview={preview} /></DetailSection>}
           {activity.coordinates && <DetailSection title="Bản đồ địa điểm"><RouteMap point={activity.coordinates} /></DetailSection>}
           {Boolean(activity.images?.length) && <DetailSection title="Ảnh hoạt động"><View style={[styles.photoRow, { flexWrap: 'wrap' }]}>{activity.images!.map((source, index) => <ImageBackground accessibilityLabel={`Ảnh hoạt động ${index + 1}`} imageStyle={styles.photoImage} key={index} resizeMode="cover" source={source} style={[styles.photo, { flex: undefined, flexGrow: 0, flexShrink: 0, flexBasis: '31%', width: '31%' }]} />)}</View></DetailSection>}
         </View>

@@ -23,6 +23,10 @@ const statuses = {
 
 const date = value => (value ? new Date(value).toLocaleString('vi-VN') : '—');
 
+function notifyNativeHost(message) {
+  try { window.ReactNativeWebView?.postMessage(message); } catch { /* The portal also runs in a regular browser. */ }
+}
+
 function Status({ value }) {
   return <span className={`gm-status gm-status--${value}`}>{statuses[value] || value}</span>;
 }
@@ -989,6 +993,7 @@ export function GoMatePortal() {
     setUnauthorizedHandler(() => {
       setMe(null);
       setBootError('');
+      notifyNativeHost('gomate:session-invalidated');
     });
     return () => setUnauthorizedHandler();
   }, []);
@@ -1037,6 +1042,7 @@ export function GoMatePortal() {
               .finally(() => {
                 setMe(null);
                 setBootError('');
+                notifyNativeHost('gomate:logout');
               })
           }
         >
@@ -1074,6 +1080,7 @@ export function GoMatePortal() {
               await logout();
             } finally {
               setMe(null);
+              notifyNativeHost('gomate:logout');
             }
           })
         }

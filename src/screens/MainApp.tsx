@@ -1,7 +1,7 @@
 import { createConversation, getConversation } from '../services/chatService';
 import { FriendsScreen } from './FriendsScreen';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomNav, MainTab } from '../components/BottomNav';
@@ -44,6 +44,7 @@ import { ProfilePreview } from './ProfileViews';
 import { MyReviewsScreen, VerificationStatusScreen } from './ProfileAccountScreens';
 import { UserProfileScreen } from './UserProfileScreen';
 import { ActivitySearchScreen } from './ActivitySearchScreen';
+import { StaffWorkspaceScreen } from './StaffWorkspaceScreen';
 
 type PeopleSource = { name: 'discover' } | { name: 'pending' } | { name: 'manage' } | { name: 'detail'; activity: Activity };
 
@@ -64,6 +65,7 @@ type FullScreenRoute =
   | { name: 'settings'; section?: SettingsPage }
   | { name: 'verification' }
   | { name: 'myReviews' }
+  | { name: 'staffWorkspace' }
   | { name: 'activityDetail'; activity: Activity; source: 'home' | 'discover' | 'pending' }
   | { name: 'group'; activity: Activity; source: 'home' | 'myActivities'; initialTab?: 'chat' | 'plan' | 'members' | 'manage' }
   | { name: 'progress'; activity: Activity }
@@ -91,7 +93,7 @@ function decodeNavigation(path: string): Navigation {
   if (['activityDetail', 'group', 'progress', 'summary', 'rating'].includes(name) && id) {
     try { return { activeTab, route: { name: 'activityLink', id: decodeURIComponent(id), target: name as 'activityDetail' | 'group' | 'progress' | 'summary' | 'rating' } }; } catch { return { activeTab, route: null }; }
   }
-  const route = ['friends', 'discover', 'searchActivities', 'filter', 'favorites', 'pending', 'manage', 'notifications', 'myActivities', 'editProfile', 'ownProfilePreview', 'settings', 'verification', 'myReviews'].includes(name) ? { name } as FullScreenRoute : null;
+  const route = ['friends', 'discover', 'searchActivities', 'filter', 'favorites', 'pending', 'manage', 'notifications', 'myActivities', 'editProfile', 'ownProfilePreview', 'settings', 'verification', 'myReviews', 'staffWorkspace'].includes(name) ? { name } as FullScreenRoute : null;
   return { activeTab, route };
 }
 
@@ -114,11 +116,11 @@ function activityMatchesTime(activity: Activity, availableDays: string[], timePe
   return (availableDays.length === 0 || Boolean(day && availableDays.includes(day))) && (timePeriods.length === 0 || timePeriods.includes(period));
 }
 
-export function MainApp({ onLogout }: { onLogout: () => void }) {
-  return <ProfileProvider><MainAppContent onLogout={onLogout} /></ProfileProvider>;
+export function MainApp({ onLogout, canAccessStaff = false }: { onLogout: () => void; canAccessStaff?: boolean }) {
+  return <ProfileProvider><MainAppContent onLogout={onLogout} canAccessStaff={canAccessStaff} /></ProfileProvider>;
 }
 
-function MainAppContent({ onLogout }: { onLogout: () => void }) {
+function MainAppContent({ onLogout, canAccessStaff }: { onLogout: () => void; canAccessStaff: boolean }) {
   const userProfile = useProfile();
   const [actionError, setActionError] = useState('');
 
@@ -196,6 +198,13 @@ function MainAppContent({ onLogout }: { onLogout: () => void }) {
     void discovery.reload();
   };
   const handleLogout = async () => { try { await logout(); } catch { /* Local session is cleared even when offline. */ } onLogout(); };
+  const openStaffWorkspace = () => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      window.location.assign('/staff');
+      return;
+    }
+    setRoute({ name: 'staffWorkspace' });
+  };
   const filteredActivities = useMemo(() => {
     if (!filters) return activities.filter(item => !['pending', 'approved'].includes(item.requestStatus ?? ''));
     return activities.filter(item => !['pending', 'approved'].includes(item.requestStatus ?? '')).filter((activity) => {
@@ -214,8 +223,9 @@ function MainAppContent({ onLogout }: { onLogout: () => void }) {
   }, [filters, activities]);
 
   if (userProfile.loading || userProfile.error) return <SafeAreaView style={styles.safeArea}><RemoteState loading={userProfile.loading} error={userProfile.error} onRetry={userProfile.reload} /></SafeAreaView>;
-  if (userProfile.profile && !userProfile.profile.profileComplete) return <EditProfileScreen required onBack={handleLogout} onSaved={() => { void userProfile.reload(); }} />;
+  if (userProfile.profile && !userProfile.profile.profileComplete && !canAccessStaff) return <EditProfileScreen required onBack={handleLogout} onSaved={() => { void userProfile.reload(); }} />;
 
+  if (route?.name === 'staffWorkspace' && canAccessStaff) return <StaffWorkspaceScreen onBack={() => setRoute(null)} onLogout={onLogout} />;
   if (route?.name === 'activityLink' || route?.name === 'chatLink') return <SafeAreaView style={styles.safeArea}><RemoteState loading error="" onRetry={() => {}} /></SafeAreaView>;
   if (route?.name === 'discover' && (discovery.loading || discovery.error || preferences.loading || preferences.error)) return <SafeAreaView style={styles.safeArea}><ScreenHeader title="Khám phá" onBack={() => setRoute(null)} /><RemoteState loading={discovery.loading || preferences.loading} error={discovery.error || preferences.error} onRetry={() => { void preferences.reload(); void discovery.reload(); }} /></SafeAreaView>;
   if (route?.name === 'searchActivities') return <ActivitySearchScreen onBack={() => setRoute({ name: 'discover' })} onOpen={activity => setRoute({ name: 'activityDetail', activity, source: 'discover' })} />;
@@ -270,7 +280,7 @@ function MainAppContent({ onLogout }: { onLogout: () => void }) {
         {activeTab === 'match' && <MatchHubScreen onProfile={() => setActiveTab('profile')} onFavorites={() => setRoute({ name: 'favorites' })} onDiscover={() => setRoute({ name: 'discover' })} onManage={() => setRoute({ name: 'manage' })} onNotifications={() => setRoute({ name: 'notifications' })} onPending={() => setRoute({ name: 'pending' })} onPreviewProfile={() => setRoute({ name: 'ownProfilePreview' })} />}
         {activeTab === 'create' && <CreateActivityScreen onCreated={() => { void discovery.reload(); setRoute({ name: 'manage' }); }} />}
         {activeTab === 'messages' && <MessagesScreen onFriends={() => setRoute({ name: 'friends' })} onOpenChat={(conversation) => setRoute({ name: 'chat', conversation })} />}
-        {activeTab === 'profile' && <UserProfileScreen onPreview={() => setRoute({ name: 'ownProfilePreview' })} onVerification={() => setRoute({ name: 'verification' })} onReviews={() => setRoute({ name: 'myReviews' })} onEdit={() => setRoute({ name: 'editProfile' })} onMyActivities={() => setRoute({ name: 'myActivities' })} onNotifications={() => setRoute({ name: 'notifications' })} onSettings={() => setRoute({ name: 'settings' })} />}
+        {activeTab === 'profile' && <UserProfileScreen onPreview={() => setRoute({ name: 'ownProfilePreview' })} onVerification={() => setRoute({ name: 'verification' })} onReviews={() => setRoute({ name: 'myReviews' })} onEdit={() => setRoute({ name: 'editProfile' })} onMyActivities={() => setRoute({ name: 'myActivities' })} onNotifications={() => setRoute({ name: 'notifications' })} onSettings={() => setRoute({ name: 'settings' })} onStaffWorkspace={canAccessStaff ? openStaffWorkspace : undefined} />}
       </View>
       <BottomNav activeTab={activeTab} onChange={(tab) => { const next: Navigation = { activeTab: tab, route: tab === 'match' ? { name: 'discover' } : null }; navRef.current = next; navigate(next); }} />
 

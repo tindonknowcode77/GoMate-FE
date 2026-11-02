@@ -64,7 +64,7 @@ export function ActivityDetailScreen({ activity, error, isHost = false, onBack, 
           <Section title="Yêu cầu">
             {activity.requirements.map((item) => <Bullet key={item} text={item} />)}
           </Section>
-          <Section title="Kế hoạch dự kiến"><TripPlanView activityId={activity.id} itinerary={activity.itinerary} plan={activity.plan} planLink={activity.planLink} planFile={activity.planFile} /></Section>
+          {Boolean(activity.itinerary?.length || activity.plan?.length || activity.planLink || activity.planFile) && <Section title="Kế hoạch dự kiến"><TripPlanView activityId={activity.id} itinerary={activity.itinerary} plan={activity.plan} planLink={activity.planLink} planFile={activity.planFile} /></Section>}
           <GradientButton disabled={blocked} label={blocked ? 'Hoạt động không còn nhận thành viên' : activity.requestStatus === 'pending' ? 'Hủy yêu cầu tham gia' : activity.requestStatus === 'approved' ? 'Mở nhóm hoạt động' : isHost ? 'Quản lý hoạt động' : 'Gửi yêu cầu tham gia'} onPress={onPrimary} style={styles.cta} trailing={<Ionicons color={colors.white} name={isHost ? 'settings-outline' : 'heart'} size={19} />} />
         </View>
       </ScrollView>

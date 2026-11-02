@@ -1,21 +1,39 @@
 import { PlacePicker } from './PlacePicker';
-import { getMapsConfig, MapPlace, MapsConfig } from '../services/mapsService';
+import { getMapsConfig, MapPlace, MapsConfig, reversePlace } from '../services/mapsService';
 import { useRemote } from '../services/useRemote';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { ActivityMap } from './ActivityMap';
+import { MapAttribution } from './MapAttribution';
 import { Text } from './LocalizedText';
 import { Coordinates, currentCoordinates } from '../services/locationService';
 import { colors } from '../theme';
+import type { SearchProvider } from '../services/mapsService';
 export function LocationField({ value, onChange, radiusKm, onPlaceSelected }: { value?: Coordinates | null; onChange: (point: Coordinates | null) => void; radiusKm?: number; onPlaceSelected?: (place: MapPlace) => void }) {
   const config = useRemote<MapsConfig | null>(getMapsConfig, null);
   const [searching, setSearching] = useState(false);
   const [open, setOpen] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState('');
-  const lock = useRef(false);
+  const [resolvingAddress, setResolvingAddress] = useState(false), [placeProvider, setPlaceProvider] = useState<SearchProvider>();
+  const lock = useRef(false), reverseRequest = useRef(0);
+  useEffect(() => () => { reverseRequest.current++; }, []);
+  const selectPoint = (point: Coordinates) => {
+    const current = ++reverseRequest.current;
+    onChange(point); setError(''); setPlaceProvider(undefined);
+    if (!onPlaceSelected) return;
+    if (config.data && !config.data.placesEnabled) { setResolvingAddress(false); setError('Chưa bật tra cứu địa chỉ tự động. Bạn có thể nhập địa chỉ thủ công.'); return; }
+    setResolvingAddress(true);
+    void reversePlace(point).then(place => {
+      if (current === reverseRequest.current) { onPlaceSelected(place); setPlaceProvider(place.provider); }
+    }).catch(reason => {
+      if (current === reverseRequest.current) setError(reason instanceof Error ? reason.message : 'Chưa nhận diện được địa chỉ tại điểm này.');
+    }).finally(() => {
+      if (current === reverseRequest.current) setResolvingAddress(false);
+    });
+  };
   const locate = async () => {
     if (lock.current) return;
     lock.current = true; setBusy(true); setError('');
-    try { onChange(await currentCoordinates()); setOpen(true); }
+    try { selectPoint(await currentCoordinates()); setOpen(true); }
     catch (reason) { setError(reason instanceof Error ? reason.message : 'Không lấy được GPS'); }
     finally { lock.current = false; setBusy(false); }
   };
@@ -24,11 +42,13 @@ export function LocationField({ value, onChange, radiusKm, onPlaceSelected }: { 
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16 }}>
       <Pressable accessibilityRole="button" disabled={busy} onPress={() => void locate()}><Text style={{ color: colors.primary }}>{busy ? 'Đang lấy GPS...' : 'Dùng vị trí hiện tại'}</Text></Pressable>
       <Pressable accessibilityRole="button" onPress={() => setOpen(!open)}><Text style={{ color: colors.primary }}>{open ? 'Ẩn bản đồ' : 'Chọn trên bản đồ'}</Text></Pressable>
-      {value && <Pressable accessibilityRole="button" onPress={() => onChange(null)}><Text>Xóa vị trí đã chọn</Text></Pressable>}
+      {value && <Pressable accessibilityRole="button" onPress={() => { reverseRequest.current++; setResolvingAddress(false); setPlaceProvider(undefined); setError(''); onChange(null); }}><Text>Xóa vị trí đã chọn</Text></Pressable>}
     </View>
     {value && <Text>{value.latitude.toFixed(5)}, {value.longitude.toFixed(5)}</Text>}
-    {open && <><Text>Chạm bản đồ để chọn điểm chính xác.</Text><ActivityMap point={value ?? { latitude: 10.7769, longitude: 106.7009 }} radiusKm={radiusKm} editable onChange={onChange} /></>}
-    {searching && <PlacePicker bias={value} onClose={() => setSearching(false)} onSelect={place => { onChange(place.point); onPlaceSelected?.(place); setOpen(true); setSearching(false); }} />}
+    {resolvingAddress && <Text style={{ color: colors.textMuted }}>Đang nhận diện địa chỉ từ vị trí bản đồ...</Text>}
+    {open && <><Text>Chạm bản đồ để chọn điểm chính xác.</Text><ActivityMap point={value ?? { latitude: 10.7769, longitude: 106.7009 }} radiusKm={radiusKm} editable onChange={selectPoint} /></>}
+    {open && placeProvider && <MapAttribution provider={placeProvider} />}
+    {searching && <PlacePicker bias={value} onClose={() => setSearching(false)} onSelect={place => { reverseRequest.current++; setResolvingAddress(false); setError(''); setPlaceProvider(place.provider); onChange(place.point); onPlaceSelected?.(place); setOpen(true); setSearching(false); }} />}
     {error ? <Text style={{ color: colors.danger }}>{error}</Text> : null}
   </View>;
 }

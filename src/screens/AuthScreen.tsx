@@ -28,6 +28,9 @@ export function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
   const setEmail = (value: string) => { setEmailValue(value); try { sessionStorage.setItem('gomate.authEmail', value); } catch { /* Optional draft. */ } };
   const [loginPassword, setLoginPassword] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
+  const [showSignupPassword, setShowSignupPassword] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
@@ -49,7 +52,12 @@ export function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
     finally { submitting.current = false; setBusy(false); }
   };
   const handleLogin = () => void run(async () => { await login(email, loginPassword); onLogin(); });
-  const handleRegister = () => void run(async () => { await post('/auth/register', { name, email: email.trim(), password: signupPassword }); onRegister(email.trim()); });
+  const handleRegister = () => void run(async () => {
+    if (signupPassword.length < 6 || signupPassword.length > 128) throw new Error('Mật khẩu cần từ 6 đến 128 ký tự.');
+    if (!termsAccepted || !privacyAccepted) throw new Error('Vui lòng xác nhận Điều khoản dịch vụ và Chính sách quyền riêng tư.');
+    await post('/auth/register', { name, email: email.trim(), password: signupPassword });
+    onRegister(email.trim());
+  });
   const unavailable = () => setError('Đăng nhập mạng xã hội chưa được cấu hình. Vui lòng dùng email.');
 
   if (stage === 'welcome') {
@@ -126,13 +134,13 @@ export function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
               <View style={styles.fields}>
                 <FormField label="Full name" onChangeText={setName} value={name} />
                 <FormField keyboardType="email-address" label="Email" onChangeText={setEmail} value={email} />
-                <FormField label="Password" onChangeText={setSignupPassword} placeholder="Create a password" secureTextEntry value={signupPassword} />
+                <FormField label="Password" onChangeText={setSignupPassword} placeholder="Create a password" secureTextEntry={!showSignupPassword} rightIcon={showSignupPassword ? 'eye-off-outline' : 'eye-outline'} rightIconAccessibilityLabel={showSignupPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'} onRightPress={() => setShowSignupPassword(value => !value)} value={signupPassword} />
                 <Text style={styles.requirementText}>Từ 6 ký tự; không bắt buộc chữ hoa, số hoặc ký tự đặc biệt.</Text>
               </View>
-              <Pressable style={styles.consent}>
-                <View style={styles.checkbox}><Ionicons color={colors.white} name="checkmark" size={14} /></View>
-                <Text style={styles.consentText}>I agree to the Terms of Service and Privacy Policy.</Text>
-              </Pressable>
+              <View style={styles.consentList}>
+                <ConsentRow checked={termsAccepted} onPress={() => setTermsAccepted(value => !value)} text="Tôi đồng ý với Điều khoản dịch vụ của GoMate." />
+                <ConsentRow checked={privacyAccepted} onPress={() => setPrivacyAccepted(value => !value)} text="Tôi đã đọc Chính sách quyền riêng tư của GoMate." />
+              </View>
               <PrimaryButton disabled={busy} label={busy ? "Đang tạo tài khoản..." : "Create account"} onPress={handleRegister} />
               <View style={styles.signupPrompt}><InlinePrompt action="Log in" label="Already have an account?" onPress={() => setStage('login')} /></View>
             </View>
@@ -202,6 +210,13 @@ function Requirement({ label, valid = false }: { label: string; valid?: boolean 
   return <View style={styles.requirementRow}><Ionicons color={valid ? colors.google : colors.textMuted} name="checkmark" size={17} /><Text style={styles.requirementText}>{label}</Text></View>;
 }
 
+function ConsentRow({ checked, onPress, text }: { checked: boolean; onPress: () => void; text: string }) {
+  return <Pressable accessibilityRole="checkbox" accessibilityLabel={text} accessibilityState={{ checked }} onPress={onPress} style={styles.consent}>
+    <View style={[styles.checkbox, !checked && styles.checkboxUnchecked]}>{checked ? <Ionicons color={colors.white} name="checkmark" size={14} /> : null}</View>
+    <Text style={styles.consentText}>{text}</Text>
+  </Pressable>;
+}
+
 const styles = StyleSheet.create({
   safeArea: { backgroundColor: colors.background, flex: 1 },
   flex: { flex: 1 },
@@ -233,8 +248,10 @@ const styles = StyleSheet.create({
   promptText: { color: colors.textSecondary, ...typography.body },
   linkText: { color: colors.primary, fontSize: 14, fontWeight: '600', lineHeight: 22 },
   orText: { color: colors.textMuted, fontSize: 13, lineHeight: 20, marginVertical: 9, textAlign: 'center' },
-  consent: { alignItems: 'center', flexDirection: 'row', marginBottom: 26, marginTop: 22 },
+  consent: { alignItems: 'center', flexDirection: 'row' },
+  consentList: { gap: 4, marginBottom: 18, marginTop: 20 },
   checkbox: { alignItems: 'center', backgroundColor: colors.primary, borderRadius: 5, height: 20, justifyContent: 'center', width: 20 },
+  checkboxUnchecked: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 },
   consentText: { color: colors.textSecondary, flex: 1, fontSize: 13, lineHeight: 18, marginLeft: 10 },
   backToLogin: { alignItems: 'center', paddingTop: 14 },
   mutedAction: { color: colors.textSecondary, fontSize: 13, lineHeight: 20 },

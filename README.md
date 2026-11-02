@@ -71,6 +71,7 @@ trường hợp đó cần cấu hình URL API riêng.
 Sao chép `.env.example` thành `.env.local`. Dùng `EXPO_PUBLIC_API_BASE_URL` theo
 [quy tắc biến môi trường Expo](https://docs.expo.dev/guides/environment-variables/).
 
+- Trên app Android/iOS, tài khoản có role `staff` có thể mở giao diện Staff từ Hồ sơ. Màn hình dùng chung portal web `/staff`; nếu website FE không cùng host với API, đặt `EXPO_PUBLIC_STAFF_PORTAL_URL` thành origin website FE (ví dụ `https://gomate.app`).
 - Expo web: `http://localhost:3000/api`, BE `CORS_ORIGIN=http://localhost:8081,http://127.0.0.1:8081`.
 - Android emulator: `http://10.0.2.2:3000/api`.
 - Điện thoại thật: `http://<IP-LAN-máy-tính>:3000/api`, BE `HOST=0.0.0.0`; điện thoại và máy tính cùng mạng.

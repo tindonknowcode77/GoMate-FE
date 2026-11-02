@@ -86,20 +86,23 @@ function UserApp() {
 }
 
 function RoleGate({ onLogout }: { onLogout: () => void }) {
-  const [ready, setReady] = useState(false), [error, setError] = useState(''), [retry, setRetry] = useState(0);
+  const [ready, setReady] = useState(false), [error, setError] = useState(''), [retry, setRetry] = useState(0), [canAccessStaff, setCanAccessStaff] = useState(false);
   useEffect(() => {
     let alive = true;
     api<{ role: string; email?: string }>('/portal/me').then(user => {
       if (!alive) return;
-      if (Platform.OS === 'web' && ['admin', 'staff', 'business'].includes(user.role) && !window.location.hash.startsWith('#/app/')) {
+      if (Platform.OS === 'web' && ['admin', 'business'].includes(user.role) && !window.location.hash.startsWith('#/app/')) {
         window.location.replace('/' + user.role);
-      } else if (['admin', 'staff', 'business'].includes(user.role) && Platform.OS !== 'web') {
+      } else if (['admin', 'business'].includes(user.role) && Platform.OS !== 'web') {
         setError('Vui lòng mở trang /' + user.role + ' trên website GoMate để sử dụng không gian làm việc.');
-      } else setReady(true);
+      } else {
+        setCanAccessStaff(user.role === 'staff');
+        setReady(true);
+      }
     }).catch(reason => { if (alive) setError(reason.message); });
     return () => { alive = false; };
   }, [retry]);
-  if (ready) return <MainApp onLogout={onLogout} />;
+  if (ready) return <MainApp onLogout={onLogout} canAccessStaff={canAccessStaff} />;
   return <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', gap: 16 }}>{error ? <><Text>{error}</Text><Pressable onPress={() => { setError(''); setRetry(v => v + 1); }}><Text>Thử lại</Text></Pressable><Pressable onPress={onLogout}><Text>Về đăng nhập</Text></Pressable></> : <ActivityIndicator accessibilityLabel="Đang kiểm tra quyền truy cập" />}</View>;
 }
 
