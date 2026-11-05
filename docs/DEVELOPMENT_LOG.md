@@ -3,6 +3,56 @@
 This file records completed development work. Keep the newest entry at the top
 and follow `templates/development-log-entry.md`.
 
+## 2026-11-05 - Harden admin validation and concurrent updates
+
+### Summary
+
+- Validate all five admin forms before submission: trimmed required values, minimum/maximum lengths, email, phone, website protocol/credentials, tax ID, reference IDs, integer discount bounds and nonblank passwords. Keep optional legacy fields editable and retain invalid form input for correction.
+- Harden BE queries, nested payloads, reference normalization, request sizes and safe-integer revisions. Role/subscription writes now invalidate stale admin edits through the same revision counter.
+
+### Files changed
+
+- `src/gomate-portal/adminFormValidation.js`, `AdminManagement.jsx`, `tests/admin-crud.web.cjs`.
+- Matching BE validators, routes, revision handling and negative/concurrency tests in GoMate-BE; `docs/ADMIN_CRUD.md` documents the tightened contract.
+
+### Verification
+
+- `npm.cmd run typecheck`: Passed. `npm.cmd run lint`: Passed with the same five existing warnings; JSX remains excluded by repository lint configuration.
+- `EXPO_PUBLIC_API_BASE_URL=/api npx.cmd expo export --platform web`: Passed.
+- BE validation, HTTP, CRUD, auth, portal authority and business regression selection: 34 tests passed, covering malformed inputs, forbidden fields, oversized payloads, query injection, literal search, stale/concurrent updates and no writes on validation errors.
+- `node tests/admin-crud.web.cjs`: Passed all five CRUD flows plus client-side blank-name/password/title/reason/subject errors; confirmed invalid forms send no admin mutation requests. Browser request observation uses pass-through routing to avoid teardown races from proxy fetches.
+- `npx.cmd expo-doctor`: 17/18 passed; same five existing Expo package patch mismatches.
+
+### Remaining work
+
+- Existing Expo patch mismatches and previously documented wallet-toast test discrepancy remain.
+
+## 2026-11-05 - Admin CRUD across users, businesses, posts, reports and support
+
+### Summary
+
+- Add admin create/detail/edit/delete forms, searchable paginated tables, status filters, deletion confirmation and keyboard-accessible dialogs. Add report moderation and support replies/closure; expose existing role/subscription controls. Retain business document review and post/group lifecycle actions.
+- Connect all forms to new server-authorized BE routes with stale-write checks and history-preserving deletion. Place management tools above review queues.
+
+### Files changed
+
+- `src/gomate-portal/AdminManagement.jsx`, `admin-management.css`, `ConnectedPortal.jsx`.
+- `tests/admin-crud.web.cjs`, `package.json`, `docs/DECISIONS.md`; matching BE implementation and API documentation are in GoMate-BE.
+
+### Verification
+
+- `npm.cmd run typecheck`: Passed.
+- `npm.cmd run lint`: Passed, with five existing warnings outside the admin files; JSX is excluded by the repository lint configuration.
+- `EXPO_PUBLIC_API_BASE_URL=/api npx.cmd expo export --platform web`: Passed (PowerShell environment variable used); browser tests require a same-origin build.
+- `node tests/admin-crud.web.cjs`: Passed against temporary MongoDB and a real browser: user, business, post, report and ticket CRUD, reload persistence, approval, subscription changes, support reply and mobile layout. No production database or `.env` changes.
+- BE authorization/auth/business regression tests: 29 passed. `git diff --check`: Passed.
+- `node tests/business-campaign-controls.web.cjs`: Failed at the final wallet-refresh success-toast expectation. Earlier campaign, owner/staff chat, group withdrawal and admin post deletion assertions passed. The unchanged `BusinessWallet.jsx` refresh handler does not emit the toast expected by this existing test.
+- `npx.cmd expo-doctor`: 17/18 passed; existing Expo/Constants/Image Picker/Location/Sharing versions are one patch behind SDK expectations.
+
+### Remaining work
+
+- Existing Expo patch mismatches and wallet-refresh toast/test discrepancy remain. Admin forms currently use Vietnamese; no archive restore UI. Account email and verified business identity fields are immutable. New admin posts contain promotional content; event/group edits retain existing data and published posts use lifecycle actions.
+
 ## 2026-11-01 - Contextual portal action errors
 
 ### Summary

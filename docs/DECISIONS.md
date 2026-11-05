@@ -4,6 +4,14 @@ Record decisions here when they materially affect architecture, dependencies,
 security, the data model, or product behavior. Keep the newest decision at the
 top. Small implementation details belong only in `DEVELOPMENT_LOG.md`.
 
+### 2026-11-05 - Admin CRUD preserves identities and operational history
+
+- **Status:** Accepted.
+- Admin management covers users, business applications, promotional posts, reports and support tickets through server-authorized `/api/portal/admin/:kind` endpoints. Lists use server-side search and pagination; updates use `adminVersion`, and business/post changes also check their existing lifecycle version.
+- User deletion disables password/Google login and existing sessions while retaining authorship and history. Self/admin deletion is blocked; business applications and hosted activities must be closed first. Email and verified business identity fields remain immutable in admin edit forms. User role/subscription changes retain existing dedicated endpoints.
+- Business deletion requires outstanding posts to be withdrawn/deleted first. Reports must be reviewed and tickets closed before archival. Archival retains records and has no restore UI. Post deletion reuses the established activity/chat/payment lifecycle. Published posts cannot be edited through the content form; new admin posts are promotional content and existing event/group data is preserved on edits.
+- No dependency or native Expo changes. New admin forms currently use Vietnamese text.
+
 ### 2026-11-01 - Business-owned employee provisioning without approval
 
 - **Status:** Accepted. Supersedes the employee consent/admin-review requirement in earlier decisions; platform moderation remains admin-only.
