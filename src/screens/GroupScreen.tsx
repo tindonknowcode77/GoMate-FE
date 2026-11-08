@@ -30,6 +30,7 @@ const tabs = [
 
 export function GroupScreen({ activity, onBack, onStart, onLeft, initialTab = 'chat' }: Props) {
   const [tab, setTab] = useState<GroupTab>(initialTab);
+  const [businessCollapsed, setBusinessCollapsed] = useState(false);
   const [sharedConversationId, setSharedConversationId] = useState(''), [chatRefresh, setChatRefresh] = useState(0), [headerError, setHeaderError] = useState('');
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentInfo, setPaymentInfo] = useState<ActivityPaymentInfo | null>(null);
@@ -53,10 +54,32 @@ export function GroupScreen({ activity, onBack, onStart, onLeft, initialTab = 'c
   const noticeBody = current.backendStatus === 'completed' ? 'Xem tổng kết trong mục Kế hoạch.' : remote.data?.scheduleConfirmedAt && current.backendStatus === 'published' ? `${current.time} · ${current.meetingPoint || current.location}` : '';
   return <SafeAreaView style={styles.safe} edges={['top', 'left', 'right', 'bottom']}>
     <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Quay lại" hitSlop={12} onPress={onBack}><Ionicons name="chevron-back" size={27} color={colors.text} /></Pressable><Image source={current.image} style={styles.avatar} /><View style={{ flex: 1, gap: 4 }}><Text numberOfLines={1} style={styles.title}>{current.title}</Text><Text style={styles.subtitle}>{current.members} thành viên · {current.backendStatus === 'cancelled' ? 'Đã hủy' : current.backendStatus === 'expired' ? 'Đã hết hạn' : current.backendStatus === 'completed' ? 'Đã kết thúc' : current.backendStatus === 'in-progress' ? 'Đang diễn ra' : remote.data?.scheduleConfirmedAt ? 'Đã chốt lịch đi' : 'Đang lên kế hoạch'}</Text></View><ChatHeaderActions sharePath={`/app/home/activityDetail/${activity.id}`} onShared={() => { setHeaderError(''); void createConversation({ type: 'group', activityId: activity.id }).then(row => setSharedConversationId(row.id)).catch(reason => setHeaderError(reason.message)); }} onRefresh={() => { void remote.reload(); setChatRefresh(value => value + 1); }} onPlan={() => setTab('plan')} onMembers={() => setTab('members')} onManage={isHost ? () => setTab('manage') : undefined} /></View>
-    {isOfficial && <View style={styles.businessCard}>
-      <View style={styles.businessHeading}><Ionicons name="shield-checkmark" size={15} color={colors.primary} /><Text numberOfLines={1} style={styles.businessTitle}>Nhóm doanh nghiệp{current.business?.depositAmount ? ` · Cọc ${current.business.depositAmount.toLocaleString('vi-VN')} đ/người` : ''}</Text>{!isHost && Boolean(current.business?.depositAmount) && (paymentInfo?.isPaid ? <View style={styles.businessPaid}><Ionicons name="checkmark-circle" size={12} color="#16704A" /><Text style={styles.businessPaidText}>Đã đóng cọc</Text></View> : ['published', 'in-progress'].includes(current.backendStatus || '') ? <Pressable accessibilityRole="button" onPress={() => setShowPaymentModal(true)} style={({ pressed }) => [styles.businessPayButton, pressed && { opacity: 0.75 }]}><Ionicons name="qr-code-outline" size={13} color="#FFF" /><Text style={styles.businessPayText}>Quét VietQR cọc</Text></Pressable> : null)}{isHost && <Pressable accessibilityRole="button" accessibilityLabel="Quản lý doanh nghiệp" onPress={() => setTab('manage')} style={({ pressed }) => [styles.businessManageButton, pressed && styles.businessManagePressed]}><Text numberOfLines={1} style={styles.businessManageText}>Quản lý doanh nghiệp</Text><Ionicons name="arrow-forward" size={13} color={colors.primary} /></Pressable>}</View>
-      {current.isBusinessManager ? <View style={styles.businessDetail}><Ionicons name="person-circle-outline" size={14} color={colors.primary} /><Text numberOfLines={1} style={styles.staffRoleLine}>Bạn là Nhân sự quản lý (Staff) của nhóm này · Điều hành nhóm tại tab Quản lý</Text></View> : isHost ? <View style={styles.businessDetail}><Ionicons name="business-outline" size={14} color={colors.primary} /><Text numberOfLines={1} style={styles.staffRoleLine}>Bạn là Chủ doanh nghiệp của nhóm này · Điều hành nhóm tại tab Quản lý</Text></View> : current.business?.offer ? <View style={styles.businessDetail}><Ionicons name="gift-outline" size={14} color={colors.textMuted} /><Text numberOfLines={1} style={styles.businessDetailText}>{current.business.offer}</Text></View> : null}
-    </View>}
+    {isOfficial && (businessCollapsed ? (
+      <Pressable accessibilityRole="button" accessibilityLabel="Mở rộng thẻ doanh nghiệp" onPress={() => setBusinessCollapsed(false)} style={styles.businessCollapsedBar}>
+        <Ionicons name="shield-checkmark" size={14} color={colors.primary} />
+        <Text numberOfLines={1} style={styles.businessCollapsedText}>
+          Nhóm doanh nghiệp{current.isBusinessManager ? ' · Bạn là Staff quản lý' : isHost ? ' · Chủ doanh nghiệp' : current.business?.depositAmount ? ` · Cọc ${current.business.depositAmount.toLocaleString('vi-VN')} đ/người` : ''}
+        </Text>
+        <View style={styles.collapseBtn}>
+          <Text style={styles.collapseBtnText}>Mở rộng</Text>
+          <Ionicons name="chevron-down" size={14} color={colors.primary} />
+        </View>
+      </Pressable>
+    ) : (
+      <View style={styles.businessCard}>
+        <View style={styles.businessHeading}>
+          <Ionicons name="shield-checkmark" size={15} color={colors.primary} />
+          <Text numberOfLines={1} style={styles.businessTitle}>Nhóm doanh nghiệp{current.business?.depositAmount ? ` · Cọc ${current.business.depositAmount.toLocaleString('vi-VN')} đ/người` : ''}</Text>
+          {!isHost && Boolean(current.business?.depositAmount) && (paymentInfo?.isPaid ? <View style={styles.businessPaid}><Ionicons name="checkmark-circle" size={12} color="#16704A" /><Text style={styles.businessPaidText}>Đã đóng cọc</Text></View> : ['published', 'in-progress'].includes(current.backendStatus || '') ? <Pressable accessibilityRole="button" onPress={() => setShowPaymentModal(true)} style={({ pressed }) => [styles.businessPayButton, pressed && { opacity: 0.75 }]}><Ionicons name="qr-code-outline" size={13} color="#FFF" /><Text style={styles.businessPayText}>Quét VietQR cọc</Text></Pressable> : null)}
+          {isHost && <Pressable accessibilityRole="button" accessibilityLabel="Quản lý doanh nghiệp" onPress={() => setTab('manage')} style={({ pressed }) => [styles.businessManageButton, pressed && styles.businessManagePressed]}><Text numberOfLines={1} style={styles.businessManageText}>Quản lý doanh nghiệp</Text><Ionicons name="arrow-forward" size={13} color={colors.primary} /></Pressable>}
+          <Pressable accessibilityRole="button" accessibilityLabel="Thu gọn thẻ doanh nghiệp" hitSlop={8} onPress={() => setBusinessCollapsed(true)} style={styles.collapseBtn}>
+            <Text style={styles.collapseBtnText}>Thu gọn</Text>
+            <Ionicons name="chevron-up" size={14} color={colors.textSecondary} />
+          </Pressable>
+        </View>
+        {current.isBusinessManager ? <View style={styles.businessDetail}><Ionicons name="person-circle-outline" size={14} color={colors.primary} /><Text numberOfLines={1} style={styles.staffRoleLine}>Bạn là Nhân sự quản lý (Staff) của nhóm này · Điều hành nhóm tại tab Quản lý</Text></View> : isHost ? <View style={styles.businessDetail}><Ionicons name="business-outline" size={14} color={colors.primary} /><Text numberOfLines={1} style={styles.staffRoleLine}>Bạn là Chủ doanh nghiệp của nhóm này · Điều hành nhóm tại tab Quản lý</Text></View> : current.business?.offer ? <View style={styles.businessDetail}><Ionicons name="gift-outline" size={14} color={colors.textMuted} /><Text numberOfLines={1} style={styles.businessDetailText}>{current.business.offer}</Text></View> : null}
+      </View>
+    ))}
     <View style={styles.tabBar}>{tabs.filter(item => item.id !== 'manage' || isHost).map(item => <Pressable key={item.id} accessibilityRole="tab" accessibilityState={{ selected: activeTab === item.id }} accessibilityLabel={item.label} onPress={() => setTab(item.id)} style={[styles.tab, activeTab === item.id && styles.activeTab]}><Ionicons name={item.icon} size={19} color={activeTab === item.id ? colors.primary : colors.textMuted} /><Text style={[styles.tabText, activeTab === item.id && { color: colors.primary }]}>{item.label}{(item.id === 'members' || item.id === 'manage') && pendingRequests.data.length > 0 ? ` (${pendingRequests.data.length})` : ''}</Text></Pressable>)}</View>
     {activeTab === 'chat' ? <><View style={styles.notice}><Ionicons name="information-circle-outline" size={18} color={colors.primary} /><View style={{ flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}><Text accessibilityLiveRegion="polite" style={styles.noticeTitle}>{noticeTitle}</Text>{noticeBody ? <Text style={styles.noticeBody}>· {noticeBody}</Text> : null}</View></View><ActivityChat activityId={activity.id} onBack={onBack} refreshKey={chatRefresh} /></> : <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
       {activeTab === 'plan' && <ActivityPlanPanel activityId={activity.id} onChanged={remote.setData} onManage={isHost ? () => setTab('manage') : undefined} onProgress={row => onStart(toActivity(row))} />}
@@ -97,7 +120,11 @@ export function GroupChatEntry({ activityId, ...props }: Omit<Props, 'activity'>
 }
 
 const styles = StyleSheet.create({
-  businessCard: { marginHorizontal: 14, marginTop: 2, marginBottom: 8, paddingVertical: 9, paddingHorizontal: 12, gap: 5, borderWidth: 1, borderColor: '#E9E5F1', borderRadius: 12, backgroundColor: colors.surface },
+  businessCard: { marginHorizontal: 14, marginTop: 2, marginBottom: 8, paddingVertical: 8, paddingHorizontal: 12, gap: 5, borderWidth: 1, borderColor: '#E9E5F1', borderRadius: 12, backgroundColor: colors.surface },
+  businessCollapsedBar: { marginHorizontal: 14, marginTop: 2, marginBottom: 6, paddingVertical: 6, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: '#E9E5F1', borderRadius: 10, backgroundColor: colors.surface },
+  businessCollapsedText: { flex: 1, minWidth: 0, fontSize: 11, fontWeight: '600', color: colors.textSecondary },
+  collapseBtn: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6, backgroundColor: colors.background },
+  collapseBtnText: { fontSize: 11, fontWeight: '600', color: colors.textSecondary },
   businessHeading: { flexDirection: 'row', alignItems: 'center', gap: 6 }, businessIcon: { width: 24, height: 24, borderRadius: 7, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' }, businessTitle: { flex: 1, minWidth: 0, fontSize: 12, fontWeight: '700', color: colors.text },
   businessDetail: { flexDirection: 'row', alignItems: 'center', gap: 6, minWidth: 0 }, businessDetailText: { flex: 1, minWidth: 0, fontSize: 12, lineHeight: 16, color: colors.textSecondary }, staffRoleLine: { flex: 1, minWidth: 0, fontSize: 12, lineHeight: 16, fontWeight: '600', color: colors.primary }, businessAmount: { fontWeight: '700', color: colors.text },
   businessPaymentRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
