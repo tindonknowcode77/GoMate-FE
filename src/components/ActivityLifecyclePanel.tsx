@@ -83,7 +83,7 @@ export function ActivityLifecyclePanel({ activity, compact = false, showTimeline
       <View style={styles.overlay}><View accessibilityViewIsModal style={styles.dialog}>
         <Ionicons name={confirmation?.action === 'schedule' ? 'calendar-outline' : 'play-circle-outline'} size={30} color={colors.primary} />
         <Text style={styles.title}>{confirmation?.action === 'schedule' ? 'Chốt lịch đi?' : 'Bắt đầu hoạt động?'}</Text>
-        <Text style={styles.description}>{confirmation?.action === 'schedule' ? 'Xác nhận thời gian và địa điểm này cho cả nhóm. Nếu thay đổi lịch hẹn, bạn cần chốt lại.' : 'Bắt đầu sẽ đóng nhận thành viên mới và mở điểm danh. Hãy điểm danh trước khi kết thúc để mọi người có thể đánh giá.'}</Text>
+        <Text style={styles.description}>{confirmation?.action === 'schedule' ? 'Xác nhận thời gian và địa điểm này cho cả nhóm.' : 'Nhóm sẽ ngừng nhận thành viên mới và chuyển sang trạng thái đang diễn ra.'}</Text>
         <Text style={styles.appointmentTitle}>{new Date(activity.startsAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}</Text><Text style={styles.description}>{activity.meetingPoint || activity.location}</Text>
         {error ? <Text accessibilityRole="alert" style={{ color: colors.danger }}>{error}</Text> : null}
         <GradientButton disabled={busy} label={busy ? 'Đang xử lý...' : 'Xác nhận'} onPress={() => void confirm()} />

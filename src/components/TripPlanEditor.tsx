@@ -41,15 +41,15 @@ export function TripPlanEditor({ value, onChange, startDate, endDate, startTime 
   return <View style={{ gap: 14 }}>
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
       <View style={{ flex: 1, gap: 4 }}>
-        <Text style={{ fontSize: 18, fontWeight: '700' }}>Kế hoạch chuyến đi (không bắt buộc)</Text>
-        <Text style={{ color: colors.textSecondary, fontSize: 12 }}>Có thể bỏ qua nếu bạn chưa cần lên lịch chi tiết.</Text>
+        <Text style={{ fontSize: 18, fontWeight: '700' }}>Lịch trình dự kiến</Text>
+        <Text style={{ color: colors.textSecondary, fontSize: 12 }}>Tùy chọn</Text>
       </View>
       <Pressable accessibilityRole="button" accessibilityState={{ expanded: showPlan }} onPress={() => setShowPlan(value => !value)} style={{ padding: 10, borderRadius: 12, backgroundColor: colors.primarySoft }}>
         <Text style={{ color: colors.primary, fontWeight: '700' }}>{showPlan ? 'Thu gọn' : 'Thêm kế hoạch'}</Text>
       </Pressable>
     </View>
     {showPlan && <View style={{ gap: 14 }}>
-    <Text style={{ color: colors.textSecondary }}>Thêm các mốc theo ngày, giờ và địa điểm; hoặc chia sẻ kế hoạch có sẵn.</Text>
+
     {!value.itinerary.length && <Pressable accessibilityRole="button" onPress={template} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: 14, backgroundColor: colors.primarySoft }}><Ionicons name="sparkles-outline" size={22} color={colors.primary} /><Text style={{ color: colors.primary, fontWeight: '700' }}>Tạo gợi ý 3 mốc</Text></Pressable>}
     {value.itinerary.map((step, index) => <View key={step.id} style={{ padding: 14, borderWidth: 1, borderColor: colors.border, borderRadius: 16, gap: 10 }}>
       <Pressable accessibilityRole="button" accessibilityLabel={'Sửa mốc ' + (index + 1)} onPress={() => setExpanded(expanded === step.id ? '' : step.id)}>
@@ -69,9 +69,9 @@ export function TripPlanEditor({ value, onChange, startDate, endDate, startTime 
       {value.itinerary.length > 1 && <Pressable accessibilityRole="button" style={{ padding: 13 }} onPress={() => onChange({ itinerary: [...value.itinerary].sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time)) })}><Text style={{ color: colors.primary }}>Sắp theo thời gian</Text></Pressable>}
     </View>
     <FormField label="Link Google Sheets / kế hoạch online" value={value.planLink} onChangeText={planLink => onChange({ planLink })} placeholder="https://docs.google.com/spreadsheets/..." />
-    <Text style={{ color: colors.textMuted, fontSize: 12 }}>Đặt quyền xem phù hợp cho người tham gia. GoMate không tự đọc nội dung link.</Text>
+
     <Pressable accessibilityRole="button" disabled={busy} onPress={() => void chooseFile()} style={{ padding: 18, borderRadius: 16, borderStyle: 'dashed', borderWidth: 1, borderColor: colors.primaryLight, backgroundColor: colors.primarySoft, flexDirection: 'row', alignItems: 'center', gap: 12 }}><Ionicons name="document-attach-outline" size={26} color={colors.primary} /><Text style={{ color: colors.primary, fontWeight: '700' }}>{busy ? 'Đang đọc tệp...' : fileName ? 'Đổi tệp Excel' : 'Đính kèm tệp Excel'}</Text></Pressable>
-    <Text style={{ color: colors.textMuted, fontSize: 12 }}>Tệp .xlsx/.xls tối đa 3 MB, mở/tải từ kế hoạch. Các mốc nhập ở trên được lưu riêng.</Text>
+    <Text style={{ color: colors.textMuted, fontSize: 12 }}>Hỗ trợ tệp .xlsx, .xls (tối đa 3 MB)</Text>
     {fileName ? <View style={{ flexDirection: 'row', gap: 16 }}><Text style={{ flex: 1 }}>{fileName}</Text><Pressable accessibilityRole="button" onPress={() => onChange({ planAttachment: null })}><Text style={{ color: colors.danger }}>Bỏ tệp Excel</Text></Pressable></View> : null}
     {error ? <Text style={{ color: colors.danger }}>{error}</Text> : null}
     </View>}

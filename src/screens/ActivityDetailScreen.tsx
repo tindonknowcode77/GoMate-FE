@@ -52,7 +52,7 @@ export function ActivityDetailScreen({ activity, error, isHost = false, onBack, 
           </Pressable>
 
           <Section title="Thông tin hoạt động"><Text style={styles.body}>{activity.description}</Text></Section>
-          <Section title={`Thành viên (${activity.members})`}><Text style={styles.body}>Tối thiểu {activity.minParticipants ?? 2} thành viên, tính cả host.</Text></Section>
+          <Section title={`Thành viên (${activity.members})`}><Text style={styles.body}>Tối thiểu {activity.minParticipants ?? 2} người</Text></Section>
           {activity.meetingPoint ? <Section title="Điểm tập trung"><Text style={styles.body}>{activity.meetingPoint}</Text></Section> : null}
           {activity.participantPreferences && <Section title="Tùy chọn nhóm">
             {(activity.participantPreferences.minAge || activity.participantPreferences.maxAge) ? <Bullet text={`Độ tuổi: ${activity.participantPreferences.minAge || 12}–${activity.participantPreferences.maxAge || 120}`} /> : null}

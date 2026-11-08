@@ -75,7 +75,7 @@ function ProfileForm({ profile, required, onSaved }: { profile: UserProfile; req
   let previewBirthDate = ''; try { previewBirthDate = birthDateIso(draft.birthDate); } catch { /* Incomplete dates are omitted from the preview. */ }
   const previewProfile = { ...profile, ...draft, birthDate: previewBirthDate, avatarUrl: avatar };
   return <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
-    {required && <View style={styles.intro}><Text style={styles.eyebrow}>BƯỚC {step === 'basic' ? '1' : '2'} / 2</Text><Text style={styles.title}>{step === 'basic' ? 'Bắt đầu từ những điều cơ bản' : 'Để người đồng hành hiểu bạn hơn'}</Text><Text style={styles.note}>{step === 'basic' ? 'Cho GoMate biết bạn là ai và đang ở đâu.' : 'Chia sẻ sở thích, trải nghiệm và điều bạn muốn làm cùng mọi người.'}</Text></View>}
+    {required && <View style={styles.intro}><Text style={styles.eyebrow}>BƯỚC {step === 'basic' ? '1' : '2'} / 2</Text><Text style={styles.title}>{step === 'basic' ? 'Thông tin cơ bản' : 'Sở thích & đồng hành'}</Text></View>}
     {step !== 'basic' && <View style={styles.tabs}><Pressable disabled={photoBusy || coverBusy || busy} accessibilityRole="tab" aria-selected={!preview} accessibilityState={{ selected: !preview }} onPress={() => setPreview(false)} style={[styles.tab, !preview && styles.activeTab]}><Text style={styles.link}>Chỉnh sửa hồ sơ</Text></Pressable><Pressable disabled={photoBusy || coverBusy || busy} accessibilityRole="tab" aria-selected={preview} accessibilityState={{ selected: preview }} onPress={() => setPreview(true)} style={[styles.tab, preview && styles.activeTab]}><Text style={styles.link}>Xem trước hồ sơ</Text></Pressable></View>}
     {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
     {preview ? <ProfilePreview profile={previewProfile} /> : <>
@@ -91,15 +91,15 @@ function ProfileForm({ profile, required, onSaved }: { profile: UserProfile; req
       {step !== 'basic' && <>
         <View style={styles.card}><ProfileCoverEditor onBusyChange={setCoverBusy} /></View>
         <View style={styles.card}><ProfilePhotoEditor onBusyChange={setPhotoBusy} /></View>
-        <View style={styles.card}><Text style={styles.title}>Giới thiệu</Text><Text style={styles.note}>Bạn thích trải nghiệm gì? Bạn muốn gặp những người đồng hành như thế nào?</Text><FormField label="Giới thiệu" multiline value={draft.bio} onChangeText={bio => patch({ bio: bio.slice(0, 500) })} placeholder="Ví dụ: Mình thích chạy bộ, cà phê và khám phá những nơi mới." /><Text style={styles.note}>{draft.bio.length}/500</Text></View>
+        <View style={styles.card}><Text style={styles.title}>Giới thiệu</Text><FormField label="Giới thiệu" multiline value={draft.bio} onChangeText={bio => patch({ bio: bio.slice(0, 500) })} placeholder="Ví dụ: Mình thích chạy bộ, cà phê và khám phá những nơi mới." /><Text style={styles.note}>{draft.bio.length}/500</Text></View>
         <View style={styles.card}><InterestField value={draft.interests} onChange={interests => patch({ interests })} /></View>
-        <View style={styles.card}><Text style={styles.title}>Đồng hành cùng GoMate</Text><Text style={styles.note}>Thêm một vài gợi ý để mọi người dễ rủ bạn tham gia hơn.</Text>
+        <View style={styles.card}><Text style={styles.title}>Đồng hành cùng GoMate</Text>
           <OptionChips label="Bạn đang tìm kiếm điều gì?" options={companionGoals.map(value => [value, value] as const)} selected={draft.companionGoal ? [draft.companionGoal] : []} single onChange={values => patch({ companionGoal: values[0] || '' })} />
           <OptionChips label="Thời gian thường rảnh" options={availableTimes.map(value => [value, value] as const)} selected={draft.availableTimes} onChange={values => patch({ availableTimes: values })} />
           <FormField label="Một hoạt động tôi muốn thử" value={draft.activityWish} onChangeText={activityWish => patch({ activityWish: activityWish.slice(0, 300) })} placeholder="Ví dụ: Cắm trại qua đêm cùng một nhóm nhỏ" multiline />
           <FormField label="Điều tôi có thể chia sẻ với nhóm" value={draft.contribution} onChangeText={contribution => patch({ contribution: contribution.slice(0, 300) })} placeholder="Kinh nghiệm, kỹ năng hoặc một câu chuyện thú vị" multiline />
         </View>
-        <View style={styles.card}><Text style={styles.title}>Công việc và học vấn</Text><Text style={styles.note}>Không bắt buộc · chỉ chia sẻ những gì bạn thấy thoải mái.</Text>
+        <View style={styles.card}><Text style={styles.title}>Công việc và học vấn</Text>
           <FormField label="Công việc" value={draft.occupation || ''} onChangeText={occupation => patch({ occupation })} placeholder="Bạn đang làm gì?" />
           <FormField label="Trường học" value={draft.school} onChangeText={school => patch({ school })} placeholder="Trường đại học / cao đẳng / trường nghề" />
           <OptionChips label="Học vấn" options={educationOptions.map(value => [value, value] as const)} selected={draft.education ? [draft.education] : []} single onChange={values => patch({ education: values[0] || '' })} />

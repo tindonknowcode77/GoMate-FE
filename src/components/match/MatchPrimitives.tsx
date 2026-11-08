@@ -21,7 +21,7 @@ export function MatchHeader({ distance = 'Chưa có vị trí', onBack, onFilter
         <Pressable accessibilityLabel="Mở bộ lọc" onPress={onFilter} style={styles.headerButton}><Ionicons color={colors.primary} name="options-outline" size={23} /></Pressable>
       </View>
       <View style={styles.contextRow}>
-        <ContextChip icon="location-outline" label="Khám phá hoạt động" />
+
         <Pressable accessibilityRole="button" accessibilityLabel="Chọn vị trí tìm kiếm" onPress={onFilter}><ContextChip icon="navigate" label={distance} /></Pressable>
       </View>
     </View>
@@ -49,13 +49,13 @@ export function ActivityMatchCard({ preview = false, favorite = false, onFavorit
             <View style={styles.category}><Text style={styles.categoryText}>{activity.category}</Text></View>
             <View style={styles.memberBadge}><Ionicons color={colors.textSecondary} name="people" size={16} /><Text style={styles.memberText}>{activity.members} {language === 'vi' ? 'thành viên' : 'members'}</Text></View>
           </View>
-          {activity.organizerType === 'business' ? <BusinessIdentity activity={activity} showOffer /> : <Text style={{ color: colors.textSecondary, marginBottom: 8 }}>Cá nhân tổ chức</Text>}
+          {activity.organizerType === 'business' ? <BusinessIdentity activity={activity} showOffer /> : null}
           <Text style={styles.activityTitle}>{activity.title}</Text>
           <View style={styles.metaList}>
             <Meta icon="calendar-outline" text={activity.time} />
             {activity.endsAt && <Meta icon="calendar-outline" text={'Kết thúc: ' + new Date(activity.endsAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })} />}
             <Meta icon="location-outline" text={`${activity.location} • ${activity.distance}`} />
-            {activity.reservedSeats ? <Text style={styles.body}>Có {activity.reservedSeats} bạn đi cùng host trong số thành viên.</Text> : null}
+
           </View>
         </View>
 

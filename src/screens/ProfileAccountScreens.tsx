@@ -12,18 +12,18 @@ export function VerificationStatusScreen({ onBack }: { onBack: () => void }) {
   const { profile } = useProfile();
   const profileComplete = Boolean(profile?.profileComplete);
   return <SafeAreaView style={styles.safe}><ScreenHeader title="Xác minh tài khoản" onBack={onBack} /><ScrollView contentContainerStyle={styles.page}>
-    <View style={styles.card}><Ionicons name={profile?.emailVerified ? 'checkmark-circle' : 'mail-outline'} size={42} color={profile?.emailVerified ? colors.success : colors.textMuted} /><Text style={styles.title}>{profile?.emailVerified ? 'Email đã xác minh' : 'Email chưa xác minh'}</Text><Text>{profile?.email}</Text><Text style={styles.note}>Email được xác minh khi bạn đăng ký hoặc đăng nhập bằng Google.</Text></View>
+    <View style={styles.card}><Ionicons name={profile?.emailVerified ? 'checkmark-circle' : 'mail-outline'} size={42} color={profile?.emailVerified ? colors.success : colors.textMuted} /><Text style={styles.title}>{profile?.emailVerified ? 'Email đã xác minh' : 'Email chưa xác minh'}</Text><Text>{profile?.email}</Text></View>
     <View style={styles.card}>
       <View style={styles.verificationRow}>
         <View style={styles.phoneIcon}><Ionicons name="call-outline" size={22} color={colors.primary} /></View>
         <View style={{ flex: 1, gap: 4 }}><Text style={styles.title}>Xác minh số điện thoại</Text><Text style={styles.note}>Chưa xác minh</Text></View>
         <Ionicons name="time-outline" size={20} color={colors.textMuted} />
       </View>
-      <Text style={styles.note}>Xác minh bằng mã SMS sẽ giúp hoàn thiện bảo mật tài khoản.</Text>
+
       <Pressable accessibilityRole="button" accessibilityState={{ disabled: true }} disabled style={styles.disabledAction}><Text style={styles.disabledActionText}>Xác minh qua SMS · Sắp có</Text></Pressable>
-      <Text style={styles.note}>Chức năng gửi mã SMS chưa được kết nối.</Text>
+
     </View>
-    <View style={styles.card}><Text style={styles.title}>Hồ sơ GoMate</Text><Text>{profileComplete ? 'Bạn đã hoàn thiện thông tin hồ sơ.' : 'Hãy hoàn thiện thông tin để người đồng hành hiểu bạn hơn.'}</Text><Text style={styles.note}>Xác minh email xác nhận quyền truy cập email của bạn. GoMate chưa cung cấp xác minh giấy tờ tùy thân.</Text></View>
+    <View style={styles.card}><Text style={styles.title}>Hồ sơ GoMate</Text><Text>{profileComplete ? 'Đã hoàn thiện hồ sơ.' : 'Bổ sung thông tin để tham gia nhiều nhóm hơn.'}</Text></View>
   </ScrollView></SafeAreaView>;
 }
 export function MyReviewsScreen({ onBack }: { onBack: () => void }) {

@@ -23,7 +23,7 @@ export function JoinRequestsPanel({ activityId, enabled, full, onChanged }: { ac
   };
   return <View style={{ gap: 10, marginBottom: 20 }}>
     <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>Yêu cầu tham gia{remote.data.length ? ` (${remote.data.length})` : ''}</Text>
-    <RemoteState {...remote} empty={!remote.data.length} emptyMessage="Hiện chưa có yêu cầu nào." onRetry={reload} />
+    <RemoteState {...remote} empty={!remote.data.length} emptyMessage="Chưa có yêu cầu mới" onRetry={reload} />
     {error ? <Text accessibilityRole="alert" style={{ color: colors.danger }}>{error}</Text> : null}
     {remote.data.map(request => <View key={request.id} style={{ padding: 12, backgroundColor: colors.surface, borderRadius: 14, gap: 8 }}>
       <Pressable accessibilityRole="button" accessibilityLabel={`Xem hồ sơ ${request.name}`} onPress={() => setProfile(request.userId)} style={{ minHeight: 44, justifyContent: 'center' }}><Text style={{ fontWeight: '600', color: colors.text }}>{request.name}</Text></Pressable>

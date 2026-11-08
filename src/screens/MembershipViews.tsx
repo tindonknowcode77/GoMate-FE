@@ -35,7 +35,7 @@ function Button({ label, onPress, disabled = false }: { label: string; onPress: 
 
 function ActivityRow({ activity, onPress, children }: { activity: Activity; onPress: () => void; children?: React.ReactNode }) {
   return <View style={styles.card}><Pressable onPress={onPress} style={styles.row}>
-    <Image source={activity.image} style={styles.image} /><View style={styles.copy}><Text style={styles.title}>{activity.title}</Text><Text>{activity.time}</Text><Text>{activity.location}</Text>{activity.isBusinessManager && <Text>Nhân sự quản lý · Được phân công</Text>}<Text>Host: {activity.host} · {activity.members}</Text></View>
+    <Image source={activity.image} style={styles.image} /><View style={styles.copy}><Text style={styles.title}>{activity.title}</Text><Text>{activity.time}</Text><Text>{activity.location}</Text>{activity.isBusinessManager && <Text>Phụ trách nhóm</Text>}<Text>Host: {activity.host} · {activity.members}</Text></View>
   </Pressable>{children}</View>;
 }
 

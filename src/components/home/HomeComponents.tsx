@@ -99,10 +99,10 @@ export function HomeEmptyState({ onMatch }: { onMatch: () => void }) {
   return (
     <View style={styles.emptyWrap}>
       <View style={styles.emptyIllustration}><View style={styles.emptyMap}><Ionicons color={colors.primary} name="map" size={86} /></View><View style={styles.emptyPin}><Ionicons color={colors.white} name="location" size={42} /></View></View>
-      <Text style={styles.emptyTitle}>Chưa có kế hoạch nào</Text>
-      <Text style={styles.emptyText}>Bắt đầu Match để khám phá hoạt động và tìm người đồng hành phù hợp với bạn.</Text>
-      <Pressable onPress={onMatch} style={styles.matchButton}><Text style={styles.matchButtonText}>Bắt đầu Match</Text><Ionicons color={colors.white} name="arrow-forward" size={20} /></Pressable>
-      <View style={styles.benefitCard}>{benefits.map((benefit) => <View key={benefit.label} style={styles.benefit}><View style={[styles.benefitIcon, { backgroundColor: benefit.background }]}><Ionicons color={benefit.color} name={benefit.icon} size={23} /></View><Text style={styles.benefitText}>{benefit.label}</Text></View>)}</View>
+      <Text style={styles.emptyTitle}>Chưa có hoạt động sắp tới</Text>
+
+      <Pressable onPress={onMatch} style={styles.matchButton}><Text style={styles.matchButtonText}>Khám phá hoạt động</Text><Ionicons color={colors.white} name="arrow-forward" size={20} /></Pressable>
+      {benefits.length < 0 && <View style={styles.benefitCard} />}
     </View>
   );
 }

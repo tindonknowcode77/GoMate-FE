@@ -129,10 +129,10 @@ export function MatchScreen({ error, locationLabel, favoriteIds = [], onFavorite
 
   if (state !== 'ready') {
     const states = {
-      loading: { icon: 'calendar-outline' as const, title: 'Đang tìm hoạt động phù hợp', message: 'GoMate đang chuẩn bị những gợi ý tốt nhất cho bạn.', action: undefined },
-      'location-required': { icon: 'location-outline' as const, title: 'Chọn vị trí tìm kiếm', message: 'Dùng GPS hoặc chọn điểm trên bản đồ để tìm hoạt động theo khoảng cách và bán kính đã lưu.', action: 'Chọn vị trí' },
-      'network-error': { icon: 'cloud-offline-outline' as const, title: 'Không thể kết nối', message: 'Kiểm tra kết nối mạng và thử lại sau ít phút.', action: 'Thử lại' },
-      'activity-unavailable': { icon: 'calendar-outline' as const, title: 'Hoạt động không còn khả dụng', message: 'Hoạt động có thể đã đủ thành viên, bị hủy hoặc được host đóng.', action: 'Xem hoạt động tiếp theo' },
+      loading: { icon: 'calendar-outline' as const, title: 'Đang tìm hoạt động phù hợp', message: '', action: undefined },
+      'location-required': { icon: 'location-outline' as const, title: 'Chọn vị trí tìm kiếm', message: 'Chọn vị trí để xem các hoạt động gần bạn.', action: 'Chọn vị trí' },
+      'network-error': { icon: 'cloud-offline-outline' as const, title: 'Không thể kết nối', message: 'Kiểm tra kết nối mạng và thử lại.', action: 'Thử lại' },
+      'activity-unavailable': { icon: 'calendar-outline' as const, title: 'Hoạt động không còn khả dụng', message: 'Hoạt động đã đủ chỗ hoặc đã đóng.', action: 'Xem tiếp' },
     };
     const currentState = states[state];
     return (
@@ -149,7 +149,7 @@ export function MatchScreen({ error, locationLabel, favoriteIds = [], onFavorite
         <MatchBackground />
         <View style={styles.page}>
           <MatchHeader onSearch={onSearch} distance={locationLabel} onBack={onBack} onFilter={onFilterPress} />
-          <MatchState action={canUndo ? 'Quay lại hoạt động vừa bỏ qua' : 'Điều chỉnh bộ lọc'} icon="calendar-outline" message="Hãy mở rộng khoảng cách, thời gian rảnh hoặc danh mục để tiếp tục Match." onAction={canUndo ? undoSkip : onFilterPress} title="Không còn hoạt động phù hợp" />
+          <MatchState action={canUndo ? 'Quay lại hoạt động vừa bỏ qua' : 'Điều chỉnh bộ lọc'} icon="calendar-outline" message="Thử mở rộng bộ lọc để xem thêm hoạt động." onAction={canUndo ? undoSkip : onFilterPress} title="Không còn hoạt động phù hợp" />
         </View>
         {requestToast && <RequestToast approved={requestApproved} />}
       </SafeAreaView>
