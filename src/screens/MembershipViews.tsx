@@ -77,14 +77,14 @@ export function MembersPanel({ activity, onLeft, onChanged }: { activity: Activi
   const remote = { ...snapshot, data: snapshot.data.members };
   const reload = snapshot.reload;
   useEffect(() => { const timer = setInterval(() => void reload(true), 10000); return () => clearInterval(timer); }, [reload]);
-  const reservedSeats = snapshot.data.latest?.reservedSeats ?? activity.reservedSeats ?? 0;
+
   const action = useAction();
   const isHost = activity.hostId === getSession()?.user.id || Boolean(activity.isBusinessManager);
   const latest = snapshot.data.latest;
   const canChange = (latest?.status ?? activity.backendStatus) === 'published' && Boolean((latest?.startsAt || activity.startsAt) && new Date(latest?.startsAt || activity.startsAt!).getTime() > now);
   const [target, setTarget] = useState<string | null>(null);
   const [profileId, setProfileId] = useState<string | null>(null);
-  return <View>{isHost && <JoinRequestsPanel activityId={activity.id} enabled={canChange} full={Boolean(latest && latest.memberCount >= latest.maxParticipants)} onChanged={() => { void remote.reload(true); onChanged?.(); }} />}<Text style={styles.title}>Thành viên ({remote.data.length + reservedSeats})</Text>
+  return <View>{isHost && <JoinRequestsPanel activityId={activity.id} enabled={canChange} full={Boolean(latest && latest.memberCount >= latest.maxParticipants)} onChanged={() => { void remote.reload(true); onChanged?.(); }} />}<Text style={styles.title}>Thành viên ({remote.data.length})</Text>
     {canChange && isHost && activity.organizerType !== 'business' && <AddActivityFriends activityId={activity.id} onAdded={() => void remote.reload()} />}
     <RemoteState {...remote} onRetry={remote.reload} />
     {action.error ? <Text>{action.error}</Text> : null}

@@ -1,0 +1,97 @@
+const assert = require('node:assert/strict');
+const { createRequire } = require('node:module');
+const { pathToFileURL } = require('node:url');
+const { once } = require('node:events');
+const { existsSync, mkdtempSync } = require('node:fs');
+const { resolve, join } = require('node:path');
+const { tmpdir } = require('node:os');
+const { chromium, expect } = require('playwright/test');
+const beRoot = resolve(__dirname, '../../GoMate-BE'), beRequire = createRequire(beRoot + '/package.json');
+const be = name => import(pathToFileURL(beRoot + '/src/' + name + '.js').href);
+
+(async () => {
+  const { MongoMemoryServer } = beRequire('mongodb-memory-server');
+  const [{ createApp }, { readConfig }, { createClient, initializeDatabase }, { createAuthRepository }, { hashToken, newToken }, { createActivityRepository }, { createChatRepository }] = await Promise.all(['app', 'config/env', 'database/mongo', 'modules/auth/repository', 'modules/auth/token', 'modules/activities/repository', 'modules/chat/repository'].map(be));
+  const mongo = await MongoMemoryServer.create(), client = createClient(readConfig({ MONGODB_URI: mongo.getUri('portal_reliability') }));
+  let server, browser, releaseNotifications;
+  const artifacts = mkdtempSync(join(tmpdir(), 'gomate-portal-reliability-'));
+  try {
+    await client.connect(); const db = client.db(); await initializeDatabase(db);
+    const auth = createAuthRepository(db), users = [], sessions = [];
+    for (let i = 0; i < 4; i++) {
+      const user = await auth.createUser({ name: 'Reliability ' + i, email: `reliability${i}@example.com`, passwordHash: 'unused' }); users.push(user);
+      await db.collection('users').updateOne({ id: user.id }, { $set: { email_verified: true, role: i === 1 ? 'admin' : 'user', birthDate: '2000-01-01' } });
+      const token = newToken(); await auth.createSession({ userId: user.id, tokenHash: hashToken(token), expiresAt: new Date(Date.now() + 600000) }); sessions.push({ accessToken: token, user: { ...user, emailVerified: true } });
+    }
+    await db.collection('business_applications').insertMany([{ id: 'reliability-business', ownerId: users[0].id, company: 'Reliability Company', status: 'approved' }, { id: 'pending-business', ownerId: users[3].id, company: 'Pending Company', status: 'pending' }]);
+    const event = { title: 'Reliability workshop', description: 'Original description', category: 'Workshop', location: '12 Nguyen Hue', startsAt: new Date(Date.now() + 86400000), endsAt: new Date(Date.now() + 93600000), maxParticipants: 10, estimatedCost: 100000 };
+    let post = await auth.portal.createPost(users[0].id, { title: 'Reliability workshop', copy: 'Original description', premium: false, border: 'Solid', groups: [{ name: 'Reliability group', depositAmount: 50000, event }] });
+    post = await auth.portal.decidePost(post.id, 'approved', '', users[1].id, post.version);
+    const groupId = post.groups[0].activityId;
+    await auth.portal.createPost(users[0].id, { title: 'Pending workshop', copy: 'Pending description', premium: false, border: 'Solid' });
+    await db.collection('reports').insertOne({ id: 'pending-report', ownerId: users[2].id, reason: 'Pending report', status: 'pending' });
+    await db.collection('support_tickets').insertOne({ id: 'open-ticket', ownerId: users[2].id, subject: 'Open ticket', status: 'open', messages: [] });
+    server = createApp(readConfig({}), { authRepository: auth, activityRepository: createActivityRepository(db), chatRepository: createChatRepository(db) }).listen(0, '127.0.0.1'); await once(server, 'listening');
+    const base = `http://127.0.0.1:${server.address().port}`;
+    browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE || (existsSync('C:/Program Files/Google/Chrome/Application/chrome.exe') ? 'C:/Program Files/Google/Chrome/Application/chrome.exe' : undefined), headless: true });
+    const errors = [];
+    const newPage = async i => {
+      const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, timezoneId: 'Asia/Ho_Chi_Minh' }); page.setDefaultTimeout(20000); page.on('pageerror', error => errors.push(error.message));
+      await page.addInitScript(session => localStorage.setItem('gomate.session', JSON.stringify(session)), sessions[i]); return page;
+    };
+    const admin = await newPage(1);
+    const gate = new Promise(resolve => { releaseNotifications = resolve; });
+    await admin.route('**/api/portal/notifications?*', async route => { await gate; await route.continue().catch(() => {}); });
+    await admin.goto(base + '/portal');
+    await admin.locator('.gm-sidebar').waitFor({ timeout: 4000 });
+    assert.equal(await admin.getByText('Đang tải không gian làm việc…', { exact: true }).count(), 0, 'slow notifications must not block the workspace shell');
+    releaseNotifications(); await admin.unroute('**/api/portal/notifications?*');
+    const nav = (page, name) => page.locator('.gm-sidebar-nav').getByRole('button', { name, exact: true }).click();
+    const panel = admin.locator('.gm-admin-management');
+    await nav(admin, 'Tài khoản'); await panel.locator('tbody tr').first().waitFor();
+    assert.ok(await panel.locator('.gm-status--purple').count()); assert.ok(await panel.locator('.gm-status--blue').count()); assert.ok(await panel.locator('.gm-status--green').count());
+    await db.collection('users').updateOne({ id: users[2].id }, { $set: { name: 'Updated via refresh' } });
+    await admin.getByRole('button', { name: 'Làm mới', exact: true }).click();
+    await panel.getByText('Updated via refresh', { exact: true }).waitFor();
+    for (const [section, text] of [['Hồ sơ doanh nghiệp', 'Pending Company'], ['Duyệt bài đăng', 'Pending workshop'], ['Báo cáo', 'Pending report'], ['Hỗ trợ', 'Open ticket']]) {
+      await nav(admin, section); const row = panel.locator('tbody tr').filter({ hasText: text }); await row.waitFor();
+      assert.equal(await row.locator('.gm-status--orange').count(), 1);
+      assert.equal(await row.locator('.gm-status').evaluate(el => getComputedStyle(el).backgroundColor), 'rgb(255, 240, 213)');
+    }
+    await admin.screenshot({ path: join(artifacts, 'admin-status.png') });
+    const owner = await newPage(0); await owner.goto(base + '/portal');
+    const create = owner.locator('.gm-multi-post-footer').getByRole('button', { name: 'Tạo bài đăng', exact: true }); await create.waitFor();
+    assert.equal(await create.locator('span').evaluate(el => getComputedStyle(el).color), 'rgb(255, 255, 255)');
+    await nav(owner, 'Nhóm đang hoạt động');
+    const toggle = owner.getByRole('switch', { name: 'Tự động duyệt thành viên' }); await toggle.waitFor(); await toggle.click(); await expect(toggle).toBeChecked();
+    const amount = owner.getByLabel('Tiền cọc / người (VND)', { exact: true }); await amount.fill('70000'); await owner.getByRole('button', { name: 'Lưu mức cọc', exact: true }).click(); await expect(owner.getByRole('button', { name: 'Lưu mức cọc', exact: true })).toBeDisabled();
+    await expect.poll(async () => (await db.collection('activities').findOne({ id: groupId })).depositAmount).toBe(70000);
+    const joined = await fetch(base + `/api/activities/${groupId}/join-requests`, { method: 'POST', headers: { Authorization: `Bearer ${sessions[2].accessToken}`, 'Content-Type': 'application/json' }, body: '{}' });
+    assert.equal(joined.status, 201); assert.equal((await joined.json()).request.status, 'approved');
+    await nav(owner, 'Bài đăng của tôi');
+    const article = owner.locator('.gm-live-review').filter({ has: owner.getByRole('heading', { name: 'Reliability workshop', exact: true }) });
+    await article.getByRole('button', { name: 'Chỉnh sửa bài đăng', exact: true }).click();
+    await article.getByLabel('Tiêu đề', { exact: true }).fill('Updated workshop'); await article.getByLabel('Nội dung', { exact: true }).fill('Updated without a second review');
+    await article.getByRole('button', { name: 'Lưu thay đổi', exact: true }).click();
+    await owner.getByRole('heading', { name: 'Updated workshop', exact: true }).waitFor();
+    assert.equal((await db.collection('business_posts').findOne({ id: post.id })).status, 'approved');
+    assert.equal((await db.collection('activities').findOne({ id: groupId })).title, 'Updated workshop');
+    await nav(owner, 'Nhóm đang hoạt động'); await toggle.waitFor();
+    for (const removed of ['Doanh nghiệp trực tiếp quản lý', 'Mở nhóm trong app GoMate', 'Tiền cọc ở đây là ghi nhận thủ công']) assert.equal((await owner.locator('body').innerText()).includes(removed), false);
+    await owner.setViewportSize({ width: 390, height: 844 }); await owner.screenshot({ path: join(artifacts, 'group-mobile.png') });
+    assert.equal(await owner.locator('.gm-connected').evaluate(el => el.scrollWidth <= innerWidth), true);
+    // Offline reload fails promptly and can recover when connectivity returns.
+    await owner.route('**/api/portal/me', route => route.abort('internetdisconnected')); await owner.reload();
+    await owner.locator('.gm-session-loading [role=alert]').waitFor({ timeout: 5000 });
+    await owner.unroute('**/api/portal/me'); await owner.evaluate(() => window.dispatchEvent(new Event('online'))); await owner.locator('.gm-sidebar').waitFor();
+    let stalledProfile;
+    await owner.route('**/api/portal/me', route => { stalledProfile = route; });
+    const stalledAt = Date.now(); await owner.reload();
+    await owner.locator('.gm-session-loading [role=alert]').waitFor({ timeout: 10000 });
+    assert.ok(Date.now() - stalledAt < 11000, 'a hung profile request must leave the loading screen within the read timeout');
+    await owner.unroute('**/api/portal/me'); await stalledProfile?.abort().catch(() => {});
+    await owner.evaluate(() => window.dispatchEvent(new Event('online'))); await owner.locator('.gm-sidebar').waitFor();
+    assert.deepEqual(errors, []);
+    console.log('PASS progressive loading, header refresh, all admin status colors, readable CTA, auto approval, deposit edit, approved post edit, offline recovery and mobile layout. Artifacts:', artifacts);
+  } finally { releaseNotifications?.(); await browser?.close(); if (server) await new Promise(resolve => server.close(resolve)); await client.close(); await mongo.stop(); }
+})().catch(error => { console.error(error); process.exitCode = 1; });

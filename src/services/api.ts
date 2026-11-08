@@ -69,10 +69,13 @@ export class ApiError extends Error {
 export async function api<T>(path: string, options: RequestInit & { timeoutMs?: number } = {}): Promise<T> {
   const token = session?.accessToken;
   const controller = new AbortController();
+  const abort = () => controller.abort();
+  if (options.signal?.aborted) controller.abort();
+  else options.signal?.addEventListener('abort', abort, { once: true });
   const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? (typeof options.body === 'string' && options.body.length > 1000000 ? 120000 : 15000));
   try {
     const response = await fetch(`${apiBaseUrl}${path}`, {
-      ...options, signal: controller.signal,
+      ...options, cache: options.cache ?? 'no-store', signal: controller.signal,
       headers: { Accept: 'application/json', ...(options.body ? { 'Content-Type': 'application/json' } : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}), ...options.headers },
     });
@@ -91,7 +94,7 @@ export async function api<T>(path: string, options: RequestInit & { timeoutMs?: 
     throw new Error(error instanceof Error && error.name === 'AbortError'
       ? 'Kết nối quá thời gian. Vui lòng thử lại.'
       : 'Không thể kết nối. Kiểm tra mạng và thử lại.');
-  } finally { clearTimeout(timeout); }
+  } finally { clearTimeout(timeout); options.signal?.removeEventListener('abort', abort); }
 }
 
 export const post = <T,>(path: string, body: unknown) => api<T>(path, { method: 'POST', body: JSON.stringify(body) });

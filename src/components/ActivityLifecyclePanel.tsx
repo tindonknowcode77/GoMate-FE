@@ -36,10 +36,6 @@ export function ActivityLifecyclePanel({ activity, compact = false, showTimeline
   const blockedReason = !running && !completed && isHost ? activity.readiness?.reason || (!activity.readiness ? 'Đang kiểm tra điều kiện thành viên. Hãy làm mới.' : '') : '';
   const actionDisabled = busy || Boolean(blockedReason) || (scheduleFirst && isHost && !canConfirm);
   const actionLabel = completed ? 'Xem tổng kết' : running ? isHost ? 'Điểm danh & kết thúc' : 'Xem diễn biến' : isHost ? scheduleFirst ? 'Chốt lịch đi' : 'Bắt đầu hoạt động' : 'Xem kế hoạch';
-  const description = completed ? 'Hoạt động đã kết thúc. Xem tổng kết và gửi đánh giá.'
-    : running ? isHost ? 'Điểm danh cả nhóm trước khi kết thúc để thành viên có thể đánh giá.' : 'Hoạt động đang diễn ra. Host sẽ điểm danh và cập nhật cho nhóm.'
-      : phase === 1 ? isHost ? 'Lịch đã chốt. Khi nhóm sẵn sàng, bấm Bắt đầu để mở điểm danh.' : 'Lịch đã chốt. Chờ host bắt đầu hoạt động.'
-        : isHost ? canConfirm ? 'Hoàn thiện kế hoạch, chốt lịch rồi bắt đầu khi nhóm sẵn sàng.' : 'Đã đến giờ hẹn nhưng lịch chưa được chốt. Hãy điều chỉnh lịch hẹn trước khi bắt đầu.' : 'Cùng lên kế hoạch. Host sẽ chốt thời gian và địa điểm.';
   const openConfirmation = (action: 'schedule' | 'start') => { setError(''); setConfirmation({ action, version: activity.version ?? 0 }); setDialogOpen(true); };
   const confirm = async () => {
     if (!confirmation || locked.current) return;
@@ -75,13 +71,13 @@ export function ActivityLifecyclePanel({ activity, compact = false, showTimeline
     </View>}
     {showActions && <>
       {!compact && <Text style={styles.title}>{isHost ? 'Bước tiếp theo của host' : stages[phase]}</Text>}
-      <Text style={styles.description}>{description}</Text>
+
       {!compact && !running && !completed && <View style={styles.appointment}><Text style={styles.appointmentTitle}>{activity.scheduleConfirmedAt ? 'Lịch đã chốt' : 'Lịch hẹn dự kiến'}</Text><Text style={styles.description}>{new Date(activity.startsAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}</Text><Text style={styles.description}>{activity.meetingPoint || activity.location}</Text></View>}
       <View style={styles.actions}>
         <Pressable accessibilityRole="button" accessibilityLabel={translate(actionLabel)} accessibilityState={{ disabled: actionDisabled }} disabled={actionDisabled} onPress={primaryAction} style={[styles.primary, actionDisabled && { opacity: 0.5 }]}><Ionicons name={completed ? 'ribbon-outline' : running ? 'checkbox-outline' : isHost && !scheduleFirst ? 'play-circle-outline' : 'calendar-outline'} size={19} color={colors.white} /><Text style={styles.primaryText}>{actionLabel}</Text></Pressable>
         {!running && !completed && isHost && onPlan && <Pressable accessibilityRole="button" onPress={onPlan} style={styles.secondary}><Text style={styles.link}>Xem kế hoạch</Text></Pressable>}
       </View>
-      {blockedReason ? <Text accessibilityRole="alert" style={styles.description}>{blockedReason}</Text> : null}
+      {blockedReason && !/tiền cọc/i.test(blockedReason) ? <Text accessibilityRole="alert" style={styles.description}>{blockedReason}</Text> : null}
     </>}
     <Modal visible={dialogOpen} transparent animationType="fade" onRequestClose={() => { if (!busy) setDialogOpen(false); }}>
       <View style={styles.overlay}><View accessibilityViewIsModal style={styles.dialog}>

@@ -32,7 +32,7 @@ const POPULAR_BANKS = [
   { id: 'TPB', name: 'TPBank - Tiên Phong' },
 ];
 
-export default function BusinessWallet() {
+export default function BusinessWallet({ refreshVersion = 0 }) {
   const notify = usePortalNotice();
   const [wallet, setWallet] = useState(null);
   const [error, setError] = useState('');
@@ -96,7 +96,7 @@ export default function BusinessWallet() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [refreshVersion]);
 
   const handleSaveBankAccount = async (e) => {
     e.preventDefault();
@@ -212,10 +212,7 @@ export default function BusinessWallet() {
           <h2 style={{ fontSize: 24, fontWeight: 700, margin: '6px 0 4px' }}>
             Ví doanh nghiệp · Đối soát & Giải ngân VietQR
           </h2>
-          <p className="gm-live-muted" style={{ maxWidth: 760 }}>
-            Cơ chế bảo vệ người dùng và đối tác (Anti-fraud Escrow): Toàn bộ tiền cọc thành viên quét mã VietQR được hệ thống tạm giữ an toàn.
-            Doanh nghiệp được giải ngân 90% khoản cọc về tài khoản ngân hàng sau khi hoạt động hoàn tất.
-          </p>
+
         </div>
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>

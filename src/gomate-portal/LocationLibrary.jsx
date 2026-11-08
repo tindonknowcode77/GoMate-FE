@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { ActivityMap } from '../components/ActivityMap';
 import { placePredictions, placeDetails, placeRegionFields, newPlacesSession } from '../services/mapsService';
 import { Icon, PillButton } from './GoMatePortal';
+import FormExcelTools from './FormExcelTools';
 
 const fieldStyle = 'gm-simple-input';
 
@@ -67,6 +68,10 @@ export default function LocationLibrary({ locations, onSave, onDelete }) {
         <section className="gm-panel gm-live-panel gm-location-editor">
           <div className="gm-panel-heading"><div><h3>{t(form.id ? 'Edit location' : 'New location')}</h3><p className="gm-live-muted">{t("Branch details")}</p></div></div>
           <form className="gm-auth-form" onSubmit={submit}>
+            <FormExcelTools kind="location" onImport={data => {
+              setForm(current => ({ ...current, ...data }));
+              mapAPI.pin(data.latitude !== '' ? data : null); mapAPI.search('');
+            }} />
             <Field label={t("Location name")}><input className={fieldStyle} value={form.name} required maxLength={120} onChange={patch('name')} placeholder={t("e.g. Luma Social Club - District 1")} /></Field>
             <Field label={t("Search address")}>
               <div className="gm-map-search"><Icon name="search" size={16} /><input value={mapAPI.query} onChange={event => mapAPI.search(event.target.value)} placeholder={t("Search a place or address")} autoComplete="off" /></div>

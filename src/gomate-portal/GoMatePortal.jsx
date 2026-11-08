@@ -3,6 +3,7 @@ import { usePortalText } from './usePortalText';
 import './gomate-portal.css';
 import { Ionicons } from '@expo/vector-icons';
 import { BrandLogo } from '../components/BrandLogo';
+import { statusTone } from './portalStatus';
 
 const roleLabels = {
   business: 'Business',
@@ -68,8 +69,8 @@ function PillButton({ children, variant = 'primary', icon, type = 'button', onCl
   );
 }
 
-function StatusPill({ children, tone = 'neutral' }) {
-  return <span className={`gm-status gm-status--${tone}`}><span className="gm-status-dot" />{children}</span>;
+function StatusPill({ children, tone, status }) {
+  return <span className={`gm-status gm-status--${tone || statusTone(status || (typeof children === 'string' ? children : ''))}`}><span className="gm-status-dot" />{children}</span>;
 }
 
 function Avatar({ initials, tone = 'purple', size = 'md' }) {

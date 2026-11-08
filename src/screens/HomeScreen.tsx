@@ -17,7 +17,7 @@ export function HomeScreen({ onMatchPress, onMyActivitiesPress, onNotificationsP
   const loader = useCallback(async () => {
     const [joined, owned] = await Promise.all([listJoined(), listOwned()]);
     return [...joined, ...owned].filter(row => !['completed', 'expired', 'cancelled'].includes(row.status || '') && (!row.endsAt || new Date(row.endsAt).getTime() > Date.now()))
-      .sort((a, b) => a.startsAt.localeCompare(b.startsAt)).map(row => toActivity(row, joined.some(item => item.id === row.id) ? 'approved' : undefined));
+      .sort((a, b) => a.startsAt.localeCompare(b.startsAt)).map(row => toActivity(row, joined.some(item => item.id === row.id && !item.isBusinessManager) ? 'approved' : undefined));
   }, []);
   const remote = useRemote(loader, []);
   const next = remote.data[0];
@@ -28,7 +28,7 @@ export function HomeScreen({ onMatchPress, onMyActivitiesPress, onNotificationsP
       {!remote.loading && !remote.error && (next ? <NextActivityCard activity={next} onGroup={() => onOpenGroup(next)} onPlan={() => onOpenActivity(next)} /> : <HomeEmptyState onMatch={onMatchPress} />)}
       <Pressable onPress={onPendingPress} style={styles.sectionHeading}><Text style={styles.switchLink}>Yêu cầu đang chờ duyệt →</Text></Pressable>
       <Pressable onPress={onMyActivitiesPress} style={styles.sectionHeading}><Text style={styles.sectionTitle}>Hoạt động của tôi →</Text></Pressable>
-      <View style={{ flexDirection: wide ? 'row' : 'column', flexWrap: 'wrap', gap: 12 }}>{!remote.loading && !remote.error && remote.data.slice(1).map(item => <View key={item.id} style={{ width: wide ? '48%' : '100%' }}><ActivityScheduleItem key={item.id} activity={item} onPress={() => onOpenGroup(item)} status={item.requestStatus === 'approved' ? 'Đã tham gia' : 'Bạn tổ chức'} /></View>)}</View>
+      <View style={{ flexDirection: wide ? 'row' : 'column', flexWrap: 'wrap', gap: 12 }}>{!remote.loading && !remote.error && remote.data.slice(1).map(item => <View key={item.id} style={{ width: wide ? '48%' : '100%' }}><ActivityScheduleItem key={item.id} activity={item} onPress={() => onOpenGroup(item)} status={item.isBusinessManager ? 'Phụ trách nhóm' : item.requestStatus === 'approved' ? 'Đã tham gia' : 'Bạn tổ chức'} /></View>)}</View>
     </View>
   </ScrollView>;
 }

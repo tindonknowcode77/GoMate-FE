@@ -202,6 +202,7 @@ function MainAppContent({ onLogout }: { onLogout: () => void }) {
   }, [route?.name, refreshDiscovery]);
   const activities = discovery.data;
   const mutation = useRef(false);
+  const lastJoinApproved = useRef(false);
   const submitJoin = async (activity: Activity) => {
     if (mutation.current) return false;
     if (userProfile.profile && !isBasicProfileComplete(userProfile.profile)) {
@@ -213,7 +214,7 @@ function MainAppContent({ onLogout }: { onLogout: () => void }) {
       return false;
     }
     mutation.current = true; setActionError('');
-    try { await joinActivity(activity.id); void matchFeedback(activity.id, 'interested').catch(() => {}); return true; }
+    try { lastJoinApproved.current = false; const joined = await joinActivity(activity.id); lastJoinApproved.current = joined.request.status === 'approved'; void matchFeedback(activity.id, 'interested').catch(() => {}); return lastJoinApproved.current ? 'approved' as const : true; }
     catch (reason) {
       const msg = reason instanceof Error ? reason.message : 'Không gửi được yêu cầu. Vui lòng thử lại.';
       if (/hồ sơ|điều kiện nhóm|điều kiện hoạt động/i.test(msg)) promptProfileCompletion(msg);
@@ -229,10 +230,10 @@ function MainAppContent({ onLogout }: { onLogout: () => void }) {
     if (activity.requestStatus === 'pending') {
       if (mutation.current) return;
       mutation.current = true; setActionError('');
-      try { await cancelRequest(activity.id); setRoute({ name: 'pending' }); }
+      try { await cancelRequest(activity.id); setRoute(route?.name === 'activityDetail' ? { ...route, activity: { ...route.activity, requestStatus: 'cancelled' } } : { name: 'pending' }); }
       catch (reason) { setActionError(reason instanceof Error ? reason.message : 'Không hủy được yêu cầu. Vui lòng thử lại.'); }
       finally { mutation.current = false; }
-    } else if (await submitJoin(activity)) { setRoute({ name: 'pending' }); }
+    } else if (await submitJoin(activity)) { setRoute(lastJoinApproved.current ? { name: 'group', activity: { ...activity, requestStatus: 'approved' }, source: 'myActivities' } : route?.name === 'activityDetail' ? { ...route, activity: { ...route.activity, requestStatus: 'pending' } } : { name: 'pending' }); }
     void discovery.reload();
   };
   const handleLogout = async () => { try { await logout(); } catch { /* Local session is cleared even when offline. */ } onLogout(); };
@@ -283,7 +284,7 @@ function MainAppContent({ onLogout }: { onLogout: () => void }) {
     if (notice.type.startsWith('business-')) { if (Platform.OS === 'web') window.location.assign('/portal'); else await Linking.openURL(apiBaseUrl.replace(/\/api\/?$/, '') + '/portal'); return; }
     if (notice.type === 'activity-invitation') { setRoute({ name: 'friends' }); return; }
     if (notice.conversationId) { setRoute({ name: 'chat', conversation: await getConversation(notice.conversationId) }); return; }
-    if (notice.activityId) { const [row, requests] = await Promise.all([getActivity(notice.activityId), listMyRequests()]); const member = requests.some(request => request.activityId === row.id && request.status === 'approved'); setRoute(row.hostId === getSession()?.user.id || member ? { name: 'group', activity: toActivity(row), source: 'myActivities', initialTab: notice.type === 'join-request' || /yêu cầu tham gia/i.test(notice.title) ? 'members' : 'chat' } : { name: 'activityDetail', activity: toActivity(row, requests.find(request => request.activityId === row.id)?.status), source: 'home' }); return; }
+    if (notice.activityId) { const [row, requests] = await Promise.all([getActivity(notice.activityId), listMyRequests()]); const member = requests.some(request => request.activityId === row.id && request.status === 'approved'); setRoute(row.hostId === getSession()?.user.id || Boolean(row.isBusinessManager) || member ? { name: 'group', activity: toActivity(row), source: 'myActivities', initialTab: notice.type === 'join-request' || /yêu cầu tham gia/i.test(notice.title) ? 'members' : 'chat' } : { name: 'activityDetail', activity: toActivity(row, requests.find(request => request.activityId === row.id)?.status), source: 'home' }); return; }
     setRoute({ name: 'friends' });
   }} />;
   if (route?.name === 'myActivities') return <MyActivitiesScreen onOpenPending={() => setRoute({ name: 'pending' })} onBack={() => setRoute(null)} onOpenGroup={(activity) => setRoute({ name: 'group', activity, source: 'myActivities' })} />;

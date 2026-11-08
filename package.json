@@ -19,6 +19,9 @@
     "test:portal:documents": "node tests/verification-documents.web.cjs",
     "test:business:controls": "node tests/business-campaign-controls.web.cjs",
     "test:admin:web": "node tests/admin-crud.web.cjs",
+    "test:excel:web": "node tests/form-excel.web.cjs",
+    "test:portal:reliability": "node tests/portal-reliability.web.cjs",
+    "demo:excel": "node scripts/generate-demo-excel.cjs",
     "demo:seed": "npm --prefix ../GoMate-BE run db:seed-workshop",
     "test:community:web": "node tests/community.web.cjs",
     "test:maps:web": "node tests/mapbox-maps.web.cjs",
@@ -31,6 +34,7 @@
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
     "@react-native-google-signin/google-signin": "^16.1.5",
+    "exceljs": "^4.4.0",
     "expo": "~57.0.31",
     "expo-constants": "~57.0.22",
     "expo-document-picker": "~57.0.3",

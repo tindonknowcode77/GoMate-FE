@@ -1,5 +1,19 @@
 # Decision log
 
+## 2026-11-09 - Progressive workspace loading and owner-managed business updates
+
+Open the workspace shell after `/portal/me` succeeds, apply each resource independently and retain successful data when another request fails. Bound portal reads to eight seconds and a workspace refresh to twelve seconds, forward cancellation to the API client, cancel obsolete background work before user actions, and refresh the active admin table/wallet explicitly. Retry when connectivity returns; use a slower background polling cadence. Clear account-specific state on a session change. This improves weak-network behavior without presenting cached admin privileges or claiming full offline support.
+
+Business owners may opt individual upcoming published groups into automatic membership approval, with atomic capacity and existing audience/profile/deadline checks. Owners may change deposits before a group starts; paid receipts retain their original amount, unpaid quotes use the current amount, obsolete pending payment orders are cancelled and cannot be confirmed. Published activity records are the source of truth for deposit amounts displayed in campaign feeds.
+
+Permit owners to change post title, copy, discount and offer text without moving an approved post back to moderation. Initial publication still requires approval; pending/rejected posts retain their status. Persist a revisioned content-sync task with each approved edit and reconcile it to activity documents so interrupted or out-of-order retries cannot restore older content. Group identity, membership, lifecycle and payment history are excluded from basic post edits.
+
+## 2026-11-09 - Import Excel into editable business forms
+
+Use a shared XLSX layout with fixed sheet names for business verification, locations and multi-group promotional posts. Load ExcelJS on demand in the web portal, parse files locally, validate the full import before applying state, and keep the existing explicit submit and server authorization/review flows. Key/value sheets retain stable field keys and readable Vietnamese labels; a separate Nhom sheet represents independent groups. Embedded PNG/JPEG images populate verification attachments; PDFs remain separate form uploads. Never interpret formulas or fetch file paths from spreadsheet cells.
+
+Consequences: templates and six demo workbooks use the same schema. Verification samples contain visibly marked demo documents and cannot confer approval. The runtime XLSX library adds a separate web chunk loaded when needed. Regenerate static post examples before later demos to keep schedules in the future; dynamically downloaded post templates always use future dates.
+
 ## 2026-11-02 - Open the existing Staff workspace from the mobile app
 
 Allow accounts whose effective role is `staff` on `/portal/me` to use the regular app and switch to the existing `/staff` portal from their profile. Reuse its API-backed screens in a native WebView, recheck the staff role when opening it, pass the current session through the WebView bridge, and discard WebView data when it closes. Staff access does not require completing the member profile; Admin and Business mobile access remains web-only.

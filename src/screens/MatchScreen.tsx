@@ -18,7 +18,7 @@ type MatchScreenProps = {
   locationLabel?: string; favoriteIds?: string[]; onFavorite?: (activity: Activity) => Promise<void>; onFeedback?: (activity: Activity, outcome: 'skip' | 'dislike') => void;
   activityItems?: Activity[];
   onFilterPress: () => void;
-  onMatched?: (activity: Activity) => Promise<boolean>;
+  onMatched?: (activity: Activity) => Promise<boolean | 'approved'>;
   onBack: () => void;
   state?: 'ready' | 'loading' | 'location-required' | 'network-error' | 'activity-unavailable';
 };
@@ -42,6 +42,7 @@ export function MatchScreen({ error, locationLabel, favoriteIds = [], onFavorite
   const [isSwiping, setIsSwiping] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const [requestToast, setRequestToast] = useState(false);
+  const [requestApproved, setRequestApproved] = useState(false);
   const [position] = useState(() => new Animated.ValueXY());
   const currentActivity = activityItems.find(item => !dismissedIds.includes(item.id));
   const canUndo = lastSkippedId !== null && !isAnimating;
@@ -62,7 +63,10 @@ export function MatchScreen({ error, locationLabel, favoriteIds = [], onFavorite
 
   const requestCurrent = useCallback(async () => {
     if (!currentActivity) return;
-    if (!onMatched || !await onMatched(currentActivity)) return;
+    if (!onMatched) return;
+    const result = await onMatched(currentActivity);
+    if (!result) return;
+    setRequestApproved(result === 'approved');
     setDismissedIds(current => [...current, currentActivity.id]);
     setLastSkippedId(null);
     setRequestToast(true);
@@ -147,7 +151,7 @@ export function MatchScreen({ error, locationLabel, favoriteIds = [], onFavorite
           <MatchHeader onSearch={onSearch} distance={locationLabel} onBack={onBack} onFilter={onFilterPress} />
           <MatchState action={canUndo ? 'Quay lại hoạt động vừa bỏ qua' : 'Điều chỉnh bộ lọc'} icon="calendar-outline" message="Hãy mở rộng khoảng cách, thời gian rảnh hoặc danh mục để tiếp tục Match." onAction={canUndo ? undoSkip : onFilterPress} title="Không còn hoạt động phù hợp" />
         </View>
-        {requestToast && <RequestToast />}
+        {requestToast && <RequestToast approved={requestApproved} />}
       </SafeAreaView>
     );
   }
@@ -183,13 +187,13 @@ export function MatchScreen({ error, locationLabel, favoriteIds = [], onFavorite
       <ReportActivitySheet key={currentActivity.id} activityId={currentActivity.id} onClose={() => setSheet(null)} visible={sheet === 'report'} />
       <SafetySheet onClose={() => setSheet(null)} visible={sheet === 'safety'} />
       <NotInterestedSheet category={currentActivity.category} onCancel={() => setSheet(null)} onConfirm={() => { onFeedback?.(currentActivity, 'dislike'); setLastSkippedId(currentActivity.id); setDismissedIds(current => [...current, currentActivity.id]); setSheet(null); }} visible={sheet === 'notInterested'} />
-      {requestToast && <RequestToast />}
+      {requestToast && <RequestToast approved={requestApproved} />}
     </SafeAreaView>
   );
 }
 
-function RequestToast() {
-  return <View pointerEvents="none" style={styles.toast}><View style={styles.toastIcon}><Ionicons color={colors.white} name="paper-plane" size={18} /></View><View style={styles.toastCopy}><Text style={styles.toastTitle}>Đã gửi yêu cầu tham gia</Text><Text style={styles.toastMessage}>Host sẽ xem hồ sơ và phản hồi sau khi duyệt.</Text></View><Ionicons color={colors.success} name="checkmark-circle" size={22} /></View>;
+function RequestToast({ approved }: { approved: boolean }) {
+  return <View pointerEvents="none" style={styles.toast}><View style={styles.toastIcon}><Ionicons color={colors.white} name="paper-plane" size={18} /></View><View style={styles.toastCopy}><Text style={styles.toastTitle}>{approved ? 'Đã tham gia nhóm' : 'Đã gửi yêu cầu tham gia'}</Text></View><Ionicons color={colors.success} name="checkmark-circle" size={22} /></View>;
 }
 
 const styles = StyleSheet.create({

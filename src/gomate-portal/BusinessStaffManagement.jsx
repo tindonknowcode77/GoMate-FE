@@ -44,7 +44,7 @@ export default function BusinessStaffManagement({ groups, accounts, onSave, onDe
 
       <div className="gm-staff-layout">
         <section className="gm-panel gm-live-panel gm-staff-form-panel">
-          <div className="gm-panel-heading"><div><h3>{t(editingId ? 'Edit staff access' : 'Create staff account')}</h3><p className="gm-live-muted">{t('Tài khoản hoạt động ngay, không cần admin hoặc nhân viên phê duyệt.')}</p></div></div>
+          <div className="gm-panel-heading"><div><h3>{t(editingId ? 'Edit staff access' : 'Create staff account')}</h3><p className="gm-live-muted">{t('')}</p></div></div>
           <form className="gm-auth-form" onSubmit={submit}>
             <Field label={t("Full name")}><input className={fieldStyle} autoComplete="name" required minLength={2} maxLength={100} value={form.name} onChange={patch('name')} placeholder={t("Staff member name")} /></Field>
             <Field label={t("Work email")}><input className={fieldStyle} type="email" autoComplete="off" required readOnly={Boolean(editingId)} value={form.email} onChange={patch('email')} placeholder={t("name@business.com")} /></Field>
@@ -71,7 +71,7 @@ export default function BusinessStaffManagement({ groups, accounts, onSave, onDe
           {!accounts.length && <div className="gm-staff-empty"><Icon name="users" size={24} /><strong>{t("No staff accounts yet")}</strong><span>{t('Tạo tài khoản nhân viên để phân công quản lý nhóm.')}</span></div>}
           <div className="gm-staff-list">{accounts.map(account => <article className="gm-staff-row" key={account.id}>
             <div className="gm-staff-avatar">{t(account.name.split(/\s+/).map(part => part[0]).slice(0, 2).join('').toUpperCase())}</div>
-            <div className="gm-staff-main"><div className="gm-staff-name-line"><strong>{account.name}</strong><span className="gm-staff-approval-status" data-status={account.status}><i />{t(({approved:'Hoạt động',pending:'Chưa kích hoạt',rejected:'Đã từ chối',revoked:'Đã thu hồi',declined:'Đã từ chối'})[account.status] || account.status)}</span></div><span>{account.title} {t(" · ")}{account.email} {t(" · ")}{t(account.phone)}</span>
+            <div className="gm-staff-main"><div className="gm-staff-name-line"><strong>{account.name}</strong><span className="gm-staff-approval-status" data-status={account.status}><i />{t(({ approved: 'Hoạt động', pending: 'Chưa kích hoạt', rejected: 'Đã từ chối', revoked: 'Đã thu hồi', declined: 'Đã từ chối' })[account.status] || account.status)}</span></div><span>{account.title} {t(" · ")}{account.email} {t(" · ")}{t(account.phone)}</span>
               <div className="gm-staff-assigned-groups">{account.groupIds.map(id => <span key={id}>{t(groupName(id))}</span>)}</div>
             </div>
             <div className="gm-staff-actions"><button type="button" className="gm-text-action" disabled={busy} onClick={() => edit(account)}>{t("Edit")}</button><button type="button" className="gm-text-action gm-delete-action" disabled={busy} onClick={() => onDelete(account.id)} aria-label={t(`Remove ${account.name}`)} title={t("Remove staff account")}><Icon name="close" size={15} /></button></div>

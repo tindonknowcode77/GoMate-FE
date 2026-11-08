@@ -1,5 +1,87 @@
 # Development log
 
+## 2026-11-09 - Admin status colors, reliable refresh and editable business posts
+
+### Summary
+
+- Color admin statuses and effective account roles across users, applications, posts, reports and support. Fix the create-post button's inherited muted text and rename it to `Tạo bài đăng`.
+- Open the workspace after profile verification, apply resources independently, retain successful results, bound requests, cancel obsolete loads, retry on network reconnection and refresh the currently displayed admin table or wallet from the header. Remove the redundant eager admin user-list request and reset private state when the session changes.
+- Add owner-only automatic member approval and deposit settings for upcoming groups, plus an editable basic-post form that preserves approval. Keep paid deposit receipts unchanged; invalidate obsolete unpaid QR orders. Approved members open their group directly in the app and receive an accurate matching result toast.
+- Remove the requested business/group/wallet explanations and redundant app lifecycle/matching guidance while retaining validation and operation errors.
+
+### Files changed
+
+- Portal loading/API, shared status styling, admin management, wallet, group dashboard, post composer and new `BusinessPostEditor.jsx` / `portalStatus.js`.
+- `src/screens/MainApp.tsx`, `src/screens/MatchScreen.tsx`, `src/components/ActivityLifecyclePanel.tsx`, `src/services/api.ts`.
+- `tests/portal-reliability.web.cjs`, `package.json`, decision/development logs; paired backend implementation and regression tests.
+
+### Verification
+
+- Typecheck, repository lint and explicit ESLint on changed JSX: Passed; existing five repository lint warnings and one AdminManagement cleanup warning remain.
+- Same-origin Expo web build: Passed.
+- Admin CRUD browser regression and business campaign controls browser regression: Passed.
+- Portal reliability browser test: Passed with delayed notifications, header refresh, all five admin status pages, effective roles, create CTA contrast, auto-approval, deposit edits, approved-post edits, interrupted connectivity recovery, an eight-second hung-profile timeout and mobile layout.
+- Backend suite: 141 existing tests passed; the new business settings regression passed separately, including concurrent capacity, stale writes, ownership, paid-receipt preservation, cancelled QR rejection and interrupted/out-of-order content-sync recovery.
+- Six frontend activity/auth/native-session regressions: Passed.
+- Expo Doctor: 20/21 checks passed; five existing dependency patch mismatches remain.
+
+### Remaining work
+
+- Initial assets/profile access still require connectivity; full offline operation is not implemented. Physical native devices were not exercised. Existing Expo patch mismatches and lint warnings remain. Automatic approval applies to new/repeated join requests, not the existing pending queue; deposits can change before group start.
+
+## 2026-11-09 - Compact Excel controls across business forms
+
+### Summary
+
+- Replace the explanatory Excel card with a compact shared toolbar for verification, locations and promotional posts: template download, import and a collapsed demo-file menu.
+- Remove repeated instructions and shorten success feedback to the imported filename. Use smaller controls, scoped styles and wrapping on narrow screens.
+
+### Files changed
+
+- `src/gomate-portal/FormExcelTools.jsx`, `src/gomate-portal/form-excel.css`.
+- `docs/DEVELOPMENT_LOG.md`.
+
+### Verification
+
+- Typecheck, repository lint and explicit JSX ESLint: Passed; repository lint retains five existing warnings.
+- Same-origin web build: Passed.
+- `npm.cmd run test:excel:web`: Passed all three import/submit flows, template download, validation, persistence and mobile controls.
+- Expo Doctor: 20/21 checks passed; the same five existing Expo dependency patch mismatches remain.
+- `git diff --check`: Passed.
+
+### Remaining work
+
+- Existing Expo patch mismatches and lint warnings remain.
+
+## 2026-11-09 - Excel autofill and demo workbooks for business forms
+
+### Summary
+
+- Add template downloads and Excel import to business verification, location editing/creation and multi-group post creation. Imports fill editable drafts and never submit automatically.
+- Validate the complete workbook before changing form state; reject wrong templates, missing/repeated keys, formulas, invalid coordinates, dates, categories, capacities and deposits. Preserve locked verification identity fields.
+- Extract embedded license/supplemental images into the existing document previews and submit flow, and let imported files satisfy required attachment inputs. Keep separate PDF uploads supported.
+- Supply six demo XLSX files with fictional businesses, marked document images, HCMC locations and future multi-group workshops, plus regeneration and browser-test commands.
+- Clear verification industry-load errors in the successful async callback to satisfy the explicit JSX lint check.
+
+### Files changed
+
+- `src/gomate-portal/formExcel.js`, `FormExcelTools.jsx`, `BusinessVerificationForm.jsx`, `LocationLibrary.jsx`, `MultiGroupPostComposer.jsx`.
+- `public/demo-excel/` (six workbooks and usage guide); `scripts/generate-demo-excel.cjs`; `tests/form-excel.web.cjs`.
+- `package.json`, `package-lock.json`, `docs/DECISIONS.md`, `docs/DEVELOPMENT_LOG.md`.
+
+### Verification
+
+- `npm.cmd run typecheck`: Passed.
+- `npm.cmd run lint`: Passed with five existing warnings.
+- Explicit ESLint on all five changed portal sources: Passed after the industry-loading callback fix.
+- Same-origin `npm.cmd run build`: Passed, including a separate lazy-loaded ExcelJS chunk.
+- `npm.cmd run test:excel:web`: Passed against isolated MongoDB, real APIs and Chromium: downloadable template, all six sample files, verification with both images and submit, post groups and submit, location creation and version-preserving edit, wrong-template/formula/invalid-deposit rejection, no auto-submit, persistence and mobile controls.
+- `npx.cmd --yes expo-doctor`: 20/21 checks passed; same five existing Expo dependency patch mismatches.
+
+### Remaining work
+
+- Existing Expo patch mismatches and lint warnings remain. XLSX import is for web business forms; native devices were not exercised. Regenerate static post demo files with `npm run demo:excel` before future demos. Real verification requires the business's own documents and the existing admin review.
+
 ## 2026-11-09 - Synchronize quan_business with remote FE and BE
 
 ### Summary

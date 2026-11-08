@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import VerificationDocumentPreview from './VerificationDocumentPreview';
+import FormExcelTools from './FormExcelTools';
 import { api } from '../services/api';
 import { usePortalText } from './usePortalText';
 import { Icon, PillButton, StatusPill } from './GoMatePortal';
@@ -14,7 +15,7 @@ function Upload({ label, file, existing, applicationId, revision, kind, required
   const t = usePortalText();
   const [error, setError] = useState('');
   return <div><label className="gm-upload-field gm-license-upload"><span>{t(label)}</span>
-    <input aria-label={t(label)} type="file" accept=".jpeg,.jpg,.png,.pdf,image/jpeg,image/png,application/pdf" required={required} onChange={event => {
+    <input aria-label={t(label)} type="file" accept=".jpeg,.jpg,.png,.pdf,image/jpeg,image/png,application/pdf" required={required && !file} onChange={event => {
       const selected = event.target.files?.[0];
       if (selected && (selected.size > 10 * 1024 * 1024 || selected.size === 0 || !/\.(pdf|png|jpe?g)$/i.test(selected.name) || !['application/pdf','image/png','image/jpeg'].includes(selected.type))) {
         event.target.value = ''; onChange(null); setError('Vui lòng chọn JPEG, PNG, PDF hoặc JPG hợp lệ, tối đa 10 MB.'); return;
@@ -30,10 +31,10 @@ export default function BusinessVerificationForm({ application, setApplication, 
   const [retry, setRetry] = useState(0);
   useEffect(() => {
     let alive = true;
-    setOptionsError('');
     void api('/portal/options').then(result => {
       if (alive) {
         if (!result.businessIndustries?.length) { setOptionsError('Không tải được danh sách ngành. Vui lòng thử lại.'); return; }
+        setOptionsError('');
         setIndustries(result.businessIndustries);
       }
     }).catch(() => { if (alive) setOptionsError('Không tải được danh sách ngành. Vui lòng thử lại.'); });
@@ -58,6 +59,12 @@ export default function BusinessVerificationForm({ application, setApplication, 
         {currentApplication.supplementalLicense && <div><dt>{t('Tài liệu bổ sung')}</dt><dd><VerificationDocumentPreview metadata={currentApplication.supplementalLicense} applicationId={currentApplication.id} revision={currentApplication.version} kind="supplemental" /></dd></div>}
       </dl></div>}
     {editable && <form className="gm-auth-form gm-verification-form" onSubmit={onSubmit}>
+      <FormExcelTools kind="verification" disabled={busy || !industries.length} options={{ industries, identity: identityLocked ? currentApplication : undefined }} onImport={({ application: imported, documents }) => {
+        const files = documents.map(doc => doc ? new File([doc.buffer], doc.name, { type: doc.mime }) : null);
+        setApplication(value => ({ ...value, ...imported }));
+        if (files[0]) setDocument(files[0]);
+        if (files[1]) setSupplementalDocument(files[1]);
+      }} />
       <div className="gm-verification-section-title"><span>01</span><strong>{t('Thông tin doanh nghiệp')}</strong></div>
       <fieldset className="gm-account-types" disabled={identityLocked}><legend>{t('Loại tài khoản')}</legend>{[['business','Doanh nghiệp'],['individual','Cá nhân']].map(([value,label]) => <label key={value}><input type="radio" name="accountType" value={value} checked={application.accountType === value} onChange={patch('accountType')} />{t(label)}</label>)}</fieldset>
       <p className="gm-verification-help">{t(application.accountType === 'individual' ? 'Dành cho cá nhân đăng ký hoạt động dưới hình thức hộ kinh doanh. Tải giấy chứng nhận đăng ký hộ kinh doanh để xác minh.' : 'Dành cho công ty, tổ chức. Tải giấy chứng nhận đăng ký doanh nghiệp hoặc giấy phép thành lập công ty để xác minh.')}</p>

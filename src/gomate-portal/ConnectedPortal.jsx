@@ -15,6 +15,7 @@ import MultiGroupPostComposer from './MultiGroupPostComposer';
 import ActiveCampaignDashboard from './ActiveCampaignDashboard';
 import AdminBusinessReview from './AdminBusinessReview';
 import BusinessWallet from './BusinessWallet';
+import BusinessPostEditor from './BusinessPostEditor';
 import './connected-portal.css';
 
 const eventPayload = value => value ? Object.fromEntries(['category','location','province','address','meetingPoint','startsAt','endsAt','registrationDeadline','estimatedCost','minParticipants','maxParticipants','itinerary','plan','planLink','coordinates'].filter(key=>value[key]!==undefined).map(key=>[key,value[key]])) : undefined;
@@ -22,9 +23,9 @@ const statusLabel = { pending: 'Chờ duyệt', approved: 'Đã duyệt', reject
 const tone = status => status === 'approved' ? 'green' : status === 'rejected' ? 'red' : 'orange';
 const format = iso => iso ? new Date(iso).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', dateStyle: 'short', timeStyle: 'short' }) : '—';
 const fieldStyle = 'gm-simple-input';
-async function pages(path) {
+async function pages(path, signal) {
   const items = [];
-  for (let page = 1; page <= 500; page++) { const result = await api(path + '?page=' + page); items.push(...result.items); if (items.length >= result.total || !result.items.length) return { items }; }
+  for (let page = 1; page <= 500; page++) { const result = await api(path + '?page=' + page, { signal, timeoutMs: 8000 }); items.push(...result.items); if (items.length >= result.total || !result.items.length) return { items }; }
   throw Error('Danh sách quá lớn. Vui lòng liên hệ quản trị viên.');
 }
 async function fileValue(file) {
@@ -42,6 +43,7 @@ function PortalWorkspace() {
   const [selectedSection, setSection] = useState('overview'), [busy, setBusy] = useState(false), [error, setError] = useState('');
   const section = selectedSection === 'overview' && ['business', 'business-staff'].includes(me?.role) ? (me.role === 'business' ? 'create-post' : 'active-groups') : selectedSection;
   const [refreshError, setRefreshError] = useState('');
+  const [refreshVersion, setRefreshVersion] = useState(0);
   const [application, setApplication] = useState({ company: '', category: '', accountType: 'business', country: 'VN', certificateNumber: '', website: '', taxId: '', address: '', representativeName: '', representativeTitle: '', representativeEmail: '', representativePhone: '' }), [document, setDocument] = useState(null), [applicationDetails, setApplicationDetails] = useState(null), [notes, setNotes] = useState({});
   const [supplementalDocument, setSupplementalDocument] = useState(null);
   const [locations, setLocations] = useState([]);
@@ -49,39 +51,62 @@ function PortalWorkspace() {
   const [notices, setNotices] = useState([]);
   const lock = useRef(false), applicationRevision = useRef('');
   const loading = useRef(null);
-  const load = useCallback(() => {
-    if (loading.current) return loading.current;
+  const loadAbort = useRef(null);
+  const loadedToken = useRef(null);
+  const load = useCallback((force = false) => {
+    if (loading.current && !force) return loading.current;
+    if (force) loadAbort.current?.abort();
+    const controller = new AbortController(); loadAbort.current = controller;
+    let deadlineExceeded = false;
+    const deadline = setTimeout(() => { deadlineExceeded = true; controller.abort(); }, 12000);
+    const options = { signal: controller.signal, timeoutMs: 8000 };
     const token = getSession()?.accessToken;
     const request = (async () => {
     if (!getSession()) { setMe(null); return; }
-    const profile = await api('/portal/me');
+    if (window.navigator.onLine === false) throw Error('Mất kết nối mạng. Vui lòng kết nối lại rồi thử lại.');
+    const profile = await api('/portal/me', options);
+    if (controller.signal.aborted || getSession()?.accessToken !== token) { if (deadlineExceeded) throw Error('Workspace refresh timeout'); return; }
+    if (loadedToken.current !== token) {
+      loadedToken.current = token; applicationRevision.current = '';
+      setData({ posts: [], applications: [], users: [], metrics: {} }); setLocations([]); setBusinessGroups([]); setBusinessStaff([]); setNotices([]); setSection('overview'); setNotes({});
+      setDocument(null); setSupplementalDocument(null); setApplicationDetails(null);
+      setApplication(current => Object.fromEntries(Object.keys(current).map(key => [key, key === 'country' ? 'VN' : key === 'accountType' ? 'business' : ''])));
+    }
+    setMe(profile); setError('');
     const reviewing = profile.role === 'admin', business = profile.role === 'business', employee = profile.role === 'business-staff';
-    const results = await Promise.allSettled([
-      business || reviewing ? pages('/portal/posts') : {items:[]}, business || reviewing ? api('/portal/metrics') : {}, reviewing ? pages('/portal/applications') : {items:[]}, profile.role === 'admin' ? pages('/portal/users') : {items:[]},
-      business || employee ? pages('/portal/locations') : {items:[]}, business || employee ? pages('/portal/groups') : {items:[]}, business ? pages('/portal/staff') : {items:[]}, pages('/portal/notifications'),
-    ]);
-    // Wait for every request before releasing the load lock, even on failure.
-    const failed = results.find(result => result.status === 'rejected');
-    if (failed) throw failed.reason;
-    if (getSession()?.accessToken !== token) return;
-    const [posts, metrics, applications, users, places, groups, employees, notifications] = results.map(result => result.value);
-    setData({posts:posts.items,metrics,applications:applications.items,users:users.items}); setLocations(places.items); setBusinessGroups(groups.items); setBusinessStaff(employees.items); setNotices(notifications.items);
     const revision=profile.application ? profile.application.id+':'+profile.application.version : '';
     if(profile.application && applicationRevision.current!==revision) { applicationRevision.current=revision; setApplication(current => ({...current,...Object.fromEntries(Object.keys(current).map(key=>[key,profile.application[key] || (key === 'country' ? 'VN' : key === 'accountType' ? 'business' : '')]))})); setApplicationDetails({...profile.application,licenseName:profile.application.license?.name}); }
-    setMe(profile);
+    const resources = [
+      [business || reviewing ? pages('/portal/posts', controller.signal) : { items: [] }, value => setData(current => ({ ...current, posts: value.items }))],
+      [business || reviewing ? api('/portal/metrics', options) : {}, value => setData(current => ({ ...current, metrics: value }))],
+      [reviewing ? pages('/portal/applications', controller.signal) : { items: [] }, value => setData(current => ({ ...current, applications: value.items }))],
+      [business || employee ? pages('/portal/locations', controller.signal) : { items: [] }, value => setLocations(value.items)],
+      [business || employee ? pages('/portal/groups', controller.signal) : { items: [] }, value => setBusinessGroups(value.items)],
+      [business ? pages('/portal/staff', controller.signal) : { items: [] }, value => setBusinessStaff(value.items)],
+      [pages('/portal/notifications', controller.signal), value => setNotices(value.items)],
+    ];
+    const results = await Promise.allSettled(resources.map(async ([pending, apply]) => { const value = await pending; if (!controller.signal.aborted && getSession()?.accessToken === token) apply(value); }));
+    if (controller.signal.aborted || getSession()?.accessToken !== token) { if (deadlineExceeded) throw Error('Workspace refresh timeout'); return; }
+    const failed = results.find(result => result.status === 'rejected');
+    if (failed) { setRefreshError('Một số dữ liệu chưa tải được. Nhấn làm mới để thử lại.'); throw failed.reason; }
     setRefreshError('');
-    })();
+    })().catch(reason => { if (deadlineExceeded) { setRefreshError('Kết nối chậm. Nhấn làm mới để thử lại.'); throw Error('Kết nối quá thời gian. Vui lòng thử lại.'); } if (!controller.signal.aborted) throw reason; }).finally(() => clearTimeout(deadline));
     loading.current = request;
     const clear = () => { if (loading.current === request) loading.current = null; };
     void request.then(clear, clear);
     return request;
   }, []);
-  useEffect(() => { let alive = true; void load().catch(reason => { if (alive) setError(portalActionError('tải dữ liệu không gian làm việc', reason)); }); return () => { alive = false; }; }, [load]);
-  const run = async (operation, action) => { if (lock.current) return false; lock.current = true; setBusy(true); setError(''); try { await loading.current?.catch(() => {}); await action(); return true; } catch (reason) { const message = portalActionError(operation, reason); setError(message); if (getSession()) notify(message, 'error'); return false; } finally { lock.current = false; setBusy(false); } };
+  useEffect(() => { let alive = true; void load().catch(reason => { if (alive) setError(portalActionError('tải dữ liệu không gian làm việc', reason)); }); return () => { alive = false; loadAbort.current?.abort(); loading.current = null; }; }, [load]);
+  const run = async (operation, action) => { if (lock.current) return false; lock.current = true; setBusy(true); setError(''); try { loadAbort.current?.abort(); await loading.current?.catch(() => {}); await action(); return true; } catch (reason) { const message = portalActionError(operation, reason); setError(message); if (getSession()) notify(message, 'error'); return false; } finally { lock.current = false; setBusy(false); } };
+  useEffect(() => {
+    const reconnect = () => { if (getSession() && !lock.current) { setRefreshVersion(value => value + 1); void load(true).catch(reason => { setError(reason.message); setRefreshError('Chưa kết nối được máy chủ.'); }); } };
+    window.addEventListener('online', reconnect);
+    return () => window.removeEventListener('online', reconnect);
+  }, [load]);
   useEffect(() => {
     if (!me?.id) return;
     let disposed = false, timer, failures = 0;
-    const schedule = () => { if (!disposed) timer = setTimeout(refresh, Math.min(120000, 15000 * 2 ** failures)); };
+    const schedule = () => { if (!disposed) timer = setTimeout(refresh, Math.min(120000, 30000 * 2 ** failures)); };
     const refresh = async () => {
       if (disposed) return;
       if (!lock.current && window.document.visibilityState !== 'hidden' && window.navigator.onLine !== false) {
@@ -116,6 +141,7 @@ function PortalWorkspace() {
     else if (command === 'actions/complete') setSuccess(`Đã kết thúc hoạt động của ${target}.`);
     else if (command.startsWith('requests/')) setSuccess(`Đã ${patch.status === 'approved' ? 'duyệt' : 'từ chối'} yêu cầu tham gia ${target}.`);
     else if (command.startsWith('offers/')) setSuccess(`Đã cập nhật ưu đãi của ${target}.`);
+    else if (command === 'settings') setSuccess(`Đã cập nhật cài đặt ${target}.`);
     else if (command.startsWith('attendance/')) {
       const member = group.attendance?.find(item => item.userId === command.slice('attendance/'.length));
       const status = { present: 'có mặt', late: 'đến muộn', absent: 'vắng mặt', unmarked: 'chưa điểm danh' }[patch.status];
@@ -133,21 +159,21 @@ function PortalWorkspace() {
   });
   const alerts = refreshError && <div role="status" className="gm-live-muted">{t(refreshError)}</div>;
   if (getSession() && !me) return <div className="gomate-portal gm-connected"><main className="gm-session-loading"><Logo />
-    {error ? <><p role="alert" className="gm-form-error">{t(error)}</p><PillButton disabled={busy} onClick={() => void run('làm mới dữ liệu không gian làm việc', async () => { await load(); setSuccess('Đã làm mới dữ liệu không gian làm việc.'); })}>{t(busy ? 'Đang tải...' : 'Thử lại')}</PillButton><PillButton variant="secondary" disabled={busy} onClick={() => void run('đăng xuất tài khoản', async () => { await logout(); setMe(null); setSuccess('Đã đăng xuất tài khoản.'); })}>{t('Đăng xuất')}</PillButton></> : <p role="status">{t('Đang tải không gian làm việc…')}</p>}
+    {error ? <><p role="alert" className="gm-form-error">{t(error)}</p><PillButton disabled={busy} onClick={() => void run('làm mới dữ liệu không gian làm việc', async () => { setRefreshVersion(value => value + 1); await load(true); setSuccess('Đã làm mới dữ liệu không gian làm việc.'); })}>{t(busy ? 'Đang tải...' : 'Thử lại')}</PillButton><PillButton variant="secondary" disabled={busy} onClick={() => void run('đăng xuất tài khoản', async () => { await logout(); setMe(null); setSuccess('Đã đăng xuất tài khoản.'); })}>{t('Đăng xuất')}</PillButton></> : <p role="status">{t('Đang tải không gian làm việc…')}</p>}
   </main></div>;
   if (!getSession() || !me || getSession()?.user.emailVerified === false) return <PortalAuth onAuthenticated={load} initialError={error} />;
   const business = me.role === 'business', employee = me.role === 'business-staff', reviewing = me.role === 'admin';
   const navigation = business ? [['wallet', 'Ví & đối soát', 'wallet'], ['create-post', 'Create Post', 'activity'], ['active-groups', 'Active Groups', 'activity'], ['locations', 'Location Library', 'grid'], ['business-staff', 'Business Staff', 'users'], ['posts', 'Bài đăng của tôi', 'activity']] : employee ? [['active-groups','Nhóm được phân công','activity']] : reviewing ? [['overview', 'Tổng quan', 'grid'], ['businesses', 'Hồ sơ doanh nghiệp', 'shield'], ['posts', 'Duyệt bài đăng', 'edit'], ...(me.role === 'admin' ? [['users', 'Tài khoản', 'users'], ['reports', 'Báo cáo', 'shield'], ['tickets', 'Hỗ trợ', 'edit']] : [])] : [['overview', 'Xác minh doanh nghiệp', 'shield']];
-  return <div className="gomate-portal gm-connected"><div className="gm-dashboard"><aside className="gm-sidebar"><div className="gm-sidebar-brand"><Logo /></div><div className="gm-sidebar-role">{t(business ? 'Doanh nghiệp' : employee ? 'Nhân sự doanh nghiệp' : reviewing ? 'Quản trị GoMate' : 'Đăng ký đối tác')}</div><nav className="gm-sidebar-nav">{navigation.map(([id, label, icon]) => <button key={id} type="button" onClick={() => setSection(id)} className={`gm-nav-item ${section === id ? 'is-active' : ''}`}><Icon name={icon} />{t(label)}</button>)}</nav><div className="gm-sidebar-bottom"><a href="/" className="gm-nav-item">{t("Mở app GoMate ↗")}</a><button className="gm-nav-item" onClick={() => void run('đăng xuất tài khoản', async () => { await logout(); setMe(null); setSuccess('Đã đăng xuất tài khoản.'); })}><Icon name="logout" />{t("Đăng xuất")}</button></div></aside><main className="gm-main"><header className="gm-topbar"><Logo compact /><div><strong>{t(me.application?.company || me.name)}</strong><p className="gm-live-muted">{t(business ? 'Doanh nghiệp đã xác minh' : employee ? 'Nhân sự doanh nghiệp' : me.role)}</p></div><PortalHeaderActions busy={busy} onRefresh={()=>void run('làm mới dữ liệu không gian làm việc', async () => { await load(); setSuccess('Đã làm mới dữ liệu không gian làm việc.'); })} notifications={notices} /></header><div className="gm-page-content"><div className="gm-page-intro"><div><span className="gm-eyebrow">{t("GOMATE WORKSPACE")}</span><h2>{t(navigation.find(([id]) => id === section)?.[1] || 'Tổng quan')}</h2><p>{t(business ? 'Sự kiện thật, ưu đãi rõ ràng, kết nối cộng đồng.' : reviewing ? 'Kiểm tra hồ sơ và sự kiện trước khi hiển thị trên app.' : employee ? 'Quản lý các nhóm được doanh nghiệp phân công.' : 'Xác minh để trở thành đơn vị tổ chức trên GoMate.')}</p></div></div>{t(alerts)}
+  return <div className="gomate-portal gm-connected"><div className="gm-dashboard"><aside className="gm-sidebar"><div className="gm-sidebar-brand"><Logo /></div><div className="gm-sidebar-role">{t(business ? 'Doanh nghiệp' : employee ? 'Nhân sự doanh nghiệp' : reviewing ? 'Quản trị GoMate' : 'Đăng ký đối tác')}</div><nav className="gm-sidebar-nav">{navigation.map(([id, label, icon]) => <button key={id} type="button" onClick={() => setSection(id)} className={`gm-nav-item ${section === id ? 'is-active' : ''}`}><Icon name={icon} />{t(label)}</button>)}</nav><div className="gm-sidebar-bottom"><a href="/" className="gm-nav-item">{t("Mở app GoMate ↗")}</a><button className="gm-nav-item" onClick={() => void run('đăng xuất tài khoản', async () => { await logout(); setMe(null); setSuccess('Đã đăng xuất tài khoản.'); })}><Icon name="logout" />{t("Đăng xuất")}</button></div></aside><main className="gm-main"><header className="gm-topbar"><Logo compact /><div><strong>{t(me.application?.company || me.name)}</strong><p className="gm-live-muted">{t(business ? 'Doanh nghiệp đã xác minh' : employee ? 'Nhân sự doanh nghiệp' : me.role)}</p></div><PortalHeaderActions busy={busy} onRefresh={()=>void run('làm mới dữ liệu không gian làm việc', async () => { setRefreshVersion(value => value + 1); await load(true); setSuccess('Đã làm mới dữ liệu không gian làm việc.'); })} notifications={notices} /></header><div className="gm-page-content"><div className="gm-page-intro"><div><span className="gm-eyebrow">{t("GOMATE WORKSPACE")}</span><h2>{t(navigation.find(([id]) => id === section)?.[1] || 'Tổng quan')}</h2></div></div>{t(alerts)}
     {section === 'overview' && (business || reviewing) && <div className="gm-metric-grid">{(business ? [['Bài đăng', data.metrics.posts || 0, 'edit'], ['Chờ duyệt', data.metrics.pendingPosts || 0, 'shield'], ['Đã duyệt', data.metrics.approvedPosts || 0, 'check']] : [['Hồ sơ chờ duyệt', data.metrics.pendingBusinesses || 0, 'users'], ['Bài chờ duyệt', data.metrics.pendingPosts || 0, 'edit'], ['Tài khoản', data.metrics.users || 0, 'users']]).map(([label, value, icon]) => <MetricCard key={label} label={t(label)} value={value} icon={icon} tone="purple" />)}</div>}
     {!business && !reviewing && !employee && <BusinessVerificationForm application={application} setApplication={setApplication} document={document} setDocument={setDocument} supplementalDocument={supplementalDocument} setSupplementalDocument={setSupplementalDocument} applicationDetails={applicationDetails} currentApplication={me.application} busy={busy} onSubmit={apply} />}
     {business && section === 'create-post' && <div className="gm-multi-post-page"><section className="gm-panel gm-live-panel gm-multi-post-panel"><div className="gm-panel-heading"><div><span className="gm-eyebrow">{t("BUSINESS CAMPAIGN")}</span><h3>{t("Create one post and multiple groups")}</h3></div><StatusPill tone="green">{t(locations.length)} {t(" saved locations")}</StatusPill></div><MultiGroupPostComposer locations={locations} onSaveLocation={createLocationInline} onPublish={publishMultiGroupPost} busy={busy} /></section><section className="gm-panel gm-live-panel gm-generated-groups-panel"><div className="gm-panel-heading"><div><span className="gm-eyebrow">{t("GROUPS")}</span><h3>{t("Generated groups")}</h3></div><span className="gm-group-count">{t(businessGroups.length)} {t(" total")}</span></div>{businessGroups.length ? businessGroups.map(group => <article className="gm-generated-group-preview-row" key={group.id}><span><strong>{group.name}</strong><small>{group.promotionalPostTitle} {t(" · ")}{t(group.meetingPoint || group.location)} {t(" · ")}{t(format(group.startsAt))}</small></span><StatusPill>{t(group.status === 'draft' ? 'Draft' : group.status)}</StatusPill></article>) : <p className="gm-live-muted">{t("Groups created from a post will appear here and can be assigned to Business Staff.")}</p>}</section></div>}
-    {business && section === 'wallet' && <BusinessWallet />}
-    {(business || employee) && section === 'active-groups' && <ActiveCampaignDashboard posts={data.posts} onLifecycle={business ? postLifecycle : undefined} groups={businessGroups} locations={locations} onAction={groupChange} onCommand={groupCommand} busy={busy} />}
+    {business && section === 'wallet' && <BusinessWallet refreshVersion={refreshVersion} />}
+    {(business || employee) && section === 'active-groups' && <ActiveCampaignDashboard canConfigure={business} posts={data.posts} onLifecycle={business ? postLifecycle : undefined} groups={businessGroups} locations={locations} onAction={groupChange} onCommand={groupCommand} busy={busy} />}
     {business && section === 'locations' && <LocationLibrary locations={locations} onSave={saveLocation} onDelete={deleteLocation} />}
     {business && section === 'business-staff' && <BusinessStaffManagement busy={busy} groups={businessGroups} accounts={businessStaff} onSave={saveBusinessStaff} onDelete={deleteBusinessStaff} />}
-    {reviewing && ['users', 'businesses', 'posts', 'reports', 'tickets'].includes(section) && <AdminManagement key={section} kind={section} me={me} onChanged={load} />}
+    {reviewing && ['users', 'businesses', 'posts', 'reports', 'tickets'].includes(section) && <AdminManagement refreshVersion={refreshVersion} key={section} kind={section} me={me} onChanged={load} />}
     {me.role === 'admin' && ['overview', 'businesses'].includes(section) && <AdminBusinessReview applications={data.applications} busy={busy} notes={notes} setNotes={setNotes} onApplicationDecision={(row, status) => decide('applications', row, status)} onDownload={download} />}
-    {(business || reviewing) && ['overview', 'posts'].includes(section) && <section className="gm-panel gm-live-panel"><h3>{t(business ? 'Bài đăng của tôi' : 'Duyệt bài đăng')}</h3>{!data.posts.length && <p>{t("Chưa có bài đăng.")}</p>}{data.posts.map(row => <article className="gm-live-review" key={row.id}><div className="gm-live-review-title"><h4>{row.title}</h4><StatusPill tone={tone(row.status)}>{t(statusLabel[row.status])}</StatusPill></div><p>{row.businessName} {t(" · ")}{row.copy}</p>{row.event && <p>{t(format(row.event.startsAt))} {t(" → ")}{t(format(row.event.endsAt))} {t(" · ")}{t(row.event.location)} {t(" · ")}{t(row.event.maxParticipants)} {t(" người")}</p>}<p>{t(row.discountPercent ? `Giảm ${row.discountPercent}% · ` : '')}{t(row.offer || row.discount)}{t(row.offerTerms ? ' · ' + row.offerTerms : '')}</p>{row.reviewNote && <p>{t("Ghi chú: ")}{row.reviewNote}</p>}{business && ['pending','rejected'].includes(row.status) && <div><PillButton disabled={busy} onClick={()=>void run(`gửi lại bài đăng “${row.title}” để duyệt`, async()=>{const {title,copy,badge,discount,border,premium,event,groups,discountPercent,offer,offerTerms}=row;await api('/portal/posts/'+row.id,{method:'PUT',body:JSON.stringify({title,copy,badge,discount,border,premium,event:eventPayload(event),groups:groups?.map(({name,locationId,depositAmount,event})=>({name,locationId,depositAmount,event:eventPayload(event)})),discountPercent,offer,offerTerms,version:row.version})});await load();setSuccess(`Đã gửi lại bài đăng “${row.title}” để admin duyệt.`);})}>Gửi lại duyệt</PillButton><PillButton variant="secondary" disabled={busy} onClick={()=>void run(`rút bài đăng “${row.title}” khỏi hàng đợi duyệt`, async()=>{await api('/portal/posts/'+row.id,{method:'DELETE',body:JSON.stringify({version:row.version})});await load();setSuccess(`Đã rút bài đăng “${row.title}” khỏi hàng đợi duyệt.`);})}>Rút bài</PillButton></div>}<PostLifecycleActions post={row} busy={busy} onAction={postLifecycle} />{row.groups?.map(group=><div className="gm-post-group-row" key={group.activityId}><p>{group.name} · {format(group.event.startsAt)}{row.status==='approved' && !group.state && <a href={'/#/app/home/activityDetail/'+group.activityId}> · Xem nhóm trong app ↗</a>}</p>{group.state && <StatusPill>{group.state === 'deleted' ? 'Đã xóa nhóm' : 'Đã thu hồi nhóm'}</StatusPill>}<PostLifecycleActions post={row} group={group} busy={busy} onAction={postLifecycle} /></div>)}{row.activityId && row.status === 'approved' && <a href={`/#/app/home/activityDetail/${row.activityId}`}>{t("Xem sự kiện trong app ↗")}</a>}{reviewing && row.status === 'pending' && <><input aria-label={t('Ghi chú bài ' + row.title)} className={fieldStyle} placeholder={t("Ghi chú kiểm duyệt")} value={notes[row.id] || ''} onChange={event => setNotes(value => ({ ...value, [row.id]: event.target.value }))} /><div className="gm-live-actions"><PillButton disabled={busy} onClick={() => decide('posts', row, 'approved')}>{t("Duyệt và đưa lên app")}</PillButton><PillButton disabled={busy} variant="secondary" onClick={() => decide('posts', row, 'rejected')}>{t("Từ chối bài")}</PillButton></div></>}</article>)}</section>}
+    {(business || reviewing) && ['overview', 'posts'].includes(section) && <section className="gm-panel gm-live-panel"><h3>{t(business ? 'Bài đăng của tôi' : 'Duyệt bài đăng')}</h3>{!data.posts.length && <p>{t("Chưa có bài đăng.")}</p>}{data.posts.map(row => <article className="gm-live-review" key={row.id}><div className="gm-live-review-title"><h4>{row.title}</h4><StatusPill tone={tone(row.status)}>{t(statusLabel[row.status])}</StatusPill></div><p>{row.businessName} {t(" · ")}{row.copy}</p>{row.event && <p>{t(format(row.event.startsAt))} {t(" → ")}{t(format(row.event.endsAt))} {t(" · ")}{t(row.event.location)} {t(" · ")}{t(row.event.maxParticipants)} {t(" người")}</p>}<p>{t(row.discountPercent ? `Giảm ${row.discountPercent}% · ` : '')}{t(row.offer || row.discount)}{t(row.offerTerms ? ' · ' + row.offerTerms : '')}</p>{row.reviewNote && <p>{t("Ghi chú: ")}{row.reviewNote}</p>}{business && ['pending','rejected'].includes(row.status) && <div><PillButton disabled={busy} onClick={()=>void run(`gửi lại bài đăng “${row.title}” để duyệt`, async()=>{const {title,copy,badge,discount,border,premium,event,groups,discountPercent,offer,offerTerms}=row;await api('/portal/posts/'+row.id,{method:'PUT',body:JSON.stringify({title,copy,badge,discount,border,premium,event:eventPayload(event),groups:groups?.map(({name,locationId,depositAmount,event})=>({name,locationId,depositAmount,event:eventPayload(event)})),discountPercent,offer,offerTerms,version:row.version})});await load();setSuccess(`Đã gửi lại bài đăng “${row.title}” để admin duyệt.`);})}>Gửi lại duyệt</PillButton><PillButton variant="secondary" disabled={busy} onClick={()=>void run(`rút bài đăng “${row.title}” khỏi hàng đợi duyệt`, async()=>{await api('/portal/posts/'+row.id,{method:'DELETE',body:JSON.stringify({version:row.version})});await load();setSuccess(`Đã rút bài đăng “${row.title}” khỏi hàng đợi duyệt.`);})}>Rút bài</PillButton></div>}{business && <BusinessPostEditor post={row} busy={busy} onSave={(post, value) => run('cập nhật bài đăng', async () => { await api('/portal/posts/'+post.id+'/details', { method: 'PATCH', body: JSON.stringify(value) }); await load(); setSuccess('Đã lưu bài đăng.'); })} />}<PostLifecycleActions post={row} busy={busy} onAction={postLifecycle} />{row.groups?.map(group=><div className="gm-post-group-row" key={group.activityId}><p>{group.name} · {format(group.event.startsAt)}{row.status==='approved' && !group.state && <a href={'/#/app/home/activityDetail/'+group.activityId}> · Xem nhóm trong app ↗</a>}</p>{group.state && <StatusPill>{group.state === 'deleted' ? 'Đã xóa nhóm' : 'Đã thu hồi nhóm'}</StatusPill>}<PostLifecycleActions post={row} group={group} busy={busy} onAction={postLifecycle} /></div>)}{row.activityId && row.status === 'approved' && <a href={`/#/app/home/activityDetail/${row.activityId}`}>{t("Xem sự kiện trong app ↗")}</a>}{reviewing && row.status === 'pending' && <><input aria-label={t('Ghi chú bài ' + row.title)} className={fieldStyle} placeholder={t("Ghi chú kiểm duyệt")} value={notes[row.id] || ''} onChange={event => setNotes(value => ({ ...value, [row.id]: event.target.value }))} /><div className="gm-live-actions"><PillButton disabled={busy} onClick={() => decide('posts', row, 'approved')}>{t("Duyệt và đưa lên app")}</PillButton><PillButton disabled={busy} variant="secondary" onClick={() => decide('posts', row, 'rejected')}>{t("Từ chối bài")}</PillButton></div></>}</article>)}</section>}
   </div></main></div></div>;
 }

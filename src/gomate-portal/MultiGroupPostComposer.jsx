@@ -1,6 +1,7 @@
 import { usePortalText } from './usePortalText';
 import { useRef, useState } from 'react';
 import { Icon, PillButton } from './GoMatePortal';
+import FormExcelTools from './FormExcelTools';
 
 const fieldStyle = 'gm-simple-input';
 const sharedFields = ['category','locationId','location','meetingPoint','city','startsAt','endsAt','estimatedCost','depositAmount'];
@@ -93,10 +94,16 @@ export default function MultiGroupPostComposer({ locations, onPublish, onSaveLoc
 
   return (
     <form className="gm-auth-form gm-multi-post-form" onSubmit={submit}>
+      <FormExcelTools kind="post" disabled={busy} onImport={data => {
+        setPromo(data.promo); setGroups(data.groups); setShared(false);
+        setTotalParticipants(data.groups.reduce((sum, group) => sum + group.maxParticipants, 0));
+        setSplitCount(data.groups.length); nextGroupNumber.current = data.groups.length;
+        setFormError(''); setSplitNotice('');
+      }} />
       <section className="gm-promo-section">
         <div className="gm-business-section-heading">
           <span className="gm-business-step">01</span>
-          <div><h4>{t("Main promotional post")}</h4><p>{t("One offer and description shared across every group.")}</p></div>
+          <div><h4>{t("Main promotional post")}</h4></div>
         </div>
         <Field label={t("Post title")}><input className={fieldStyle} required minLength={3} maxLength={120} value={promo.title} onChange={patchPromo('title')} placeholder={t("e.g. Luma Weekend Social")} /></Field>
         <Field label={t("Post description")}><textarea className={fieldStyle + ' gm-textarea'} required maxLength={3000} value={promo.copy} onChange={patchPromo('copy')} placeholder={t("Describe the promotion for your community.")} /></Field>
@@ -110,7 +117,7 @@ export default function MultiGroupPostComposer({ locations, onPublish, onSaveLoc
       <section className="gm-generated-groups-section"><label className="gm-shared-toggle"><input type="checkbox" checked={shared} onChange={event => {setShared(event.target.checked); if(event.target.checked) setGroups(current=>current.map(row=>({...row,...Object.fromEntries(sharedFields.map(key=>[key,current[0][key]]))})));}} />Dùng chung lịch, địa điểm và chi phí cho các nhóm</label>
         <div className="gm-business-section-heading gm-groups-heading">
           <span className="gm-business-step">02</span>
-          <div><h4>{t("Groups generated from this post")}</h4><p>{t("Tách tổng số người tham gia thành nhiều nhóm chat độc lập để phân công Staff quản lý.")}</p></div>
+          <div><h4>{t("Groups generated from this post")}</h4></div>
           <span className="gm-group-count">{t(groups.length)} {t(" groups")}</span>
         </div>
         <div className="gm-panel" style={{ padding: 14, marginBottom: 14, background: '#f7f6fd', borderRadius: 14 }}>
@@ -156,8 +163,8 @@ export default function MultiGroupPostComposer({ locations, onPublish, onSaveLoc
       </section>
 
       <div className="gm-multi-post-footer">
-        <div><strong>{t("One post · ")}{t(groups.length)} {t(" groups")}</strong><span>{t("Each group has its own schedule, location, capacity, and deposit.")}</span></div>
-        <PillButton type="submit" disabled={busy}>{t(busy ? 'Creating groups...' : `Create post and ${groups.length} groups`)}</PillButton>
+        <div><strong>{t("One post · ")}{t(groups.length)} {t(" groups")}</strong></div>
+        <PillButton type="submit" disabled={busy}>{t(busy ? 'Đang tạo...' : 'Tạo bài đăng')}</PillButton>
       </div>
     </form>
   );

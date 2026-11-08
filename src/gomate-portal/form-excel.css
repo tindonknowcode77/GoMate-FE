@@ -1,0 +1,68 @@
+.gm-excel-tools {
+  grid-column: 1 / -1;
+  min-width: 0;
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  border: 1px solid #e8e5ef;
+  border-radius: 10px;
+  background: #faf9fc;
+}
+.gm-excel-toolbar,
+.gm-excel-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.gm-excel-toolbar { justify-content: space-between; gap: 8px; }
+.gm-excel-label { color: #787286; font-size: 12px; font-weight: 600; }
+.gm-excel-actions { margin-left: auto; }
+.gm-excel-button,
+.gm-excel-demo > summary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 32px;
+  padding: 0 9px;
+  border: 1px solid #e0dbea;
+  border-radius: 7px;
+  background: #fff;
+  color: #594875;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.gm-excel-button:hover { background: #f0ebf8; }
+.gm-excel-button--primary { border-color: #7352ac; color: #fff; background: #7352ac; }
+.gm-excel-button--primary:hover { background: #624395; }
+.gm-excel-button:disabled { opacity: .5; cursor: wait; }
+.gm-excel-button:focus-visible,
+.gm-excel-demo > summary:focus-visible,
+.gm-excel-menu a:focus-visible { outline: 2px solid #9473cd; outline-offset: 2px; }
+.gm-excel-demo { position: relative; }
+.gm-excel-demo > summary { padding: 0 5px; border-color: transparent; background: transparent; list-style: none; }
+.gm-excel-demo > summary::-webkit-details-marker { display: none; }
+.gm-excel-demo[open] > summary { background: #eee9f5; }
+.gm-excel-menu {
+  position: absolute;
+  top: calc(100% + 5px);
+  right: 0;
+  z-index: 20;
+  min-width: 150px;
+  padding: 4px;
+  border: 1px solid #e8e5ef;
+  border-radius: 9px;
+  background: #fff;
+  box-shadow: 0 5px 20px #30204415;
+}
+.gm-excel-menu a { display: flex; align-items: center; gap: 8px; padding: 9px; border-radius: 5px; color: #594875; font-size: 12px; text-decoration: none; }
+.gm-excel-menu a:hover { background: #f3eff9; }
+.gm-excel-feedback { margin: 6px 0 0; color: #4b795b; font-size: 12px; overflow-wrap: anywhere; }
+.gm-excel-feedback--error { color: #b33e4e; }
+@media (max-width: 600px) {
+  .gm-excel-label { display: none; }
+  .gm-excel-actions { margin-left: 0; }
+}
