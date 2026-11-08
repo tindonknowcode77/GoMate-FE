@@ -1,19 +1,24 @@
 import BusinessGroupChat from './BusinessGroupChat';
-import PostLifecycleActions from './PostLifecycleActions';
 import { usePortalText } from './usePortalText';
 import { useMemo, useState } from 'react';
 import { Icon, PillButton, StatusPill } from './GoMatePortal';
+import BusinessGroupBrowser from './BusinessGroupBrowser';
+import GroupOverview, { GroupActionBar } from './GroupOverview';
+import GroupMembers from './GroupMembers';
+import GroupManagement, { GroupTabs } from './GroupManagement';
+import './business-groups.css';
 
 const fieldStyle = 'gm-simple-input';
 const pending = 'pending';
 
 function GroupSettings({ group, busy, onCommand }) {
   const [amount, setAmount] = useState(null);
-  return <section className="gm-panel gm-live-panel gm-group-settings">
-    <label className="gm-auto-approve"><input type="checkbox" role="switch" aria-label="Tự động duyệt thành viên" checked={Boolean(group.autoApproveMembers)} disabled={busy} onChange={event => void onCommand(group, 'settings', { autoApproveMembers: event.target.checked })} /><span>Tự động duyệt thành viên</span></label>
+  return <section className="gm-group-section gm-group-settings">
+    <div className="gm-group-section-heading"><h3>Cài đặt nhóm</h3></div>
+    <label className="gm-auto-approve"><span><strong>Tự động duyệt thành viên</strong><small>Chấp nhận yêu cầu mới khi nhóm còn chỗ.</small></span><input type="checkbox" role="switch" aria-label="Tự động duyệt thành viên" checked={Boolean(group.autoApproveMembers)} disabled={busy} onChange={event => void onCommand(group, 'settings', { autoApproveMembers: event.target.checked })} /></label>
     <form className="gm-deposit-setting" onSubmit={async event => { event.preventDefault(); if (await onCommand(group, 'settings', { depositAmount: Number(amount ?? group.depositAmount) })) setAmount(null); }}>
-      <label className="gm-field"><span>Tiền cọc / người (VND)</span><input className="gm-simple-input" type="number" min={0} max={group.estimatedCost} step={1} required value={amount ?? group.depositAmount} onChange={event => setAmount(event.target.value)} /></label>
-      <PillButton type="submit" variant="secondary" disabled={busy || amount === null}>Lưu mức cọc</PillButton>
+      <label className="gm-field"><span>Tiền cọc / người (VND)</span><input className="gm-simple-input" type="number" min={0} max={group.estimatedCost} step={1} required disabled={busy} value={amount ?? group.depositAmount} onChange={event => setAmount(event.target.value)} /></label>
+      <PillButton type="submit" variant="secondary" disabled={busy || amount === null || Number(amount) === group.depositAmount}>Lưu mức cọc</PillButton>
     </form>
   </section>;
 }
@@ -94,11 +99,14 @@ function normalizeGroup(group, locations) {
   };
 }
 
-export default function ActiveCampaignDashboard({ groups, locations, posts = [], onLifecycle, onGroupsChange, onAction, onCommand, canConfigure = false, busy = false }) {
+export default function ActiveCampaignDashboard(props) {
+  const groups = useMemo(() => props.groups.map(group => normalizeGroup(group, props.locations)), [props.groups, props.locations]);
+  return <BusinessGroupBrowser groups={groups}>{selected => <GroupDetails key={selected.id} {...props} selected={selected} />}</BusinessGroupBrowser>;
+}
+
+function GroupDetails({ groups, locations, selected, posts = [], onLifecycle, onGroupsChange, onAction, onCommand, onNavigateStaff, onOpenWallet, canConfigure = false, busy = false }) {
   const t = usePortalText();
-  const [selectedId, setSelectedId] = useState(groups[0]?.id || '');
-  const [activeTab, setActiveTab] = useState('chat');
-  const [search, setSearch] = useState(''), [statusFilter, setStatusFilter] = useState('active');
+  const [activeTab, setActiveTab] = useState('overview');
   const [editingItemId, setEditingItemId] = useState('');
   const [itemForm, setItemForm] = useState({ time: '', title: '', locationId: '', notes: '' });
   const [offerForm, setOfferForm] = useState({ title: '', body: '', expiresAt: '' });
@@ -106,11 +114,7 @@ export default function ActiveCampaignDashboard({ groups, locations, posts = [],
   const [editingOfferId,setEditingOfferId]=useState('');
   const editable = selectedStatus => ['published','in-progress'].includes(selectedStatus);
 
-  const safeGroups = useMemo(() => groups.map(group => normalizeGroup(group, locations)), [groups, locations]);
-  const selected = safeGroups.find(group => group.id === selectedId) || safeGroups[0];
-
   const lifecyclePost=posts.find(post=>post.id===selected?.promotionalPostId);
-  const filteredGroups=safeGroups.filter(group=>(statusFilter==='all' || statusFilter==='active' ? statusFilter==='all' || ['published','in-progress'].includes(group.status) : group.status===statusFilter) && (group.name+' '+group.campaignTitle+' '+group.location).toLocaleLowerCase().includes(search.toLocaleLowerCase()));
   const groupLocations=locations.filter(location=>!selected?.ownerId || location.ownerId===selected.ownerId);
   const updateGroup = patch => {
     if (!selected) return;
@@ -162,33 +166,14 @@ export default function ActiveCampaignDashboard({ groups, locations, posts = [],
   if (!selected) return <section className="gm-panel gm-live-panel gm-active-empty"><Icon name="activity" size={26} /><h3>{t("No active groups yet")}</h3><p>{t("Create a promotional post with groups first. Active campaign controls will appear here.")}</p></section>;
 
   return (
-    <div className="gm-active-dashboard">
-      <div className="gm-active-header">
-        <div><span className="gm-eyebrow">{t("BUSINESS OPERATIONS")}</span><h3>{t("Active Campaign / Group Dashboard")}</h3></div>
-        <div className="gm-active-header-stats"><span><strong>{t(safeGroups.length)}</strong> {t(" active groups")}</span><span><strong>{t(safeGroups.reduce((sum, group) => sum + group.depositMembers.length, 0))}</strong> {t(" members")}</span></div>
-      </div>
-
-<div className="gm-group-browser"><div className="gm-group-browser-filters"><input className={fieldStyle} aria-label="Tìm nhóm" placeholder="Tìm theo bài đăng, tên nhóm, địa điểm…" value={search} onChange={event=>setSearch(event.target.value)} /><select className={fieldStyle} aria-label="Lọc trạng thái nhóm" value={statusFilter} onChange={event=>setStatusFilter(event.target.value)}><option value="active">Đang hoạt động</option><option value="all">Tất cả nhóm</option><option value="completed">Đã hoàn tất</option><option value="cancelled">Đã thu hồi / Hủy</option><option value="expired">Đã hết hạn</option></select></div><div className="gm-group-tiles">{filteredGroups.map(group=><button type="button" className={'gm-group-tile '+(selected.id===group.id?'is-selected':'')} key={group.id} onClick={()=>{setSelectedId(group.id);setEditingItemId('');}}><span>{group.campaignTitle}</span><strong>{group.name}</strong><small>{new Date(group.startsAt).toLocaleString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh'})}</small><small>{group.location}</small><span>{group.memberCount || 0}/{group.maxParticipants} người · {group.requests?.length || 0} yêu cầu mới</span></button>)}</div>{!filteredGroups.length&&<p className="gm-live-muted">Không có nhóm phù hợp với bộ lọc.</p>}</div><div className="gm-active-selector-row">
-        <label className="gm-active-group-select"><span>{t("Manage group")}</span><select className={fieldStyle} value={selected.id} onChange={event => { setSelectedId(event.target.value); setEditingItemId(''); setOfferMessage('');setEditingOfferId('');setOfferForm({title:'',body:'',expiresAt:''}); }}><optgroup label={t(selected.campaignTitle)}>{safeGroups.map(group => <option key={group.id} value={group.id}>{group.name}</option>)}</optgroup></select></label>
-        <div className="gm-active-group-meta"><StatusPill tone="green">{t(selected.status === 'active' ? 'Active' : selected.status)}</StatusPill><span>{t(selected.meetingPoint || selected.location)}</span><span>{t(new Date(selected.startsAt).toLocaleDateString('vi-VN'))}</span></div>
-      </div>
-
-      {canConfigure && onCommand && selected.status === 'published' && <GroupSettings key={selected.id} group={selected} busy={busy} onCommand={onCommand} />}
-      {onCommand && <section className="gm-panel gm-live-panel gm-operation-summary"><h4>Điều hành nhóm</h4>{selected.requests?.map(request=><div className="gm-join-request" key={request.id}><strong>{request.name}</strong><PillButton disabled={busy} onClick={()=>onCommand(selected,'requests/'+request.id,{status:'approved'})}>Duyệt tham gia</PillButton><PillButton variant="secondary" disabled={busy} onClick={()=>onCommand(selected,'requests/'+request.id,{status:'rejected'})}>Từ chối tham gia</PillButton></div>)}{selected.status==='published' && <><div className="gm-live-actions">{!selected.itineraryConfirmed && <PillButton variant="secondary" disabled={busy || !selected.readiness?.ready} onClick={()=>onCommand(selected,'actions/confirm-schedule')}>Chốt lịch đi</PillButton>}<PillButton disabled={busy || !selected.readiness?.ready} onClick={()=>onCommand(selected,'actions/start')}>Bắt đầu hoạt động</PillButton></div></>}{['published','in-progress'].includes(selected.status) && selected.attendance?.length > 1 && <><h4>Điểm danh</h4>{selected.attendance?.map(member=><label className="gm-attendance-row" key={member.userId}>{member.name}<select aria-label={'Điểm danh '+member.name} value={member.status} disabled={busy} onChange={event=>onCommand(selected,'attendance/'+member.userId,{status:event.target.value})}><option value="unmarked">Chưa điểm danh</option><option value="present">Có mặt</option><option value="late">Đến muộn</option><option value="absent">Vắng mặt</option></select></label>)}</>}{selected.status==='in-progress' && <PillButton disabled={busy} onClick={()=>onCommand(selected,'actions/complete')}>Kết thúc hoạt động</PillButton>}{['completed','expired'].includes(selected.status) && <p>Nhóm đã đóng. Người được điểm danh có mặt/đến muộn có thể đánh giá trong app GoMate.</p>}</section>}
-      <div className="gm-active-kpis">
-        <div className="gm-active-kpi"><span className="gm-active-kpi-icon gm-active-kpi-icon--green"><Icon name="wallet" size={17} /></span><div><small>{t("Deposits collected")}</small><strong>{t(totalCollected.toLocaleString('vi-VN'))} {t(" VND")}</strong><span>{t(paidCount)}/{t(selected.depositMembers.length)} {t(" paid")}</span></div></div>
-        <div className="gm-active-kpi"><span className="gm-active-kpi-icon gm-active-kpi-icon--purple"><Icon name="users" size={17} /></span><div><small>{t("Group members")}</small><strong>{t(selected.memberCount ?? selected.depositMembers.length)}/{t(selected.maxParticipants)}</strong><span>{t(selected.maxParticipants - (selected.memberCount ?? selected.depositMembers.length))} {t(" seats available")}</span></div></div>
-        <div className="gm-active-kpi"><span className="gm-active-kpi-icon gm-active-kpi-icon--orange"><Icon name="shield" size={17} /></span><div><small>{t("Schedule readiness")}</small><strong>{t(selected.readiness?.ready ? 'Ready to finalize' : allDepositsPaid ? 'Chờ thành viên' : 'Awaiting deposits')}</strong><span>{t(allDepositsPaid ? 'All members confirmed' : `${selected.depositMembers.length - paidCount} payment(s) pending`)}</span></div></div>
-      </div>
-
-      <div className="gm-active-tabs" role="tablist">
-        {[['chat','Chat nhóm'], ['participation','Tham gia'], ['manage','Quản lý'], ['deposits', 'Deposit tracking'], ['itinerary', 'Lịch trình'], ['offers', 'Offer & notifications']].map(([id, label]) => <button key={id} type="button" role="tab" aria-selected={activeTab === id} className={activeTab === id ? 'is-active' : ''} onClick={() => setActiveTab(id)}>{t(label)}</button>)}
-      </div>
-
-      {lifecyclePost && onLifecycle && <PostLifecycleActions post={lifecyclePost} group={lifecyclePost.groups?.find(group=>group.activityId===selected.id) || {activityId:selected.id,name:selected.name}} onAction={onLifecycle} busy={busy} />}
+    <div className="gm-group-detail">
+      <GroupActionBar group={selected} busy={busy} onCommand={onCommand} onTab={setActiveTab} />
+      <GroupTabs group={selected} activeTab={activeTab} onTab={setActiveTab} />
+      <div className="gm-group-tab-content" role="tabpanel" id={'group-panel-' + selected.id} aria-labelledby={'group-tab-' + activeTab} tabIndex={0}>
+      {activeTab === 'overview' && <GroupOverview group={selected} onTab={setActiveTab} onOpenWallet={onOpenWallet} />}
       {activeTab === 'chat' && <BusinessGroupChat key={selected.id} group={selected} />}
-      {activeTab === 'participation' && <section className="gm-panel gm-live-panel"><h3>Thành viên đã tham gia</h3><p>{selected.requests?.length || 0} yêu cầu chờ duyệt · {selected.depositMembers.length} thành viên được duyệt</p>{selected.depositMembers.map(member=><p key={member.id}>{member.name}</p>)}</section>}
-      {activeTab === 'manage' && <section className="gm-panel gm-live-panel"><h3>Nhân sự quản lý nhóm</h3>{selected.managers?.map(manager=><p key={manager.userId}>{manager.name} · {manager.title}</p>)}</section>}
+      {activeTab === 'participation' && <GroupMembers group={selected} onCommand={onCommand} busy={busy} />}
+      {activeTab === 'manage' && <GroupManagement group={selected} busy={busy} onNavigateStaff={onNavigateStaff} lifecyclePost={lifecyclePost} onLifecycle={onLifecycle} settings={canConfigure && onCommand && selected.status === 'published' ? <GroupSettings key={selected.id} group={selected} busy={busy} onCommand={onCommand} /> : null} />}
       {activeTab === 'deposits' && <section className="gm-panel gm-live-panel gm-active-panel">
         <div className="gm-active-panel-heading"><div><span className="gm-eyebrow">{t("PAYMENT GATE")}</span><h3>{t("Deposit tracking")}</h3></div><span className={`gm-readiness-chip ${allDepositsPaid ? 'is-ready' : ''}`}><i />{t(allDepositsPaid ? 'Ready to finalize' : 'Schedule locked until paid')}</span></div>
         <div className="gm-deposit-progress"><div><span>{t("Payment progress")}</span><strong>{t(paidCount)} {t(" of ")}{t(selected.depositMembers.length)} {t(" paid")}</strong></div><div className="gm-progress-track"><span style={{ width: `${selected.depositMembers.length ? (paidCount / selected.depositMembers.length) * 100 : 0}%` }} /></div></div>
@@ -198,8 +183,8 @@ export default function ActiveCampaignDashboard({ groups, locations, posts = [],
 
       {activeTab === 'itinerary' && <section className="gm-panel gm-live-panel gm-active-panel">
         <div className="gm-active-panel-heading"><div><span className="gm-eyebrow">{t("TIMELINE BUILDER")}</span><h3>{t("Lịch trình")}</h3></div><PillButton icon="plus" disabled={busy || !editable(selected.status)} onClick={openAddItem}>{t("Add timeline item")}</PillButton></div>
-        {editingItemId === '__new__' && <form className="gm-itinerary-editor gm-itinerary-editor--new" onSubmit={saveItem}><ItineraryFields form={itemForm} setForm={setItemForm} locations={groupLocations} /><div className="gm-itinerary-editor-actions"><PillButton type="submit">{t("Add to timeline")}</PillButton><button type="button" className="gm-text-action" onClick={() => setEditingItemId('')}>{t("Cancel")}</button></div></form>}
-        <div className="gm-timeline">{selected.itinerary.map((item, index) => <article className="gm-timeline-item" key={item.id}><div className="gm-timeline-rail"><span>{t(item.time)}</span><i /></div><div className="gm-timeline-card">{editingItemId === item.id ? <form className="gm-itinerary-editor" onSubmit={saveItem}><ItineraryFields form={itemForm} setForm={setItemForm} locations={locations} /><div className="gm-itinerary-editor-actions"><PillButton type="submit">{t("Save item")}</PillButton><button type="button" className="gm-text-action" onClick={() => setEditingItemId('')}>{t("Cancel")}</button></div></form> : <><div className="gm-timeline-card-top"><div><h4>{item.title}</h4><span><Icon name="grid" size={12} />{t(item.location || 'Location not pinned')}</span></div><div className="gm-timeline-actions"><button type="button" className="gm-icon-btn" onClick={() => moveItem(index, -1)} disabled={index === 0} aria-label={t("Move timeline item up")}>{t("↑")}</button><button type="button" className="gm-icon-btn" onClick={() => moveItem(index, 1)} disabled={index === selected.itinerary.length - 1} aria-label={t("Move timeline item down")}>{t("↓")}</button><button type="button" className="gm-text-action" onClick={() => editItem(item)}>{t("Edit")}</button><button type="button" className="gm-text-action gm-delete-action" onClick={() => removeItem(item.id)} aria-label={t(`Remove ${item.title}`)}><Icon name="close" size={14} /></button></div></div><p>{t(item.notes || 'No notes added.')}</p></>}</div></article>)}</div>
+        {editingItemId === '__new__' && <form className="gm-itinerary-editor gm-itinerary-editor--new" onSubmit={saveItem}><ItineraryFields form={itemForm} setForm={setItemForm} locations={groupLocations} /><div className="gm-itinerary-editor-actions"><PillButton type="submit" disabled={busy || !editable(selected.status)}>{t("Add to timeline")}</PillButton><button type="button" className="gm-text-action" onClick={() => setEditingItemId('')}>{t("Cancel")}</button></div></form>}
+        <div className="gm-timeline">{selected.itinerary.map((item, index) => <article className="gm-timeline-item" key={item.id}><div className="gm-timeline-rail"><span>{t(item.time)}</span><i /></div><div className="gm-timeline-card">{editingItemId === item.id ? <form className="gm-itinerary-editor" onSubmit={saveItem}><ItineraryFields form={itemForm} setForm={setItemForm} locations={locations} /><div className="gm-itinerary-editor-actions"><PillButton type="submit" disabled={busy || !editable(selected.status)}>{t("Save item")}</PillButton><button type="button" className="gm-text-action" onClick={() => setEditingItemId('')}>{t("Cancel")}</button></div></form> : <><div className="gm-timeline-card-top"><div><h4>{item.title}</h4><span><Icon name="grid" size={12} />{t(item.location || 'Location not pinned')}</span></div><div className="gm-timeline-actions"><button type="button" className="gm-icon-btn" onClick={() => moveItem(index, -1)} disabled={busy || !editable(selected.status) || index === 0} aria-label={t("Move timeline item up")}>{t("↑")}</button><button type="button" className="gm-icon-btn" onClick={() => moveItem(index, 1)} disabled={busy || !editable(selected.status) || index === selected.itinerary.length - 1} aria-label={t("Move timeline item down")}>{t("↓")}</button><button type="button" className="gm-text-action" disabled={busy || !editable(selected.status)} onClick={() => editItem(item)}>{t("Edit")}</button><button type="button" className="gm-text-action gm-delete-action" disabled={busy || !editable(selected.status)} onClick={() => removeItem(item.id)} aria-label={t(`Remove ${item.title}`)}><Icon name="close" size={14} /></button></div></div><p>{t(item.notes || 'No notes added.')}</p></>}</div></article>)}</div>
         {!selected.itinerary.length && <p className="gm-location-empty">{t("No timeline items yet. Add the first step for this group.")}</p>}
       </section>}
 
@@ -207,6 +192,7 @@ export default function ActiveCampaignDashboard({ groups, locations, posts = [],
         <div className="gm-active-panel-heading"><div><span className="gm-eyebrow">{t("MEMBER COMMUNICATION")}</span><h3>{t("Special Offer notifications")}</h3></div><span className="gm-recipient-count"><Icon name="users" size={13} />{t(selected.depositMembers.length)} {t(" recipients")}</span></div>
         <div className="gm-offer-layout"><form className="gm-auth-form gm-offer-form" onSubmit={sendOffer}><Field label={t("Offer title")}><input className={fieldStyle} required maxLength={100} value={offerForm.title} onChange={event => setOfferForm(value => ({ ...value, title: event.target.value }))} placeholder={t("e.g. Free welcome drink")} /></Field><Field label={t("Message")}><textarea aria-label={t("Message")} className={fieldStyle + ' gm-textarea'} required maxLength={500} value={offerForm.body} onChange={event => setOfferForm(value => ({ ...value, body: event.target.value }))} placeholder={t("Tell group members about the special offer.")} /></Field><Field label={t("Expires on (optional)")}><input className={fieldStyle} type="datetime-local" value={offerForm.expiresAt} onChange={event => setOfferForm(value => ({ ...value, expiresAt: event.target.value }))} /></Field><PillButton type="submit" icon="bell" disabled={busy || !editable(selected.status)}>{t(editingOfferId ? 'Lưu thông báo ưu đãi' : 'Push special offer')}</PillButton>{offerMessage && <p className="gm-location-message" role="status">{t(offerMessage)}</p>}</form><div className="gm-offer-preview"><span className="gm-eyebrow">{t("NOTIFICATION PREVIEW")}</span><div className="gm-offer-preview-card"><span className="gm-offer-preview-icon"><Icon name="bell" size={16} /></span><div><strong>{t(offerForm.title || 'Your special offer')}</strong><p>{t(offerForm.body || 'Your offer message will appear here.')}</p>{offerForm.expiresAt && <small>{t("Expires ")}{t(new Date(offerForm.expiresAt).toLocaleString('vi-VN'))}</small>}</div></div><div className="gm-offer-history"><h4>{t("Recently sent")}</h4>{selected.notifications?.length ? [...selected.notifications].sort((a,b)=>new Date(b.sentAt)-new Date(a.sentAt)).slice(0, 10).map(notification => <div key={notification.id}><span><strong>{t(notification.title)}</strong><small>{t(notification.recipients)} {t(" recipients · ")}{t(formatPaymentDate(notification.sentAt))}</small></span><StatusPill tone="green">{t("Sent")}</StatusPill><button type="button" className="gm-text-action" disabled={busy || !editable(selected.status)} onClick={()=>{setEditingOfferId(notification.id);setOfferForm({title:notification.title,body:notification.body,expiresAt:notification.expiresAt?new Date(new Date(notification.expiresAt).getTime()-new Date(notification.expiresAt).getTimezoneOffset()*60000).toISOString().slice(0,16):''});setOfferMessage('');}}>Sửa ưu đãi</button></div>) : <p>{t("No special offers sent for this group.")}</p>}</div></div></div>
       </section>}
+      </div>
     </div>
   );
 }

@@ -35,7 +35,7 @@ function Button({ label, onPress, disabled = false }: { label: string; onPress: 
 
 function ActivityRow({ activity, onPress, children }: { activity: Activity; onPress: () => void; children?: React.ReactNode }) {
   return <View style={styles.card}><Pressable onPress={onPress} style={styles.row}>
-    <Image source={activity.image} style={styles.image} /><View style={styles.copy}><Text style={styles.title}>{activity.title}</Text><Text>{activity.time}</Text><Text>{activity.location}</Text>{activity.isBusinessManager && <Text>Phụ trách nhóm</Text>}<Text>Host: {activity.host} · {activity.members}</Text></View>
+    <Image source={activity.image} style={styles.image} /><View style={styles.copy}><Text style={styles.title}>{activity.title}</Text><Text>{activity.time}</Text><Text>{activity.location}</Text>{activity.isBusinessManager && <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 12 }}>Nhân sự quản lý · Được phân công</Text>}<Text>Host: {activity.host} · {activity.members}</Text></View>
   </Pressable>{children}</View>;
 }
 
@@ -94,12 +94,13 @@ export function MembersPanel({ activity, onLeft, onChanged }: { activity: Activi
         <View style={styles.copy}>
           <Text style={styles.title}>{member.name}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <Text>{member.role === 'host' ? (activity.organizerType === 'business' ? 'Doanh nghiệp tổ chức' : 'Host') : 'Thành viên'}</Text>
+            <Text>{member.role === 'host' ? (activity.organizerType === 'business' ? 'Doanh nghiệp tổ chức' : 'Host') : member.role === 'staff' ? `Nhân sự quản lý (Staff)${member.title ? ' · ' + member.title : ''}` : 'Thành viên'}</Text>
+            {member.role === 'staff' && <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, backgroundColor: colors.primarySoft }}><Text style={{ fontSize: 11, fontWeight: '700', color: colors.primary }}>Staff</Text></View>}
             {member.depositStatus && <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, backgroundColor: member.depositStatus === 'paid' ? colors.successSoft : colors.warningSoft }}><Text style={{ fontSize: 11, fontWeight: '700', color: member.depositStatus === 'paid' ? colors.successText : colors.warningText }}>{member.depositStatus === 'paid' ? 'Đã cọc' : 'Chưa cọc'}</Text></View>}
           </View>
         </View>
       </Pressable>
-      {canChange && isHost && member.role !== 'host' && <Pressable accessibilityRole="button" accessibilityLabel={`Xóa ${member.name}`} disabled={action.busy} onPress={() => setTarget(member.userId)} style={{ minHeight: 44, minWidth: 44, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: colors.danger, fontSize: 13 }}>Xóa</Text></Pressable>}
+      {canChange && isHost && member.role === 'member' && <Pressable accessibilityRole="button" accessibilityLabel={`Xóa ${member.name}`} disabled={action.busy} onPress={() => setTarget(member.userId)} style={{ minHeight: 44, minWidth: 44, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: colors.danger, fontSize: 13 }}>Xóa</Text></Pressable>}
     </View>)}
     {canChange && !isHost && !activity.isBusinessManager && !remote.loading && !remote.error && <Button disabled={action.busy} label="Rời nhóm" onPress={() => setTarget('me')} />}
     {target && <View style={styles.card}><Text>{target === 'me' ? 'Bạn muốn rời nhóm?' : `Xóa ${remote.data.find(member => member.userId === target)?.name || 'thành viên'} khỏi nhóm?`}</Text><View style={styles.tabs}>

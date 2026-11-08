@@ -53,7 +53,7 @@ function mockLogin({ email, password, role }) {
 }
 
 function Icon({ name, size = 18 }) {
-  const names = { refresh:'refresh-outline', settings:'settings-outline', chat:'chatbubbles-outline', trash:'trash-outline', grid: 'grid-outline', edit: 'create-outline', activity: 'calendar-outline', wallet: 'wallet-outline', users: 'people-outline', shield: 'shield-checkmark-outline', life: 'help-circle-outline', bell: 'notifications-outline', search: 'search-outline', arrow: 'arrow-forward', plus: 'add', check: 'checkmark', close: 'close', upload: 'cloud-upload-outline', dots: 'ellipsis-horizontal', logout: 'log-out-outline', external: 'open-outline', business: 'business-outline', play: 'play-circle-outline', download: 'download-outline' };
+  const names = { archive:'archive-outline', refresh:'refresh-outline', settings:'settings-outline', chat:'chatbubbles-outline', trash:'trash-outline', grid: 'grid-outline', edit: 'create-outline', activity: 'calendar-outline', wallet: 'wallet-outline', users: 'people-outline', shield: 'shield-checkmark-outline', life: 'help-circle-outline', bell: 'notifications-outline', search: 'search-outline', arrow: 'arrow-forward', plus: 'add', check: 'checkmark', close: 'close', upload: 'cloud-upload-outline', dots: 'ellipsis-horizontal', logout: 'log-out-outline', external: 'open-outline', business: 'business-outline', play: 'play-circle-outline', download: 'download-outline' };
   return <span className="gm-app-icon" aria-hidden="true"><Ionicons name={names[name] || 'grid-outline'} size={size} color="currentColor" /></span>;
 }
 

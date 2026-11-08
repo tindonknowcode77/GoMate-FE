@@ -37,16 +37,18 @@ export function MatchHubScreen({
   hostRequestCount,
 }: MatchHubScreenProps) {
   const counts = useRemote(getActivityCounts, { pending: 0, hostRequests: 0 });
+  const { profile } = useProfile();
+  const isStaff = Boolean(profile?.isStaff);
   const effectivePending = pendingCount ?? counts.data.pending;
   const effectiveHostRequests = hostRequestCount ?? counts.data.hostRequests;
   return (
     <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
       <View style={styles.page}>
         <MatchHubHeader onNotifications={onNotifications} onProfile={onProfile} />
-        <Text style={styles.title}>Match</Text>
+        <Text style={styles.title}>{isStaff ? 'Quản lý nhóm' : 'Match'}</Text>
 
-        <MatchHero onPress={onDiscover} />
-        <Pressable accessibilityRole="button" onPress={onFavorites} style={styles.profileAction}><Ionicons name="heart-outline" size={22} color={colors.primary} /><Text style={styles.profileActionText}>Hoạt động yêu thích</Text><Ionicons name="chevron-forward" size={18} color={colors.primary} /></Pressable>
+        {isStaff ? <View style={[styles.managementCard, { padding: 18, gap: 10, marginTop: 14 }]}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}><View style={styles.managementIcon}><Ionicons color={colors.primary} name="shield-checkmark-outline" size={22} /></View><Text style={styles.managementTitle}>Tài khoản Nhân sự doanh nghiệp (Staff)</Text></View><Text style={styles.managementSubtitle}>Tài khoản nhân sự chỉ dùng để quản lý các nhóm được phân công, không tham gia Match với hoạt động khác.</Text><Pressable accessibilityRole="button" onPress={onManage} style={[styles.profileAction, { marginTop: 4 }]}><Ionicons name="options-outline" size={20} color={colors.primary} /><Text style={styles.profileActionText}>Mở nhóm được phân công</Text><Ionicons name="chevron-forward" size={18} color={colors.primary} /></Pressable></View> : <MatchHero onPress={onDiscover} />}
+        {!isStaff && <Pressable accessibilityRole="button" onPress={onFavorites} style={styles.profileAction}><Ionicons name="heart-outline" size={22} color={colors.primary} /><Text style={styles.profileActionText}>Hoạt động yêu thích</Text><Ionicons name="chevron-forward" size={18} color={colors.primary} /></Pressable>}
 
         <Text style={styles.sectionTitle}>Hoạt động của bạn</Text>
         <View style={styles.managementCard}>
@@ -63,7 +65,7 @@ export function MatchHubScreen({
             icon="people-outline"
             onPress={onManage}
             subtitle={effectiveHostRequests > 0 ? 'Yêu cầu mới' : 'Không có yêu cầu'}
-            title="Tôi tổ chức"
+            title={isStaff ? 'Nhóm tôi quản lý (Staff)' : 'Tôi tổ chức'}
           />
         </View>
 

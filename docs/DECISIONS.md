@@ -1,5 +1,21 @@
 # Decision log
 
+## 2026-11-09 - Focus business group operations on one selected group
+
+Use a persistent searchable group browser on desktop and a collapsed chooser on mobile. Filtered-out groups cannot retain editable details; selecting another group remounts its workspace to isolate drafts. Keep an overview with status, counts, preparation checks, schedule preview and contextual next action, then separate Members, Chat, Itinerary, Deposits, Notices and Management tabs.
+
+Place approvals/attendance in Members, sensitive settings and destructive actions in Management, and confirm lifecycle start/finish explicitly. Existing backend authorization and financial settlement rules remain authoritative; group completion is not payout approval. Use scoped styles and existing icons/tokens rather than adding a UI dependency. Preserve keyboard access, tab semantics, visible focus and reduced-motion behavior.
+
+## 2026-11-09 - Verified escrow ledger and explicitly reviewed bank settlement
+
+Replace self-confirmed payments, simulated refunds and instant merchant payouts with verified incoming funds and a versioned, atomic per-activity ledger. A reported transfer or manually entered merchant receipt is not spendable money. Track real incoming, held funds, completed refunds, merchant transfers and realized fees separately; legacy records require reconciliation.
+
+Snapshot cancellation terms and original activity dates when creating a quote. Default to free full cancellation at least 24 hours ahead, manual review for late cancellation/no-show, and a minimum 48-hour hold after the latest original/current/actual end. Merchant completion alone cannot release money: independent participation confirmation or documented admin evidence override and settlement review are required. Pending disputes/refunds stop payout reservations; bank recipients are frozen per request.
+
+Payouts move through pending, approved, processing and completed. Lock before the admin leaves GoMate to execute a bank transfer, keep unknown bank results locked, and require bank proof plus explicit acknowledgment to record completion. Unlock a failed transfer only after documented confirmation that no money moved. Same-request retries must not create another payout, and a bank reference cannot fund or complete two different operations. Workers repair interrupted ledger/receipt synchronization.
+
+Consequences: the member wallet stores refund accounts and deposit claims, not unrestricted top-up balances. Refunds and payouts require manual banking until a real provider is integrated; the UI must never claim that an API approval moved money. See [the operational guide](../../GoMate-BE/docs/PAYMENT_FLOW.md).
+
 ## 2026-11-09 - Progressive workspace loading and owner-managed business updates
 
 Open the workspace shell after `/portal/me` succeeds, apply each resource independently and retain successful data when another request fails. Bound portal reads to eight seconds and a workspace refresh to twelve seconds, forward cancellation to the API client, cancel obsolete background work before user actions, and refresh the active admin table/wallet explicitly. Retry when connectivity returns; use a slower background polling cadence. Clear account-specific state on a session change. This improves weak-network behavior without presenting cached admin privileges or claiming full offline support.

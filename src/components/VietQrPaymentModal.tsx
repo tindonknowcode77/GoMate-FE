@@ -42,72 +42,83 @@ export function VietQrPaymentModal({
   const [loading, setLoading] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
-  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const aliveRef = useRef(true);
+  const requestVersion = useRef(0);
 
   // Initialize payment when modal opens
   useEffect(() => {
+    requestVersion.current++;
+    let active = true;
     aliveRef.current = true;
     if (!visible) {
-      if (pollingRef.current) clearInterval(pollingRef.current);
+      aliveRef.current = false;
       queueMicrotask(() => {
-        if (!aliveRef.current) return;
+        if (!active) return;
         setPayment(null);
         setError('');
+        setNotice('');
         setIsSuccess(false);
       });
-      return;
+      return () => { active = false; };
     }
 
     queueMicrotask(() => {
-      if (!aliveRef.current) return;
+      if (!active) return;
       setLoading(true);
+      setConfirming(false);
       setError('');
+      setNotice('');
+      setPayment(null);
+      setIsSuccess(false);
     });
     createQrPayment({ type, activityId, amount })
       .then((res) => {
-        if (!aliveRef.current) return;
+        if (!active) return;
         setPayment(res.payment);
-        if (res.payment.status === 'paid') {
+        if (res.payment.status === 'paid' && res.payment.verification && !res.payment.refundOnly) {
           setIsSuccess(true);
         }
       })
       .catch((err) => {
-        if (!aliveRef.current) return;
+        if (!active) return;
         setError(err.message || 'Không thể tạo mã QR thanh toán.');
       })
       .finally(() => {
-        if (aliveRef.current) setLoading(false);
+        if (active) setLoading(false);
       });
 
     return () => {
       aliveRef.current = false;
-      if (pollingRef.current) clearInterval(pollingRef.current);
+      active = false;
     };
   }, [visible, activityId, amount, type]);
 
-  // Start polling payment status every 3s
+  // Sequential polling avoids overlapping requests on weak networks.
   useEffect(() => {
-    if (!visible || !payment || isSuccess || payment.status === 'paid') return;
-
-    pollingRef.current = setInterval(async () => {
+    if (!visible || !payment || isSuccess) return;
+    let active = true;
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = async () => {
       try {
         const res = await getPaymentStatus(payment.id);
-        if (res.status === 'paid') {
-          if (pollingRef.current) clearInterval(pollingRef.current);
+        if (!active) return;
+        if (res.status === 'paid' && res.verified && !res.refundOnly) {
           setIsSuccess(true);
           onSuccess({ ...payment, status: 'paid', paidAt: res.paidAt });
+          return;
         }
+        if (res.refundOnly) { setError('Đã nhận tiền cần hoàn trả. Mở Ví của bạn để yêu cầu hoàn.'); return; }
+        if (['cancelled', 'expired', 'refunded'].includes(res.status)) { setError('Mã thanh toán đã đóng. Vui lòng kiểm tra trong Ví trước khi tạo mã mới.'); return; }
       } catch {
-        // Silently retry on next tick
+        if (active) setNotice('Chưa kết nối được để kiểm tra. Hệ thống sẽ thử lại; không chuyển tiền lần nữa.');
       }
-    }, 3000);
-
-    return () => {
-      if (pollingRef.current) clearInterval(pollingRef.current);
+      if (active) timer = setTimeout(poll, 5000);
     };
+    timer = setTimeout(poll, 3000);
+    return () => { active = false; clearTimeout(timer); };
   }, [visible, payment, isSuccess, onSuccess]);
 
   const handleCopy = useCallback(async (key: string, text: string) => {
@@ -120,16 +131,21 @@ export function VietQrPaymentModal({
 
   const handleManualConfirm = async () => {
     if (!payment || confirming) return;
+    const version = requestVersion.current;
     setConfirming(true);
     setError('');
     try {
       const res = await confirmPayment(payment.id);
-      setIsSuccess(true);
-      onSuccess(res.payment);
+      if (!aliveRef.current || version !== requestVersion.current) return;
+      if (res.payment.status === 'paid' && res.payment.verification && !res.payment.refundOnly) {
+        setIsSuccess(true);
+        onSuccess(res.payment);
+      } else setNotice(res.message || 'Đã báo chuyển khoản. Chờ đối soát tiền vào; không chuyển tiền lần nữa.');
     } catch (err) {
+      if (!aliveRef.current || version !== requestVersion.current) return;
       setError(err instanceof Error ? err.message : 'Xác nhận thất bại.');
     } finally {
-      setConfirming(false);
+      if (version === requestVersion.current) setConfirming(false);
     }
   };
 
@@ -145,7 +161,7 @@ export function VietQrPaymentModal({
               <Ionicons name="qr-code-outline" size={22} color={colors.primary} />
               <Text style={styles.dialogTitle}>Thanh toán VietQR</Text>
             </View>
-            <Pressable hitSlop={10} onPress={onClose} style={styles.closeBtn}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Đóng thanh toán" hitSlop={10} onPress={onClose} style={styles.closeBtn}>
               <Ionicons name="close" size={22} color={colors.textSecondary} />
             </Pressable>
           </View>
@@ -210,6 +226,7 @@ export function VietQrPaymentModal({
                     source={{ uri: payment.qrImageUrl }}
                     style={styles.qrImage}
                     resizeMode="contain"
+                    onError={() => setNotice('Không tải được ảnh QR. Bạn có thể chuyển khoản bằng thông tin bên dưới và giữ đúng nội dung chuyển khoản.')}
                   />
                   <View style={styles.qrBadge}>
                     <Text style={styles.qrBadgeText}>Quét bằng mọi App Ngân hàng / Ví điện tử</Text>
@@ -221,7 +238,7 @@ export function VietQrPaymentModal({
                   <View style={styles.infoRow}>
                     <Text style={styles.infoLabel}>Ngân hàng</Text>
                     <Text style={styles.infoValue}>
-                      {payment.bank.bankId} (Ngân hàng TMCP Đầu tư & Phát triển VN)
+                      {payment.bank.bankId}
                     </Text>
                   </View>
 
@@ -285,6 +302,8 @@ export function VietQrPaymentModal({
 
                 {/* Polling indicator & manual confirmation */}
                 <View style={styles.footerWrap}>
+                  <Text style={styles.statusLiveText}>Hủy trước lịch bắt đầu {payment.policy?.freeCancellationHours ?? 24} giờ: yêu cầu hoàn đủ cọc. Hủy muộn hoặc vắng mặt: admin xem xét. Tiền được giữ ít nhất {payment.policy?.settlementHoldHours ?? 48} giờ sau lịch kết thúc.</Text>
+                  {Boolean(notice) && <Text accessibilityRole="alert" style={styles.statusLiveText}>{notice}</Text>}
                   <View style={styles.statusLiveRow}>
                     <ActivityIndicator size="small" color={colors.primary} />
                     <Text style={styles.statusLiveText}>

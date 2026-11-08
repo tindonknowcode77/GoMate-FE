@@ -281,10 +281,11 @@ function MainAppContent({ onLogout }: { onLogout: () => void }) {
   if (route?.name === 'myReviews') return <MyReviewsScreen onBack={() => setRoute(null)} />;
   if (route?.name === 'wallet') return <UserWalletScreen onBack={() => setRoute(null)} />;
   if (route?.name === 'notifications') return <NotificationsScreen onBack={() => setRoute(null)} onOpen={async notice => {
-    if (notice.type.startsWith('business-')) { if (Platform.OS === 'web') window.location.assign('/portal'); else await Linking.openURL(apiBaseUrl.replace(/\/api\/?$/, '') + '/portal'); return; }
+    if (notice.activityId) { const [row, requests] = await Promise.all([getActivity(notice.activityId), listMyRequests()]); const member = requests.some(request => request.activityId === row.id && request.status === 'approved'); setRoute(row.hostId === getSession()?.user.id || Boolean(row.isBusinessManager) || member ? { name: 'group', activity: toActivity(row), source: 'myActivities', initialTab: notice.type === 'join-request' || /yêu cầu tham gia/i.test(notice.title) ? 'members' : Boolean(row.isBusinessManager) && /phân công|nhân sự/i.test(notice.title) ? 'manage' : 'chat' } : { name: 'activityDetail', activity: toActivity(row, requests.find(request => request.activityId === row.id)?.status), source: 'home' }); return; }
+    if (notice.type.startsWith('business-')) { if (userProfile.profile?.isStaff) { setRoute({ name: 'manage' }); return; } if (Platform.OS === 'web') window.location.assign('/portal'); else await Linking.openURL(apiBaseUrl.replace(/\/api\/?$/, '') + '/portal'); return; }
     if (notice.type === 'activity-invitation') { setRoute({ name: 'friends' }); return; }
     if (notice.conversationId) { setRoute({ name: 'chat', conversation: await getConversation(notice.conversationId) }); return; }
-    if (notice.activityId) { const [row, requests] = await Promise.all([getActivity(notice.activityId), listMyRequests()]); const member = requests.some(request => request.activityId === row.id && request.status === 'approved'); setRoute(row.hostId === getSession()?.user.id || Boolean(row.isBusinessManager) || member ? { name: 'group', activity: toActivity(row), source: 'myActivities', initialTab: notice.type === 'join-request' || /yêu cầu tham gia/i.test(notice.title) ? 'members' : 'chat' } : { name: 'activityDetail', activity: toActivity(row, requests.find(request => request.activityId === row.id)?.status), source: 'home' }); return; }
+
     setRoute({ name: 'friends' });
   }} />;
   if (route?.name === 'myActivities') return <MyActivitiesScreen onOpenPending={() => setRoute({ name: 'pending' })} onBack={() => setRoute(null)} onOpenGroup={(activity) => setRoute({ name: 'group', activity, source: 'myActivities' })} />;
@@ -316,12 +317,12 @@ function MainAppContent({ onLogout }: { onLogout: () => void }) {
         {activeTab === 'profile' && <UserProfileScreen onWallet={() => setRoute({ name: 'wallet' })} onFriends={() => setRoute({ name: 'friends' })} onPreview={() => setRoute({ name: 'ownProfilePreview' })} onVerification={() => setRoute({ name: 'verification' })} onReviews={() => setRoute({ name: 'myReviews' })} onEdit={() => setRoute({ name: 'editProfile' })} onMyActivities={() => setRoute({ name: 'myActivities' })} onNotifications={() => setRoute({ name: 'notifications' })} onSettings={() => setRoute({ name: 'settings' })} />}
       </View>
       <BottomNav activeTab={activeTab} onChange={(tab) => {
-        if (tab === 'create' && userProfile.profile && !isBasicProfileComplete(userProfile.profile)) {
+        if (tab === 'create' && !userProfile.profile?.isStaff && userProfile.profile && !isBasicProfileComplete(userProfile.profile)) {
           promptProfileCompletion(`Bạn cần bổ sung đủ thông tin cơ bản (${missingBasicProfileLabels(userProfile.profile).join(', ')}) trước khi tạo bài đăng hoạt động.`);
           return;
         }
         setActionError('');
-        const next: Navigation = { activeTab: tab, route: tab === 'match' ? { name: 'discover' } : null };
+        const next: Navigation = { activeTab: tab === 'create' && userProfile.profile?.isStaff ? 'match' : tab, route: tab === 'match' && !userProfile.profile?.isStaff ? { name: 'discover' } : tab === 'create' && userProfile.profile?.isStaff ? { name: 'manage' } : null };
         navRef.current = next;
         navigate(next);
       }} />

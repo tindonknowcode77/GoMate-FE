@@ -18,6 +18,7 @@
     "test:portal:registration": "node tests/portal-registration.web.cjs",
     "test:portal:documents": "node tests/verification-documents.web.cjs",
     "test:business:controls": "node tests/business-campaign-controls.web.cjs",
+    "test:business:groups": "node tests/business-groups.web.cjs",
     "test:admin:web": "node tests/admin-crud.web.cjs",
     "test:excel:web": "node tests/form-excel.web.cjs",
     "test:portal:reliability": "node tests/portal-reliability.web.cjs",

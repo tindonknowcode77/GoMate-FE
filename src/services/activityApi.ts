@@ -20,7 +20,7 @@ export type ActivityDto = {
   minParticipants?: number; participantPreferences?: ParticipantPreferences; meetingPoint?: string; registrationDeadline?: string | null;
 };
 export type JoinRequest = { id: string; userId: string; name: string; status: RequestStatus; activityId?: string; activity?: ActivityDto };
-export type Member = { userId: string; name: string; role: 'host' | 'member'; avatarUrl?: string | null; depositAmount?: number; depositStatus?: 'paid' | 'pending' | 'not-required' };
+export type Member = { userId: string; name: string; role: 'host' | 'staff' | 'member'; title?: string; avatarUrl?: string | null; depositAmount?: number; depositStatus?: 'paid' | 'pending' | 'not-required' };
 type Page<T> = { items: T[]; page: number; limit: number; total: number; hasMore: boolean };
 const idPath = (id: string) => `/activities/${encodeURIComponent(id)}`;
 
@@ -84,3 +84,18 @@ export type ActivityInvitation = { id: string; userId: string; name: string; sta
 export const listActivityInvitations = () => allPages<ActivityInvitation>('/activities/invitations');
 export const listSentActivityInvitations = async (activityId: string) => (await api<{ items: ActivityInvitation[] }>(`${idPath(activityId)}/invitations`)).items;
 export const decideActivityInvitation = async (activityId: string, invitationId: string, status: 'accepted' | 'declined') => (await api<{ activity: ActivityDto }>(`${idPath(activityId)}/invitations/${encodeURIComponent(invitationId)}`, { method: 'PATCH', body: JSON.stringify({ status }) })).activity;
+
+export type PortalGroupDetail = {
+  id: string; version: number; status: string; depositAmount: number;
+  depositMembers: { id: string; name: string; email?: string; amount: number; status: 'paid' | 'pending' | 'not-required'; paidAt?: string | null }[];
+  notifications: { id: string; title: string; body: string; expiresAt?: string; sentAt: string; recipients: number }[];
+  managers?: { userId: string; name: string; title?: string }[];
+  autoApproveMembers?: boolean;
+};
+export const getPortalGroup = (id: string) => api<PortalGroupDetail>(`/portal/groups/${encodeURIComponent(id)}`);
+export const recordPortalDeposit = (id: string, userId: string, version: number, status: 'paid' | 'pending') =>
+  api<PortalGroupDetail>(`/portal/groups/${encodeURIComponent(id)}/deposits/${encodeURIComponent(userId)}`, { method: 'PATCH', body: JSON.stringify({ version, status }) });
+export const sendPortalOffer = (id: string, body: { version: number; clientId?: string; title: string; body: string; expiresAt?: string }) =>
+  post<PortalGroupDetail>(`/portal/groups/${encodeURIComponent(id)}/offers`, body);
+export const updatePortalOffer = (id: string, offerId: string, body: { version: number; title: string; body: string; expiresAt?: string }) =>
+  api<PortalGroupDetail>(`/portal/groups/${encodeURIComponent(id)}/offers/${encodeURIComponent(offerId)}`, { method: 'PUT', body: JSON.stringify(body) });

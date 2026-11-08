@@ -1,5 +1,129 @@
 # Development log
 
+## 2026-11-09 - Replace the cramped business management link in app groups
+
+### Summary
+
+- Replace the underlined management link sharing a narrow banner row with a full-width `Quản lý doanh nghiệp` button, grid icon, forward arrow and pressed feedback.
+- Present the verified-business heading, offer and deposit as separate readable rows in a bordered card. Keep member payment/paid controls separate from manager navigation and retain existing role checks and `/portal` navigation.
+- Report native browser-opening errors and avoid rendering a raw numeric zero for absent deposits. Preserve the user's existing payment-loading cleanup.
+
+### Files changed
+
+- `src/screens/GroupScreen.tsx`.
+- `tests/business-workflow.web.cjs`: Update the management-button copy expected by the existing workflow.
+
+### Verification
+
+- `npm run typecheck`, `npm run lint`, `npm run build`: Passed; lint retains five existing unrelated warnings.
+- Ad hoc Chromium rendering against isolated Express/MongoDB: manager banner at 320px and 390px, `/portal` navigation, and member-only payment controls passed. Inspected screenshots; no squeezed text column or long underlined management link.
+- `npx expo-doctor`: 20/21 checks passed; existing five Expo patch-version mismatches remain.
+- `git diff --check`: Passed. Full business-registration workflow was not repeated for this focused presentation change.
+
+### Remaining work
+
+- No remaining work for this UI change. Native external-browser behavior was typechecked but not run on a physical device.
+
+## 2026-11-09 - Refine group withdrawal and deletion controls
+
+### Summary
+
+- Replace small lifecycle text links with outlined action buttons. Group Management separates withdrawal and deletion into clear rows with archive/trash icons, concise effects, amber withdrawal and red deletion styling.
+- Redesign confirmations with the selected group/post name, notification and deposit effects, neutral cancellation, and an action-colored confirmation. Add Escape dismissal, focus containment/restore, duplicate-submit locking and visible failures without closing the dialog.
+- Keep existing lifecycle APIs and confirmation labels; adapt shared post actions to the same button/dialog styling. Mobile action rows and confirmation footers fit narrow screens.
+- Reserve scroll space below group controls so the floating language selector cannot trap the final action beneath it on mobile.
+
+### Files changed
+
+- `src/gomate-portal/PostLifecycleActions.jsx`, `post-lifecycle.css`, `GroupManagement.jsx`, `GoMatePortal.jsx`.
+- `tests/business-campaign-controls.web.cjs` captures desktop/mobile controls and the mobile deletion dialog, and verifies Escape does not mutate the group.
+
+### Verification
+
+- `npm run typecheck`, `npm run lint`, explicit JSX ESLint, and `npm run build`: Passed. Standard lint retains five existing unrelated warnings.
+- `node tests/business-campaign-controls.web.cjs`: Passed for withdrawal, failed-request retention, cancellation, deletion, chat and responsive layout.
+- `npx expo-doctor`: 20/21 checks passed; the existing five Expo patch-version mismatches remain. No dependency changes were needed.
+- `git diff --check`: Passed.
+
+### Remaining work
+
+- None for these controls; existing Expo patch-version warnings remain.
+
+## 2026-11-09 - Redesign the business group management workspace
+
+### Summary
+
+- Replace the long stacked campaign screen with a searchable group browser and a focused details workspace. Use explicit lifecycle colors, contextual metrics, and a single next-step action; open on a practical overview instead of loading chat immediately.
+- Organize requests and attendance under Members, isolate chat/itinerary/deposits/notices, and keep automatic approval, deposit settings, personnel and withdrawal/deletion under Management. Add direct personnel and wallet navigation.
+- Collapse group selection into an accessible mobile switcher. Support keyboard tab navigation and confirmation dialogs for start/finish. Reset forms when switching groups, hide stale details on empty filters, and disable itinerary mutations for closed groups.
+- Preserve the API-backed operations and earlier finance changes. No new runtime dependency or backend change was needed.
+
+### Files changed
+
+- `src/gomate-portal/ActiveCampaignDashboard.jsx`, `BusinessGroupBrowser.jsx`, `GroupOverview.jsx`, `GroupMembers.jsx`, `GroupManagement.jsx`, `business-groups.css`, `ConnectedPortal.jsx`.
+- `tests/business-groups.web.cjs`, `tests/business-campaign-controls.web.cjs`, `tests/portal-reliability.web.cjs`, `package.json`, `docs/DECISIONS.md`.
+
+### Verification
+
+- `npm run typecheck`, `npm run lint`, explicit ESLint for all five group JSX modules, `npm run build`: Passed. Standard lint retains five existing unrelated warnings; group-module lint is clean.
+- `node tests/business-groups.web.cjs`: Passed against isolated Express/MongoDB and Chromium. Covers selection/search, requests, attendance, schedule confirmation, start/cancel/Escape/finish, cross-group draft isolation, closed-group controls and the mobile switcher.
+- `node tests/portal-reliability.web.cjs`: Passed, including filtered empty states, keyboard tabs, management-only settings, deposit/auto-approval changes, responsive layout and offline recovery.
+- `node tests/business-campaign-controls.web.cjs`: Passed on the updated navigation, including live owner/staff chat, attachments, withdrawal, admin deletion and wallet refresh.
+- Inspected desktop and mobile screenshots from the browser runs. No horizontal page overflow at 390px. `git diff --check`: Passed.
+- `npx expo-doctor`: 20/21 checks passed; the same five existing Expo packages remain one patch behind the SDK recommendations. Dependencies were not upgraded for this UI change.
+
+### Remaining work
+
+- None for the redesign. Existing Expo patch-version warnings remain; the preceding payment task's banking integration limitations still apply.
+
+## 2026-11-09 - Verified deposits, member refunds and admin-controlled settlement
+
+### Summary
+
+- Add the admin finance/revenue workspace for incoming reconciliation, activity evidence, refunds, merchant payouts, disputes and audit history. Show held funds separately from realized fee revenue and paid-out money.
+- Replace the member wallet with saved refund bank details, server-derived balances/history, cancellation/refund requests, independent participation confirmation and disputes. Replace merchant instant withdrawal with per-activity admin-reviewed payout requests and immutable recipient snapshots.
+- Make the QR confirmation button report-only; accept success only after verified incoming money. Use sequential polling on weak networks and retain a stable payout request key across a lost response.
+- Expose bank-transfer locking before manual execution, bank-proof completion, and explicit recovery only after the bank confirms no transfer occurred. Defaults: 24-hour free cancellation, at least 48-hour settlement hold, existing 10% fee recognized on actual payout completion.
+
+### Files changed
+
+- `src/gomate-portal/AdminFinance.jsx`, `finance.css`, `ConnectedPortal.jsx`, `BusinessWallet.jsx`.
+- `src/screens/UserWalletScreen.tsx`, `src/components/VietQrPaymentModal.tsx`, `src/services/paymentService.ts`, `tests/finance.web.cjs`, `docs/DECISIONS.md`.
+- Backend implementation and operational guide: `../GoMate-BE/docs/PAYMENT_FLOW.md`.
+
+### Verification
+
+- `npm run typecheck`, `npm run lint`, explicit ESLint for the two new/replaced finance JSX modules, and `npm run build`: Passed. Normal lint retains five unrelated existing warnings; explicit finance JSX lint is clean.
+- `node tests/finance.web.cjs`: Passed on isolated MongoDB and Chromium, including report-only QR, mobile bank/refund UI, admin reconciliation/refund/settlement/payout, merchant bank editing, lost-response payout retry and mobile viewport. No real bank transfer occurred.
+- `node tests/portal-reliability.web.cjs`, `node tests/business-campaign-controls.web.cjs`: Passed.
+- BE full regression: 164 tests passed; adverse finance suite covers 21 scenarios plus its parent test.
+- `npx expo-doctor`: 20/21 checks passed; dependency alignment reports five already installed Expo packages one patch behind the currently recommended versions. No dependency upgrade was included in this payment change.
+
+### Remaining work
+
+- Bank transfers are executed manually outside GoMate, then recorded by admin with their bank reference. Automatic incoming needs a configured trusted bank adapter/secret; no automatic payout provider or account-ownership verification is configured. See the backend operational guide for rollout and legacy reconciliation.
+
+## 2026-11-09 - Move group settings into the management tab
+
+### Summary
+
+- Show automatic member approval and deposit settings only inside the group's `Quản lý` tab, alongside manager information.
+
+### Files changed
+
+- `src/gomate-portal/ActiveCampaignDashboard.jsx`, `tests/portal-reliability.web.cjs`, `docs/DEVELOPMENT_LOG.md`.
+
+### Verification
+
+- Typecheck, lint, explicit JSX ESLint and web build: Passed; five existing lint warnings remain.
+- Portal reliability browser test: Passed, including settings hidden on the default group view, visible in management, and working approval/deposit updates.
+- Expo Doctor: 20/21 checks passed; same five existing dependency patch mismatches.
+- `git diff --check`: Passed.
+
+### Remaining work
+
+- Existing Expo patch mismatches and lint warnings remain.
+
 ## 2026-11-09 - Admin status colors, reliable refresh and editable business posts
 
 ### Summary

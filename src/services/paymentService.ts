@@ -19,6 +19,17 @@ export type Payment = {
   qrPayload: string;
   qrImageUrl: string;
   status: 'pending' | 'paid' | 'cancelled' | 'expired' | 'refunded';
+  receivedAmount?: number;
+  verification?: { source: string; transactionRef: string };
+  refundOnly?: boolean;
+  policy?: { freeCancellationHours: number; settlementHoldHours: number };
+  cancellationDeadline?: string | null;
+  financeState?: string | null;
+  refundAmount?: number;
+  refundPolicy?: 'full_refund' | 'manual_review';
+  refundRequest?: { id: string; status: string; amount: number; reviewNote?: string; transferRef?: string; bankAccount: BankAccount } | null;
+  participantConfirmation?: { status: string } | null;
+  canConfirmAttendance?: boolean;
   activityStatus?: string | null;
   refundEligible?: boolean;
   refundedAt?: string | null;
@@ -40,7 +51,11 @@ export type PaymentStatus = {
   status: 'pending' | 'paid' | 'cancelled' | 'expired' | 'refunded';
   amount: number;
   paidAt?: string | null;
+  verified?: boolean;
+  refundOnly?: boolean;
 };
+
+export type BankAccount = { bankId: string; accountNo: string; accountName: string; branch?: string };
 
 export type PaymentHistoryResponse = {
   items: Payment[];
@@ -48,9 +63,12 @@ export type PaymentHistoryResponse = {
     totalPaid: number;
     refundableAmount: number;
     refundedAmount: number;
-    pendingCount: number;
+    pendingCount?: number;
+    pendingRefundAmount?: number;
   };
   total: number;
+  bankAccount?: BankAccount | null;
+  hasMore?: boolean;
 };
 
 export type ActivityPaymentInfo = {
@@ -108,3 +126,6 @@ export async function refundPayment(
 ): Promise<{ message: string; payment: Payment }> {
   return post<{ message: string; payment: Payment }>(`/payments/${id}/refund`, data);
 }
+
+export const saveRefundBank = (bank: BankAccount) => api<{ bankAccount: BankAccount }>('/payments/wallet/bank-account', { method: 'PUT', body: JSON.stringify(bank) });
+export const confirmParticipation = (id: string, status: 'attended' | 'disputed', note = '') => post(`/payments/${id}/participation`, { status, note });

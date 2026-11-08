@@ -7,7 +7,7 @@ export type UserProfile = {
   age: number | null; basicProfileComplete: boolean; emailVerified: boolean; photos: ProfilePhoto[];
   education: string; school: string; companionGoal: string; availableTimes: string[]; activityWish: string; contribution: string;
   profileComplete: boolean; missingFields: string[];
-  coverUrl?: string | null; occupation?: string; demo?: boolean;
+  coverUrl?: string | null; occupation?: string; demo?: boolean; isStaff?: boolean;
 };
 export type ProfileDraft = Pick<UserProfile, 'name' | 'username' | 'bio' | 'location' | 'interests' | 'languages' | 'gender' | 'religion' | 'alcohol' | 'birthDate' | 'occupation' | 'education' | 'school' | 'companionGoal' | 'availableTimes' | 'activityWish' | 'contribution'>;
 export const missingFieldLabels: Record<string, string> = { birthDate: 'ngày sinh', gender: 'giới tính', name: 'họ tên', location: 'khu vực', bio: 'giới thiệu', interests: 'sở thích', languages: 'ngôn ngữ' };

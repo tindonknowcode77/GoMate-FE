@@ -1,0 +1,24 @@
+.gm-finance { display: grid; gap: 16px; min-width: 0; }
+.gm-finance-heading,.gm-finance-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+.gm-finance .gm-active-tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.gm-finance .gm-active-tabs button { border: 1px solid #ded8e9; border-radius: 8px; padding: 8px 12px; background: #fff; color: #63527c; cursor: pointer; }
+.gm-finance .gm-active-tabs button.is-active { background: #7051ac; border-color: #7051ac; color: white; }
+.gm-finance-equation { margin: 0; font-size: 12px; color: #65726d; }
+.gm-finance-card { border-bottom: 1px solid #e7e3ec; padding: 16px 0; overflow-wrap: anywhere; }
+.gm-finance-card > div:first-child { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.gm-finance-card p { margin: 7px 0; }
+.gm-finance-card small,.gm-finance td small { display: block; color: #7a7485; margin: 4px 0; }
+.gm-finance-dialog { max-height: 90dvh; overflow-y: auto; width: min(620px, calc(100vw - 28px)); }
+.gm-finance-fields { display: grid; gap: 14px; border: 0; padding: 0; margin: 0; min-width: 0; }
+.gm-finance-ack { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; }
+.gm-finance-target { padding: 14px; background: #f3effa; border-radius: 10px; overflow-wrap: anywhere; }
+.gm-finance-target strong { font-size: 22px; color: #64439d; }
+.gm-finance .gm-live-actions { margin-top: 10px; }
+.gm-business-wallet { display: grid; gap: 16px; }
+.gm-business-wallet .gm-auth-form { padding: 14px; border: 1px solid #e5dfef; border-radius: 12px; }
+.gm-finance-policy { font-size: 12px; color: #7a7485; }
+.gm-business-wallet .gm-auth-form label { display: grid; gap: 7px; font-size: 13px; color: #514965; }
+.gm-business-wallet .gm-auth-form input,.gm-business-wallet .gm-auth-form select { min-width: 0; width: 100%; box-sizing: border-box; padding: 11px 12px; border: 1px solid #dcd5e8; border-radius: 9px; background: white; color: #292136; }
+.gm-finance textarea.gm-simple-input { height: auto; min-height: 90px; padding: 12px; resize: vertical; }
+.gm-finance .gm-finance-dialog { width: min(620px, calc(100vw - 28px)); }
+.gm-connected .gm-finance .gm-active-tabs button.is-active { color: #fff; }

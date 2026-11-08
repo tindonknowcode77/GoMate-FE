@@ -1,0 +1,54 @@
+.gomate-portal .gm-lifecycle-controls { gap: 10px; }
+.gm-lifecycle-item { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.gomate-portal .gm-lifecycle-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 10px 15px; border: 1px solid #e1dce9; border-radius: 9px; background: #fff; color: #51495e; font-family: inherit; font-size: 13px; line-height: 1.3; font-weight: 600; text-decoration: none; white-space: nowrap; cursor: pointer; transition: background .15s,border-color .15s; }
+.gomate-portal .gm-lifecycle-button--withdraw { border-color: #e8d9bb; color: #966316; background: #fffdf8; }
+.gomate-portal .gm-lifecycle-button--withdraw:hover:not(:disabled) { border-color: #d5ae68; background: #fff5df; }
+.gomate-portal .gm-lifecycle-button--delete { border-color: #efccd1; color: #bc3649; background: #fff; }
+.gomate-portal .gm-lifecycle-button--delete:hover:not(:disabled) { border-color: #df8e9a; background: #fff1f3; }
+.gomate-portal .gm-lifecycle-button:focus-visible,.gm-lifecycle-dialog-close:focus-visible { outline: 2px solid #7052b7; outline-offset: 3px; }
+.gomate-portal .gm-lifecycle-button:disabled,.gm-lifecycle-dialog-close:disabled { opacity: .5; cursor: not-allowed; }
+.gm-connected .gm-group-danger-zone { display: block; }
+.gm-connected .gm-page-content.gm-groups-page { padding-bottom: max(110px, calc(80px + env(safe-area-inset-bottom))); }
+.gm-connected:has(.gm-groups-page) { scroll-padding-bottom: 90px; }
+.gm-lifecycle-item > .gm-lifecycle-button { scroll-margin-bottom: 90px; }
+.gm-group-danger-zone .gm-group-section-heading { margin-bottom: 4px; }
+.gomate-portal .gm-lifecycle-controls--panel { display: grid; width: 100%; gap: 0; }
+.gm-lifecycle-controls--panel .gm-lifecycle-item { padding: 20px 0; }
+.gm-lifecycle-controls--panel .gm-lifecycle-item:last-of-type { padding-bottom: 0; }
+.gm-lifecycle-controls--panel .gm-lifecycle-item + .gm-lifecycle-item { border-top: 1px solid #eeeaf2; }
+.gm-lifecycle-item-icon { display: grid; place-items: center; flex: 0 0 43px; height: 43px; border-radius: 12px; color: #a47426; background: #fff4de; }
+.gm-lifecycle-item--delete .gm-lifecycle-item-icon { color: #c34b5d; background: #fff0f2; }
+.gm-lifecycle-item-copy { flex: 1; min-width: 0; }
+.gomate-portal .gm-lifecycle-item-copy strong { font-size: 14px; font-weight: 600; color: #30293b; }
+.gomate-portal .gm-lifecycle-item-copy p { font-size: 12px; line-height: 1.6; color: #766d80; margin: 6px 0 0; }
+.gm-lifecycle-controls--panel > .gm-lifecycle-item > .gm-lifecycle-button { min-width: 144px; flex-shrink: 0; }
+.gomate-portal .gm-lifecycle-dialog { display: grid; gap: 20px; width: min(480px,100%); max-height: calc(100dvh - 40px); overflow-y: auto; padding: 26px; color: #30293b; }
+.gm-lifecycle-dialog-heading { display: flex; align-items: center; justify-content: space-between; }
+.gm-lifecycle-dialog-icon { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 15px; background: #fff3db; color: #a47426; }
+.gm-lifecycle-dialog--delete .gm-lifecycle-dialog-icon { background: #ffedf0; color: #c23c50; }
+.gomate-portal .gm-lifecycle-dialog-close { display: grid; place-items: center; width: 32px; height: 32px; border: 0; border-radius: 8px; background: #f6f4f8; color: #8a8093; cursor: pointer; }
+.gomate-portal .gm-lifecycle-controls .gm-lifecycle-dialog h3 { font-size: 23px; font-weight: 700; letter-spacing: -.5px; margin: 0 0 9px; color: #30293b; }
+.gomate-portal .gm-lifecycle-dialog p { margin: 0; font-size: 13px; line-height: 1.65; color: #807789; }
+.gm-lifecycle-selected { display: flex; align-items: center; gap: 13px; padding: 15px; border: 1px solid #eae4f1; border-radius: 11px; background: #faf8fc; color: #80649f; }
+.gm-lifecycle-selected > div { display: grid; gap: 6px; min-width: 0; }
+.gm-lifecycle-selected small { font-size: 9px; font-weight: 600; letter-spacing: 1px; color: #978b9f; }
+.gm-lifecycle-selected strong { font-size: 14px; color: #493d57; overflow-wrap: anywhere; }
+.gm-lifecycle-impact { display: grid; gap: 10px; }
+.gomate-portal .gm-lifecycle-impact p { display: flex; align-items: flex-start; gap: 9px; font-size: 12px; }
+.gm-lifecycle-impact .gm-app-icon { flex: 0 0 16px; margin-top: 2px; color: #a296ac; }
+.gm-lifecycle-dialog-footer { display: flex; justify-content: flex-end; gap: 10px; padding-top: 18px; border-top: 1px solid #eeeaf2; }
+.gomate-portal .gm-lifecycle-button--cancel:hover:not(:disabled) { background: #f7f5fa; }
+.gomate-portal .gm-lifecycle-button--confirm-delete { background: #c43f53; color: #fff; border-color: #c43f53; }
+.gomate-portal .gm-lifecycle-button--confirm-delete:hover:not(:disabled) { background: #ac2c40; border-color: #ac2c40; }
+.gomate-portal .gm-lifecycle-button--confirm-withdraw { background: #966316; color: #fff; border-color: #966316; }
+.gomate-portal .gm-lifecycle-button--confirm-withdraw:hover:not(:disabled) { background: #8b601f; border-color: #8b601f; }
+@media(max-width:580px) {
+  .gm-lifecycle-controls--panel .gm-lifecycle-item { align-items: flex-start; flex-wrap: wrap; gap: 12px; padding: 18px 0; }
+  .gm-lifecycle-controls--panel .gm-lifecycle-item-copy { flex-basis: calc(100% - 55px); }
+  .gm-lifecycle-controls--panel > .gm-lifecycle-item > .gm-lifecycle-button { width: calc(100% - 55px); margin-left: 55px; min-height: 42px; }
+  .gomate-portal .gm-lifecycle-dialog { padding: 22px; border-radius: 16px; }
+  .gm-lifecycle-dialog-footer { display: grid; grid-template-columns: 1fr 1fr; }
+  .gm-lifecycle-dialog-footer .gm-lifecycle-button { min-width: 0; padding: 11px 9px; font-size: 12px; }
+}
+@media(prefers-reduced-motion:reduce) { .gomate-portal .gm-lifecycle-button { transition: none; } }
+@media(max-width:360px) { .gm-lifecycle-dialog-footer { grid-template-columns: 1fr; } }
