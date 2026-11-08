@@ -1,0 +1,81 @@
+const assert = require('node:assert/strict');
+const { createRequire } = require('node:module');
+const { pathToFileURL } = require('node:url');
+const { once } = require('node:events');
+const { existsSync } = require('node:fs');
+const { resolve } = require('node:path');
+const { chromium } = require('playwright');
+const root = resolve(__dirname, '../../GoMate-BE'), backendRequire = createRequire(root + '/package.json');
+const backend = path => import(pathToFileURL(root + '/src/' + path + '.js').href);
+
+(async () => {
+  const { MongoMemoryServer } = backendRequire('mongodb-memory-server');
+  const [{ createApp }, { readConfig }, { createClient, initializeDatabase }, { createAuthRepository }, { hashPassword }] = await Promise.all(['app', 'config/env', 'database/mongo', 'modules/auth/repository', 'modules/auth/password'].map(backend));
+  const mongo = await MongoMemoryServer.create({ binary: { downloadDir: resolve(root, 'node_modules/.cache/mongodb-memory-server') } }), client = createClient(readConfig({ MONGODB_URI: mongo.getUri('admin_ui') }));
+  let server, browser, page;
+  try {
+    await client.connect(); const db = client.db(); await initializeDatabase(db);
+    const auth = createAuthRepository(db), passwordHash = await hashPassword('secret123');
+    const admin = await auth.createUser({ name: 'Admin UI', email: 'admin-ui@example.com', passwordHash });
+    const owner = await auth.createUser({ name: 'Owner UI', email: 'owner-ui@example.com', passwordHash });
+    const applicant = await auth.createUser({ name: 'Applicant UI', email: 'applicant-ui@example.com', passwordHash });
+    await db.collection('users').updateOne({ id: admin.id }, { $set: { role: 'admin', email_verified: true } });
+    await db.collection('business_applications').insertOne({ id: 'business-ui', ownerId: owner.id, company: 'UI Business', status: 'approved', version: 1 });
+    await db.collection('activities').insertOne({ id: 'activity-ui', hostId: owner.id, status: 'published', title: 'UI Activity' });
+    server = createApp(readConfig({}), { authRepository: auth }).listen(0, '127.0.0.1'); await once(server, 'listening');
+    const base = `http://127.0.0.1:${server.address().port}`;
+    browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE || (existsSync('C:/Program Files/Google/Chrome/Application/chrome.exe') ? 'C:/Program Files/Google/Chrome/Application/chrome.exe' : undefined), headless: true });
+    page = await browser.newPage({ viewport: { width: 1440, height: 1000 } }); page.setDefaultTimeout(15000);
+    const errors = []; page.on('pageerror', error => errors.push(error.message));
+    let adminWrites = 0;
+    await page.route('**/api/**', async route => {
+      const url = new URL(route.request().url());
+      if (url.pathname.includes('/portal/admin/') && !['GET', 'HEAD'].includes(route.request().method())) adminWrites++;
+      await route.continue();
+    });
+    await page.goto(base + '/portal');
+    await page.getByLabel('Email', { exact: true }).fill(admin.email);
+    await page.getByLabel('Mật khẩu', { exact: true }).fill('secret123');
+    await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
+    await page.locator('.gm-sidebar').waitFor().catch(async error => { console.error('Portal login state:', await page.locator('body').innerText()); console.error('Browser errors:', errors); throw error; });
+    const nav = label => page.locator('.gm-sidebar-nav').getByRole('button', { name: label, exact: true }).click();
+    const panel = page.locator('.gm-admin-management'), dialog = page.getByRole('dialog');
+    const save = async () => { await dialog.getByRole('button', { name: 'Lưu', exact: true }).click(); await dialog.waitFor({ state: 'hidden' }); await panel.getByRole('button', { name: 'Thêm mới', exact: true }).waitFor({ state: 'visible' }); };
+    const invalid = async message => {
+      const before = adminWrites;
+      await dialog.getByRole('button', { name: 'Lưu', exact: true }).click();
+      await dialog.getByRole('alert').filter({ hasText: message }).waitFor();
+      assert.equal(adminWrites, before, 'Invalid forms must not send a mutation request');
+    };
+    const row = text => panel.locator('tbody tr').filter({ hasText: text });
+    const remove = async text => { await row(text).getByRole('button', { name: 'Xóa', exact: true }).click(); await dialog.getByRole('button', { name: 'Xác nhận xóa', exact: true }).click(); await dialog.waitFor({ state: 'hidden' }); await row(text).waitFor({ state: 'hidden' }); };
+    await nav('Tài khoản'); await panel.getByRole('button', { name: 'Thêm mới' }).click();
+    await dialog.getByLabel('Họ tên').fill('  '); await dialog.getByLabel('Email', { exact: true }).fill('browser-crud@example.com'); await dialog.getByLabel('Mật khẩu ban đầu').fill('secret123'); await invalid('Họ tên');
+    await dialog.getByLabel('Họ tên').fill('Browser CRUD User'); await dialog.getByLabel('Mật khẩu ban đầu').fill('      '); await invalid('Mật khẩu'); await dialog.getByLabel('Mật khẩu ban đầu').fill('secret123'); await save();
+    await row('Browser CRUD User').getByRole('button', { name: 'Sửa', exact: true }).click(); await dialog.getByLabel('Họ tên').fill('Edited Browser User'); await save();
+    await row('Edited Browser User').getByRole('button', { name: 'Chi tiết' }).click(); await dialog.getByLabel('Gói sử dụng', { exact: true }).selectOption('plus'); await dialog.getByRole('button', { name: 'Lưu gói' }).click(); await dialog.waitFor({ state: 'hidden' });
+    assert.equal((await db.collection('users').findOne({ email: 'browser-crud@example.com' })).subscription.plan, 'plus');
+    await page.reload(); await nav('Tài khoản'); await row('Edited Browser User').waitFor(); await remove('Edited Browser User');
+    await nav('Duyệt bài đăng'); await panel.getByRole('button', { name: 'Thêm mới' }).click();
+    await dialog.getByLabel('ID tài khoản sở hữu', { exact: false }).fill(owner.id); await dialog.getByLabel('Tiêu đề', { exact: true }).fill('   '); await dialog.getByLabel('Nội dung', { exact: true }).fill('A real saved post'); await invalid('Tiêu đề'); await dialog.getByLabel('Tiêu đề', { exact: true }).fill('Browser Post'); await save();
+    await row('Browser Post').getByRole('button', { name: 'Sửa', exact: true }).click(); await dialog.getByLabel('Tiêu đề', { exact: true }).fill('Edited Browser Post'); await save();
+    await row('Edited Browser Post').getByRole('button', { name: 'Chi tiết' }).click(); await dialog.getByRole('button', { name: 'Duyệt', exact: true }).click(); await dialog.waitFor({ state: 'hidden' });
+    assert.equal((await db.collection('business_posts').findOne({ title: 'Edited Browser Post' })).status, 'approved'); await remove('Edited Browser Post');
+    await nav('Báo cáo'); await panel.getByRole('button', { name: 'Thêm mới' }).click(); await dialog.getByLabel('ID hoạt động').fill('activity-ui'); await dialog.getByLabel('Lý do', { exact: true }).fill('   '); await dialog.getByLabel('Mô tả bổ sung').fill('Needs review'); await invalid('Lý do'); await dialog.getByLabel('Lý do', { exact: true }).fill('Browser report'); await save();
+    await row('Browser report').getByRole('button', { name: 'Chi tiết' }).click(); await dialog.getByRole('button', { name: 'Đã xử lý', exact: true }).click(); await dialog.waitFor({ state: 'hidden' }); await remove('Browser report');
+    await nav('Hỗ trợ'); await panel.getByRole('button', { name: 'Thêm mới' }).click(); await dialog.getByLabel('ID tài khoản sở hữu', { exact: false }).fill(owner.id); await dialog.getByLabel('Tiêu đề yêu cầu').fill('   '); await dialog.getByLabel('Nội dung yêu cầu').fill('Please help'); await invalid('Tiêu đề yêu cầu'); await dialog.getByLabel('Tiêu đề yêu cầu').fill('Browser ticket'); await save();
+    await row('Browser ticket').getByRole('button', { name: 'Chi tiết' }).click(); await dialog.getByLabel('Phản hồi', { exact: true }).fill('Support answer'); await dialog.getByRole('button', { name: 'Gửi phản hồi' }).click(); await dialog.waitFor({ state: 'hidden' });
+    await row('Browser ticket').getByRole('button', { name: 'Sửa', exact: true }).click(); await dialog.getByLabel('Trạng thái', { exact: true }).selectOption('closed'); await save(); await remove('Browser ticket');
+    await nav('Hồ sơ doanh nghiệp'); await panel.getByRole('button', { name: 'Thêm mới' }).click();
+    await dialog.getByLabel('ID tài khoản sở hữu', { exact: false }).fill(applicant.id);
+    for (const [label, value] of [['Tên doanh nghiệp', 'Browser Business'], ['Địa chỉ', '12 Main Street'], ['Người đại diện', 'Business Owner'], ['Chức danh', 'Director'], ['Email đại diện', 'business@example.com'], ['Điện thoại', '0901234567'], ['Mã số thuế (10 hoặc 13 chữ số)', '0312345678']]) await dialog.getByLabel(label, { exact: true }).fill(value);
+    const pdf = await backendRequire('pdf-lib').PDFDocument.create(); pdf.addPage();
+    await dialog.locator('input[type=file]').setInputFiles({ name: 'license.pdf', mimeType: 'application/pdf', buffer: Buffer.from(await pdf.save()) }); await save();
+    await row('Browser Business').getByRole('button', { name: 'Sửa', exact: true }).click(); await dialog.getByLabel('Tên doanh nghiệp', { exact: true }).fill('Edited Browser Business'); await save();
+    await row('Edited Browser Business').getByRole('button', { name: 'Chi tiết' }).click(); await dialog.getByRole('button', { name: 'Duyệt', exact: true }).click(); await dialog.waitFor({ state: 'hidden' });
+    await remove('Edited Browser Business');
+    await page.setViewportSize({ width: 390, height: 844 }); assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    assert.deepEqual(errors, []); console.log('PASS admin browser CRUD, persistence, post approval, reporting, support replies and mobile layout');
+  } catch (error) { if (page) console.error('Admin UI state:', await page.locator('body').innerText()); throw error; }
+  finally { await browser?.close(); if (server) await new Promise(resolve => server.close(resolve)); await client.close(); await mongo.stop(); }
+})().catch(error => { console.error(error); process.exitCode = 1; });
