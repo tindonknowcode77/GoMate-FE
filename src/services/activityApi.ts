@@ -87,7 +87,7 @@ export const decideActivityInvitation = async (activityId: string, invitationId:
 
 export type PortalGroupDetail = {
   id: string; version: number; status: string; depositAmount: number;
-  depositMembers: { id: string; name: string; email?: string; amount: number; status: 'paid' | 'pending' | 'not-required'; paidAt?: string | null }[];
+  depositMembers: { id: string; name: string; email?: string; amount: number; status: 'paid' | 'pending' | 'not-required'; paidAt?: string | null; verified?: boolean }[];
   notifications: { id: string; title: string; body: string; expiresAt?: string; sentAt: string; recipients: number }[];
   managers?: { userId: string; name: string; title?: string }[];
   autoApproveMembers?: boolean;

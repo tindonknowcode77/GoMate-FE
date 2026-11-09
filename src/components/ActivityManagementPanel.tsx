@@ -90,9 +90,9 @@ export function ActivityManagementPanel({ activityId, onPlan, onOpenGroup, onMem
           <View key={member.id} style={styles.memberRow}>
             <View style={{ flex: 1, gap: 2 }}>
               <Text style={styles.memberName}>{member.name}</Text>
-              <Text style={styles.muted}>{Number(member.amount || portalGroup.depositAmount).toLocaleString('vi-VN')} đ · {member.status === 'paid' ? 'Đã xác nhận cọc' : member.status === 'not-required' ? 'Không yêu cầu cọc' : 'Chưa đóng cọc'}</Text>
+              <Text style={styles.muted}>{Number(member.amount || portalGroup.depositAmount).toLocaleString('vi-VN')} đ · {member.status === 'paid' ? (member.verified ? 'Đã đối soát VietQR' : 'Đã xác nhận cọc') : member.status === 'not-required' ? 'Không yêu cầu cọc' : 'Chưa đóng cọc'}</Text>
             </View>
-            {activeRun && portalGroup.depositAmount > 0 && (
+            {activeRun && portalGroup.depositAmount > 0 && !member.verified && (
               <Pressable
                 accessibilityRole="button"
                 disabled={busy}
