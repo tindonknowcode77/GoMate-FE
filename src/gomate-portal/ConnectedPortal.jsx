@@ -134,15 +134,18 @@ function PortalWorkspace() {
   const deleteBusinessStaff = id => run(`thu hồi quyền quản lý nhóm của nhân viên “${businessStaff.find(item => item.id === id)?.name || 'đã chọn'}”`, async () => { const account = businessStaff.find(item=>item.id===id); await api('/portal/staff/'+id,{method:'DELETE',body:JSON.stringify({version:account?.version})}); await load(); setSuccess(`Đã thu hồi quyền quản lý nhóm của nhân viên “${account?.name || id}”.`); });
   const groupCommand = (group,command,patch={}) => run(groupCommandOperation(group, command, patch), async () => {
     const url='/portal/groups/'+group.id+'/';
-    await api(url+command,{method:command.startsWith('actions/')?'POST':command.startsWith('offers/')?'PUT':'PATCH',body:JSON.stringify({version:group.version,...patch})});
+    const method = command.startsWith('actions/') ? 'POST' : command.startsWith('offers/') ? 'PUT' : command.startsWith('members/') ? 'DELETE' : 'PATCH';
+    const result = await api(url+command,{method,body:JSON.stringify({version:group.version,...patch})});
     await load();
     const target = `nhóm “${group.name}”`;
     if (command === 'actions/confirm-schedule') setSuccess(`Đã chốt lịch cho ${target}.`);
     else if (command === 'actions/start') setSuccess(`Đã bắt đầu hoạt động của ${target}.`);
     else if (command === 'actions/complete') setSuccess(`Đã kết thúc hoạt động của ${target}.`);
     else if (command.startsWith('requests/')) setSuccess(`Đã ${patch.status === 'approved' ? 'duyệt' : 'từ chối'} yêu cầu tham gia ${target}.`);
+    else if (command.startsWith('leave-requests/')) setSuccess(`Đã ${patch.status === 'approved' ? 'duyệt yêu cầu rời nhóm (hoàn 100% cọc)' : 'từ chối yêu cầu rời nhóm'} tại ${target}.`);
+    else if (command.startsWith('members/')) setSuccess(`Đã đưa thành viên ra khỏi ${target} (bảo vệ hoàn 100% cọc nếu đã đóng).`);
     else if (command.startsWith('offers/')) setSuccess(`Đã cập nhật ưu đãi của ${target}.`);
-    else if (command === 'settings') setSuccess(`Đã cập nhật cài đặt ${target}.`);
+    else if (command === 'settings') setSuccess(result?.depositChangeRequest?.status === 'pending' ? `Đã gửi yêu cầu thay đổi mức cọc của ${target} lên Admin duyệt.` : `Đã cập nhật cài đặt ${target}.`);
     else if (command.startsWith('attendance/')) {
       const member = group.attendance?.find(item => item.userId === command.slice('attendance/'.length));
       const status = { present: 'có mặt', late: 'đến muộn', absent: 'vắng mặt', unmarked: 'chưa điểm danh' }[patch.status];

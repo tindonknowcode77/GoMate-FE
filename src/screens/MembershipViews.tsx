@@ -3,14 +3,14 @@ import { JoinRequestsPanel } from '../components/JoinRequestsPanel';
 import { GroupCompanions } from '../components/CompanionCards';
 import { AddActivityFriends } from '../components/AddActivityFriends';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Text } from '../components/LocalizedText';
 import { RemoteState } from '../components/RemoteState';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { Activity } from '../data/activities';
 import { getSession } from '../services/api';
-import { getActivity, Member, ActivityDto, cancelRequest, leaveActivity, listJoined, listMembers, listMyRequests, listOwned, removeMember, toActivity } from '../services/activityApi';
+import { getActivity, Member, ActivityDto, cancelRequest, leaveActivity, listJoined, listMembers, listMyRequests, listOwned, removeMember, requestLateLeave, toActivity } from '../services/activityApi';
 import { useRemote } from '../services/useRemote';
 import { colors, layout } from '../theme';
 import { imageUrl } from '../services/profileService';
@@ -84,6 +84,18 @@ export function MembersPanel({ activity, onLeft, onChanged }: { activity: Activi
   const canChange = (latest?.status ?? activity.backendStatus) === 'published' && Boolean((latest?.startsAt || activity.startsAt) && new Date(latest?.startsAt || activity.startsAt!).getTime() > now);
   const [target, setTarget] = useState<string | null>(null);
   const [profileId, setProfileId] = useState<string | null>(null);
+  const [leaveReason, setLeaveReason] = useState('');
+  const [leaveNotice, setLeaveNotice] = useState('');
+  const [isWithin6Hours, setIsWithin6Hours] = useState(false);
+
+  const openLeaveConfirm = () => {
+    setLeaveNotice('');
+    setLeaveReason('');
+    const startRaw = latest?.startsAt || activity.startsAt;
+    const startTime = startRaw ? new Date(startRaw).getTime() : NaN;
+    setIsWithin6Hours(Number.isFinite(startTime) && startTime - Date.now() <= 6 * 3600000);
+    setTarget('me');
+  };
   return <View>{isHost && <JoinRequestsPanel activityId={activity.id} enabled={canChange} full={Boolean(latest && latest.memberCount >= latest.maxParticipants)} onChanged={() => { void remote.reload(true); onChanged?.(); }} />}<Text style={styles.title}>Thành viên ({remote.data.length})</Text>
     {canChange && isHost && activity.organizerType !== 'business' && <AddActivityFriends activityId={activity.id} onAdded={() => void remote.reload()} />}
     <RemoteState {...remote} onRetry={remote.reload} />
@@ -102,15 +114,43 @@ export function MembersPanel({ activity, onLeft, onChanged }: { activity: Activi
       </Pressable>
       {canChange && isHost && member.role === 'member' && <Pressable accessibilityRole="button" accessibilityLabel={`Xóa ${member.name}`} disabled={action.busy} onPress={() => setTarget(member.userId)} style={{ minHeight: 44, minWidth: 44, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: colors.danger, fontSize: 13 }}>Xóa</Text></Pressable>}
     </View>)}
-    {canChange && !isHost && !activity.isBusinessManager && !remote.loading && !remote.error && <Button disabled={action.busy} label="Rời nhóm" onPress={() => setTarget('me')} />}
-    {target && <View style={styles.card}><Text>{target === 'me' ? 'Bạn muốn rời nhóm?' : `Xóa ${remote.data.find(member => member.userId === target)?.name || 'thành viên'} khỏi nhóm?`}</Text><View style={styles.tabs}>
-      <Button disabled={action.busy} label="Hủy" onPress={() => setTarget(null)} />
-      <Button disabled={action.busy} label={target === 'me' ? 'Rời nhóm' : 'Xóa'} onPress={() => void action.run(async () => {
-        if (target === 'me') { await leaveActivity(activity.id); onLeft(); }
-        else { await removeMember(activity.id, target); await remote.reload(true); onChanged?.(); }
-        setTarget(null);
-      })} />
-    </View></View>}
+    {leaveNotice ? <View style={[styles.card, { borderColor: colors.successText }]}><Text style={{ color: colors.successText }}>{leaveNotice}</Text></View> : null}
+    {canChange && !isHost && !activity.isBusinessManager && !remote.loading && !remote.error && <Button disabled={action.busy} label="Rời nhóm" onPress={openLeaveConfirm} />}
+    {target && <View style={styles.card}>
+      <Text style={styles.title}>{target === 'me' ? (isWithin6Hours ? 'Rời nhóm sát giờ (trong vòng 6 tiếng)' : 'Bạn muốn rời nhóm?') : `Xóa ${remote.data.find(member => member.userId === target)?.name || 'thành viên'} khỏi nhóm?`}</Text>
+      {target === 'me' && !isWithin6Hours && <Text style={{ color: colors.textSecondary, fontSize: 13 }}>Hiện còn hơn 6 tiếng trước giờ bắt đầu. Nếu bạn đã đóng cọc, hệ thống sẽ bảo vệ hoàn 100% tiền cọc trong Ví.</Text>}
+      {target === 'me' && isWithin6Hours && <>
+        <Text style={{ color: colors.warningText, fontSize: 13 }}>Trong vòng 6 tiếng trước giờ hoạt động, bạn cần nhập lý do. Bạn có thể gửi yêu cầu chờ Doanh nghiệp duyệt (hoàn 100% cọc) hoặc rời ngay (mất 20% tiền cọc, hoàn 80%).</Text>
+        <TextInput
+          value={leaveReason}
+          onChangeText={setLeaveReason}
+          placeholder="Nhập lý do rời nhóm (tối thiểu 5 ký tự)..."
+          style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 10, color: colors.text, backgroundColor: colors.background }}
+          multiline
+        />
+      </>}
+      <View style={styles.tabs}>
+        <Button disabled={action.busy} label="Hủy" onPress={() => setTarget(null)} />
+        {target === 'me' && isWithin6Hours ? <>
+          <Button disabled={action.busy || leaveReason.trim().length < 5} label="Gửi duyệt (Hoàn 100%)" onPress={() => void action.run(async () => {
+            await requestLateLeave(activity.id, leaveReason.trim());
+            setTarget(null);
+            setLeaveNotice('Đã gửi yêu cầu rời nhóm kèm lý do để Doanh nghiệp xét duyệt hoàn 100% cọc.');
+          })} />
+          <Button disabled={action.busy || leaveReason.trim().length < 5} label="Rời ngay (Mất 20% cọc)" onPress={() => void action.run(async () => {
+            await leaveActivity(activity.id, { reason: leaveReason.trim(), acceptPenalty: true });
+            setTarget(null);
+            onLeft();
+          })} />
+        </> : (
+          <Button disabled={action.busy} label={target === 'me' ? 'Xác nhận rời nhóm' : 'Xóa'} onPress={() => void action.run(async () => {
+            if (target === 'me') { await leaveActivity(activity.id); onLeft(); }
+            else { await removeMember(activity.id, target); await remote.reload(true); onChanged?.(); }
+            setTarget(null);
+          })} />
+        )}
+      </View>
+    </View>}
     {profileId && <MemberProfileModal userId={profileId} onClose={() => setProfileId(null)} />}
   </View>;
 }

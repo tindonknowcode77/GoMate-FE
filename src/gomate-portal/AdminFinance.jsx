@@ -7,15 +7,21 @@ import './finance.css';
 const money = value => Number(value || 0).toLocaleString('vi-VN') + ' đ';
 const date = value => value ? new Date(value).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }) : '—';
 const names = { processing: 'Đang chuyển tiền', pending: 'Chờ duyệt', approved: 'Đã duyệt, chờ chuyển', completed: 'Đã ghi nhận chuyển tiền', rejected: 'Từ chối', blocked: 'Tạm khóa', waiting: 'Chờ xác minh' };
-const tabs = [['incoming', 'Đối soát tiền vào'], ['settlements', 'Xác minh hoạt động'], ['refunds', 'Hoàn cọc'], ['payouts', 'Giải ngân'], ['disputes', 'Khiếu nại'], ['audit', 'Lịch sử']];
+const tabs = [['incoming', 'Đối soát tiền vào'], ['deposit_changes', 'Đổi mức cọc'], ['settlements', 'Xác minh hoạt động'], ['refunds', 'Hoàn cọc'], ['payouts', 'Giải ngân'], ['disputes', 'Khiếu nại'], ['audit', 'Lịch sử']];
 export default function AdminFinance({ refreshVersion = 0 }) {
-  const [data, setData] = useState(null), [tab, setTab] = useState('incoming'), [page, setPage] = useState(1);
+  const [data, setData] = useState(null), [depositChanges, setDepositChanges] = useState([]), [tab, setTab] = useState('incoming'), [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState('');
   const [editor, setEditor] = useState(null), [form, setForm] = useState({});
   const sequence = useRef(0), lock = useRef(false), notify = usePortalNotice();
   const load = useCallback(async () => {
     const current = ++sequence.current; setLoading(true);
-    try { const result = await api('/portal/finance?page=' + page, { timeoutMs: 10000 }); if (current === sequence.current) { setData(result); setError(''); } }
+    try {
+      const [result, changes] = await Promise.all([
+        api('/portal/finance?page=' + page, { timeoutMs: 10000 }),
+        api('/portal/deposit-changes', { timeoutMs: 10000 }).catch(() => ({ items: [] })),
+      ]);
+      if (current === sequence.current) { setData(result); setDepositChanges(changes?.items || []); setError(''); }
+    }
     catch (reason) { if (current === sequence.current) setError(reason.message); }
     finally { if (current === sequence.current) setLoading(false); }
   }, [page]);
@@ -63,6 +69,27 @@ export default function AdminFinance({ refreshVersion = 0 }) {
     {!data && loading && <p role="status">Đang tải tài chính…</p>}
     {tab === 'incoming' && <section className="gm-panel gm-live-panel"><h4>Giao dịch cần đối soát</h4><div className="gm-table-wrap"><table className="gm-table"><thead><tr><th>Giao dịch</th><th>Người thanh toán</th><th>Số tiền dự kiến</th><th /></tr></thead><tbody>{data?.unreconciled.map(payment => <tr key={payment.id}><td><strong>{payment.orderCode}</strong><small>{payment.activityTitle}</small></td><td>{payment.userName || payment.userId}<small>{payment.reportedAt ? 'Đã báo chuyển khoản' : 'Chưa đối soát'}</small></td><td>{money(payment.amount)}</td><td><PillButton variant="secondary" onClick={() => open({ kind: 'verify', payment })}>Đối soát tiền vào</PillButton></td></tr>)}</tbody></table></div>{!data?.unreconciled.length && <p>Không có giao dịch cần đối soát.</p>}
       {data?.unmatched.length > 0 && <><h4>Tiền vào chưa khớp mã</h4>{data.unmatched.map(bankEvent => <div className="gm-finance-row" key={bankEvent.id}><span>{bankEvent.transactionRef} · {money(bankEvent.amount)}</span><PillButton variant="secondary" onClick={() => open({ kind: 'assign', bankEvent })}>Gắn mã thanh toán</PillButton></div>)}</>}
+    </section>}
+    {tab === 'deposit_changes' && <section className="gm-panel gm-live-panel">
+      <h4>Yêu cầu thay đổi mức tiền cọc từ Doanh nghiệp</h4>
+      {depositChanges.map(item => <article className="gm-finance-card" key={item.activityId}>
+        <div><strong>{item.groupName}</strong><StatusPill status="pending">Chờ Admin duyệt</StatusPill></div>
+        <p>Đề xuất đổi cọc: <strong>{money(item.request.previousAmount)}</strong> &rarr; <strong>{money(item.request.requestedAmount)}</strong></p>
+        <p>Đã có <strong>{item.paidCount}</strong> thành viên đóng cọc mức cũ · Lý do: {item.request.reason}</p>
+        <div className="gm-live-actions">
+          <PillButton variant="secondary" disabled={busy} onClick={() => void (async () => {
+            setBusy(true);
+            try { await api(`/portal/groups/${item.activityId}/deposit-change`, { method: 'PATCH', body: JSON.stringify({ status: 'rejected', note: 'Admin từ chối thay đổi mức cọc' }) }); notify('Đã từ chối yêu cầu đổi mức cọc.'); await load(); }
+            catch (reason) { setError(reason.message); } finally { setBusy(false); }
+          })()}>Từ chối</PillButton>
+          <PillButton disabled={busy} onClick={() => void (async () => {
+            setBusy(true);
+            try { await api(`/portal/groups/${item.activityId}/deposit-change`, { method: 'PATCH', body: JSON.stringify({ status: 'approved', note: 'Admin đã duyệt mức cọc mới' }) }); notify('Đã duyệt thay đổi mức cọc mới.'); await load(); }
+            catch (reason) { setError(reason.message); } finally { setBusy(false); }
+          })()}>Duyệt mức cọc mới</PillButton>
+        </div>
+      </article>)}
+      {!depositChanges.length && <p>Không có yêu cầu thay đổi mức cọc nào đang chờ duyệt.</p>}
     </section>}
     {tab === 'settlements' && <section className="gm-panel gm-live-panel"><h4>Xác minh trước giải ngân</h4>{groups.map(group => <article className="gm-finance-card" key={group.id}><div><strong>{group.title}</strong><StatusPill status={group.settlement.status}>{names[group.settlement.status] || group.settlement.status}</StatusPill></div><p>{group.activityStatus || 'Không còn hoạt động'} · Hết thời gian giữ cọc: {date(group.holdUntil)}</p><p>{group.lots.filter(lot => lot.confirmation?.status === 'attended').length}/{group.lots.length} xác nhận từ thành viên</p>{group.blockedReason && <p className="gm-live-muted">{group.blockedReason}</p>}<PillButton variant="secondary" disabled={Boolean(group.blockedReason) || group.settlement.status === 'approved'} onClick={() => open({ kind: 'settlement', group })}>Xác minh hoạt động</PillButton></article>)}</section>}
     {tab === 'refunds' && <section className="gm-panel gm-live-panel"><h4>Yêu cầu hoàn tiền</h4>{refunds.map(({ group, lot }) => <article className="gm-finance-card" key={lot.refund.id}><div><strong>{group.title} · {money(lot.refund.amount)}</strong><StatusPill status={lot.refund.status}>{names[lot.refund.status]}</StatusPill></div><p>{lot.refund.reason}</p><p>{lot.refund.bankAccount.bankId} · {lot.refund.bankAccount.accountNo} · {lot.refund.bankAccount.accountName}</p><small>{lot.refund.policy === 'full_refund' ? 'Hoàn đủ theo chính sách' : 'Cần xem xét tình huống hủy sát giờ/vắng mặt'} · {date(lot.refund.requestedAt)}</small><div className="gm-live-actions">{lot.refund.status === 'pending' && <><PillButton onClick={() => open({ kind: 'refund', group, lot, action: 'approve' })}>Duyệt hoàn tiền</PillButton>{lot.refund.policy === 'manual_review' && <PillButton variant="secondary" onClick={() => open({ kind: 'refund', group, lot, action: 'reject' })}>Từ chối hoàn</PillButton>}</>}{lot.refund.status === 'approved' && <PillButton onClick={() => open({ kind: 'refund', group, lot, action: 'complete' })}>Xác nhận đã hoàn tiền</PillButton>}</div>{lot.refund.transferRef && <small>Mã chuyển tiền: {lot.refund.transferRef}</small>}</article>)}{!refunds.length && <p>Chưa có yêu cầu hoàn tiền trong trang này.</p>}</section>}

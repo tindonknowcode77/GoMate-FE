@@ -65,7 +65,13 @@ export const joinActivity = (id: string) => post<{ request: JoinRequest }>(`${id
 export const cancelRequest = (id: string) => api<void>(`${idPath(id)}/join-requests/me`, { method: 'DELETE' });
 export const decideRequest = (id: string, requestId: string, status: 'approved' | 'rejected') =>
   api<{ request: JoinRequest }>(`${idPath(id)}/join-requests/${encodeURIComponent(requestId)}`, { method: 'PATCH', body: JSON.stringify({ status }) });
-export const leaveActivity = (id: string) => api<void>(`${idPath(id)}/members/me`, { method: 'DELETE' });
+export const leaveActivity = (id: string, options?: { reason?: string; acceptPenalty?: boolean }) =>
+  api<void>(`${idPath(id)}/members/me`, {
+    method: 'DELETE',
+    ...(options ? { body: JSON.stringify(options) } : {}),
+  });
+export const requestLateLeave = (id: string, reason: string) =>
+  post<{ request: { id: string; status: string } }>(`${idPath(id)}/leave-requests`, { reason });
 export const removeMember = (id: string, userId: string) => api<void>(`${idPath(id)}/members/${encodeURIComponent(userId)}`, { method: 'DELETE' });
 
 export const getActivity = async (id: string) => (await api<{ activity: ActivityDto }>(idPath(id))).activity;
