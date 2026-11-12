@@ -7,7 +7,7 @@ export function usePortalText() {
     const trimmed = value.trim();
     const translated = translate(trimmed);
     if (translated !== trimmed) return value.replace(trimmed, translated);
-    for (const [pattern, template] of [[/^Create post and (\d+) groups$/, 'Create post and {count} groups'], [/^(\d+) payment\(s\) pending$/, '{count} payment(s) pending']] as const) {
+    for (const [pattern, template] of [[/^Create post and (\d+) groups$/, 'Create post and {count} groups'], [/^(\d+) payment\(s\) pending$/, '{count} payment(s) pending'], [/^(\d+) posts$/, '{count} posts']] as const) {
       const match = trimmed.match(pattern);
       if (match) return translate(template).replace('{count}', match[1]);
     }

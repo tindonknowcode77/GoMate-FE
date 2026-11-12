@@ -49,7 +49,15 @@ const backend = path => import(pathToFileURL(root + '/src/' + path + '.js').href
     };
     const row = text => panel.locator('tbody tr').filter({ hasText: text });
     const remove = async text => { await row(text).getByRole('button', { name: 'Xóa', exact: true }).click(); await dialog.getByRole('button', { name: 'Xác nhận xóa', exact: true }).click(); await dialog.waitFor({ state: 'hidden' }); await row(text).waitFor({ state: 'hidden' }); };
-    await nav('Tài khoản'); await panel.getByRole('button', { name: 'Thêm mới' }).click();
+    await nav('Tài khoản');
+    const roleFilter = panel.getByLabel('Lọc theo vai trò', { exact: true });
+    await roleFilter.selectOption('business'); await row('Owner UI').waitFor();
+    assert.equal(await panel.locator('tbody tr').count(), 1, 'Role filter should only show approved business accounts');
+    const ownerActions = row('Owner UI').locator('.gm-admin-icon-actions button');
+    assert.deepEqual(await ownerActions.evaluateAll(buttons => buttons.map(button => button.getAttribute('aria-label'))), ['Chi tiết', 'Sửa', 'Xóa']);
+    await roleFilter.selectOption('user'); await row('Applicant UI').waitFor(); assert.equal(await panel.locator('tbody tr').count(), 1);
+    await roleFilter.selectOption(''); await row('Admin UI').waitFor();
+    await panel.getByRole('button', { name: 'Thêm mới' }).click();
     await dialog.getByLabel('Họ tên').fill('  '); await dialog.getByLabel('Email', { exact: true }).fill('browser-crud@example.com'); await dialog.getByLabel('Mật khẩu ban đầu').fill('secret123'); await invalid('Họ tên');
     await dialog.getByLabel('Họ tên').fill('Browser CRUD User'); await dialog.getByLabel('Mật khẩu ban đầu').fill('      '); await invalid('Mật khẩu'); await dialog.getByLabel('Mật khẩu ban đầu').fill('secret123'); await save();
     await row('Browser CRUD User').getByRole('button', { name: 'Sửa', exact: true }).click(); await dialog.getByLabel('Họ tên').fill('Edited Browser User'); await save();
@@ -58,6 +66,7 @@ const backend = path => import(pathToFileURL(root + '/src/' + path + '.js').href
     await page.reload(); await nav('Tài khoản'); await row('Edited Browser User').waitFor(); await remove('Edited Browser User');
     await nav('Duyệt bài đăng'); await panel.getByRole('button', { name: 'Thêm mới' }).click();
     await dialog.getByLabel('ID tài khoản sở hữu', { exact: false }).fill(owner.id); await dialog.getByLabel('Tiêu đề', { exact: true }).fill('   '); await dialog.getByLabel('Nội dung', { exact: true }).fill('A real saved post'); await invalid('Tiêu đề'); await dialog.getByLabel('Tiêu đề', { exact: true }).fill('Browser Post'); await save();
+    assert.deepEqual(await row('Browser Post').locator('.gm-admin-icon-actions button').evaluateAll(buttons => buttons.map(button => button.getAttribute('aria-label'))), ['Chi tiết', 'Sửa', 'Xóa']);
     await row('Browser Post').getByRole('button', { name: 'Sửa', exact: true }).click(); await dialog.getByLabel('Tiêu đề', { exact: true }).fill('Edited Browser Post'); await save();
     await row('Edited Browser Post').getByRole('button', { name: 'Chi tiết' }).click(); await dialog.getByRole('button', { name: 'Duyệt', exact: true }).click(); await dialog.waitFor({ state: 'hidden' });
     assert.equal((await db.collection('business_posts').findOne({ title: 'Edited Browser Post' })).status, 'approved'); await remove('Edited Browser Post');
@@ -71,6 +80,10 @@ const backend = path => import(pathToFileURL(root + '/src/' + path + '.js').href
     for (const [label, value] of [['Tên doanh nghiệp', 'Browser Business'], ['Địa chỉ', '12 Main Street'], ['Người đại diện', 'Business Owner'], ['Chức danh', 'Director'], ['Email đại diện', 'business@example.com'], ['Điện thoại', '0901234567'], ['Mã số thuế (10 hoặc 13 chữ số)', '0312345678']]) await dialog.getByLabel(label, { exact: true }).fill(value);
     const pdf = await backendRequire('pdf-lib').PDFDocument.create(); pdf.addPage();
     await dialog.locator('input[type=file]').setInputFiles({ name: 'license.pdf', mimeType: 'application/pdf', buffer: Buffer.from(await pdf.save()) }); await save();
+    await row('Browser Business').waitFor();
+    assert.deepEqual(await row('Browser Business').locator('.gm-admin-icon-actions button').evaluateAll(buttons => buttons.map(button => button.getAttribute('aria-label'))), ['Chi tiết', 'Sửa', 'Xóa']);
+    const reviewBusiness = page.locator('.gm-admin-review-table tbody tr').filter({ hasText: 'Browser Business' });
+    await reviewBusiness.getByRole('button', { name: 'Xem hồ sơ', exact: true }).waitFor();
     await row('Browser Business').getByRole('button', { name: 'Sửa', exact: true }).click(); await dialog.getByLabel('Tên doanh nghiệp', { exact: true }).fill('Edited Browser Business'); await save();
     await row('Edited Browser Business').getByRole('button', { name: 'Chi tiết' }).click(); await dialog.getByRole('button', { name: 'Duyệt', exact: true }).click(); await dialog.waitFor({ state: 'hidden' });
     await remove('Edited Browser Business');

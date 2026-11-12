@@ -1,5 +1,152 @@
 # Development log
 
+## 2026-11-12 - Clarify the admin finance dashboard
+
+### Summary
+
+- Reorganize finance totals into differentiated metric tiles and a single reconciliation summary that shows the checked balance equation and status.
+- Add count badges to horizontally scrollable workflow tabs, clearer section headers, structured account/amount details, compact transaction states and responsive table-to-row cards for mobile.
+- Keep existing API calls, review actions, banking confirmations and pagination intact; avoid a repeated finance page title in the content panel.
+
+### Files changed
+
+- `src/gomate-portal/AdminFinance.jsx`, `finance.css`, `GoMatePortal.jsx`.
+
+### Verification
+
+- `npm run typecheck`: Passed.
+- `node tests/finance.web.cjs`: Passed; incoming reconciliation, refund approval/completion, activity verification, payout processing, merchant wallet and mobile overflow checks completed. Inspected the generated desktop finance screenshot.
+- `npm run lint`: Failed on unresolved `exceljs` in unchanged `src/gomate-portal/formExcel.js`; five unrelated warnings remain.
+- `npx expo-doctor`: 20/21 checks passed; five existing Expo patch-version mismatches remain.
+- `git diff --check`: Passed.
+
+### Remaining work
+
+- None for this finance UI. Existing lint resolver and Expo patch mismatches remain outside this change.
+
+## 2026-11-12 - Use icon actions in business and post administration
+
+### Summary
+
+- Replace Chi tiết, Sửa and Xóa text buttons with eye, edit and destructive trash icon buttons in business and post management rows. Retain tooltips, screen-reader labels, pending-post emphasis and existing edit/delete restrictions.
+- Use an eye icon for opening business verification details while keeping its document review and approve/reject flow intact.
+- Extend the admin browser workflow to assert the three accessible icon actions on business and post rows and the verification-details icon.
+
+### Files changed
+
+- `src/gomate-portal/AdminManagement.jsx`, `AdminBusinessReview.jsx`, `admin-management.css`.
+- `tests/admin-crud.web.cjs`.
+
+### Verification
+
+- `npm run typecheck`: Passed.
+- `npm run test:admin:web`: Passed, including admin CRUD, icon actions, business-document review and mobile layout.
+- Explicit ESLint for changed portal components: Passed with one existing hook warning in `AdminManagement.jsx`.
+- `npm run lint`: Failed on unresolved `exceljs` in unchanged `src/gomate-portal/formExcel.js`; five unrelated warnings remain.
+- `npx expo-doctor`: 20/21 checks passed; five existing Expo patch-version mismatches remain.
+- `git diff --check`: Passed.
+
+### Remaining work
+
+- None for these actions. The full-lint resolver error and Expo patch mismatches remain outside this change.
+
+## 2026-11-12 - Filter accounts by role and compact row actions
+
+### Summary
+
+- Add a server-backed role filter to the account list so it searches the full paginated set using effective admin, business, business-staff, staff and user roles.
+- Replace account-row text actions with compact eye, edit and delete icon buttons, including contextual tooltips, accessible names and destructive styling. Preserve the existing action handlers and disable deleting self/admin accounts.
+
+### Files changed
+
+- FE: `src/gomate-portal/AdminManagement.jsx`, `GoMatePortal.jsx`, `admin-management.css`, `tests/admin-crud.web.cjs`.
+- BE: `src/modules/portal/admin-validation.js`, `admin.js`, `tests/admin-validation.test.js`, `admin-crud.test.js`, `docs/ADMIN_CRUD.md`.
+- `GoMate-BE/docs/DEVELOPMENT_LOG.md`.
+
+### Verification
+
+- `npm run typecheck`: Passed.
+- `npm run test:admin:web`: Passed, including role filtering, icon action accessibility, account CRUD and mobile layout.
+- `node --test tests/admin-validation.test.js tests/admin-crud.test.js`: Passed, 5/5 tests.
+- `npm run lint`: Still fails on unresolved `exceljs` in unchanged `src/gomate-portal/formExcel.js`; five unrelated warnings remain.
+- `npx expo-doctor`: 20/21 checks passed; five existing Expo patch-version mismatches remain.
+- `git diff --check`: Passed. Explicit ESLint on the changed screen reports one existing hook warning; applying it to the CommonJS test also exposes pre-existing `__dirname` and `Buffer` globals warnings.
+
+### Remaining work
+
+- None for the account filter/actions. Existing full-lint dependency resolution and Expo patch mismatches remain.
+
+## 2026-11-12 - Rebuild the admin overview dashboard
+
+### Summary
+
+- Replace the full business review table and complete post cards on the admin overview with a concise dashboard: three differentiated metric links and two short pending queues for business applications and posts.
+- Show up to four recent items per queue, add direct navigation to full review pages, and adapt the metric and queue layout for narrow screens.
+
+### Files changed
+
+- `src/gomate-portal/ConnectedPortal.jsx`, `AdminOverview.jsx`, `connected-portal.css`, `src/i18n/portalTranslations.ts`.
+
+### Verification
+
+- `npm run typecheck`: Passed.
+- Explicit ESLint for changed JSX/TS files: Passed with one existing hook warning in `AdminManagement.jsx`.
+- `npm run lint`: Failed on unresolved `exceljs` in unchanged `src/gomate-portal/formExcel.js`; five unrelated warnings remain.
+- `npx expo-doctor`: 20/21 checks passed; Expo and four Expo packages are each one patch behind the SDK's expected version.
+- Expo Web bundle on port `8082`: HTTP 200. `git diff --check`: Passed. UI workflow tests were not run for this layout change.
+
+### Remaining work
+
+- None for the overview. The full lint resolver error and Expo patch mismatches remain outside this change.
+
+## 2026-11-12 - Simplify the admin post review queue
+
+### Summary
+
+- Remove the duplicate card list from the admin's post review route while retaining the overview cards for the dashboard and business workspace.
+- Prioritize pending posts in the single admin list, show a compact business/content/event/group/offer summary, emphasize opening pending reviews, and collapse subgroup details in the review dialog. Keep search, status filters, editing, deletion and approval actions available.
+
+### Files changed
+
+- `src/gomate-portal/ConnectedPortal.jsx`, `AdminManagement.jsx`, `connected-portal.css`.
+
+### Verification
+
+- `npm run typecheck`: Passed.
+- Explicit ESLint for changed JSX/TS files: Passed with one existing hook warning in `AdminManagement.jsx`.
+- `npm run lint`: Failed on unresolved `exceljs` in unchanged `src/gomate-portal/formExcel.js`; five unrelated warnings remain.
+- `npx expo-doctor`: 20/21 checks passed; Expo and four Expo packages are each one patch behind the SDK's expected version.
+- `GET http://localhost:8082/portal`: HTTP 200. `git diff --check`: Passed. UI workflow tests were not run for this presentation change.
+
+### Remaining work
+
+- None for the review queue. The full lint resolver error and Expo patch mismatches remain outside this change.
+
+## 2026-11-12 - Refine post moderation cards
+
+### Summary
+
+- Rework the connected portal post review UI into a clear main post card with separated subgroup rows, compact icon metadata, calmer content styling and status pills. Keep review, resubmission, withdrawal, editing and lifecycle callbacks intact.
+- Add responsive action alignment and emerald/amber/red status treatments. The portal is not configured for Tailwind, so use its existing scoped CSS instead of introducing an unconfigured styling dependency.
+
+### Files changed
+
+- `src/gomate-portal/ConnectedPortal.jsx`, `PostReviewPanel.jsx`, `GoMatePortal.jsx`, `connected-portal.css`.
+- `src/i18n/portalTranslations.ts`, `src/gomate-portal/usePortalText.ts`.
+
+### Verification
+
+- `npm run typecheck`: Passed.
+- Explicit ESLint for changed JSX/TS files: Passed.
+- `npm run lint`: Failed on unresolved `exceljs` in unchanged `src/gomate-portal/formExcel.js`; five unrelated warnings remain.
+- `npx expo-doctor`: 20/21 checks passed; Expo and four Expo packages are each one patch behind the SDK's expected version.
+- Expo Web started on port `8082` because `8081` was occupied; `GET /portal` returned HTTP 200.
+- `git diff --check`: Passed. UI workflow tests were not run for this presentation-only change.
+
+### Remaining work
+
+- None for the post review UI. The full lint resolver error and Expo patch mismatches remain outside this change.
+
 ## 2026-11-09 - Replace the cramped business management link in app groups
 
 ### Summary
