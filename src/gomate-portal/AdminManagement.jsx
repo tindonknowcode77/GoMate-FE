@@ -34,10 +34,11 @@ export default function AdminManagement({ kind, me, onChanged, refreshVersion = 
   const base = '/portal/admin/' + kind;
   const load = useCallback(async () => {
     const request = ++generation.current; setLoading(true); setError('');
-    try { const value = await api(`${base}?page=${page}&q=${encodeURIComponent(search)}&status=${encodeURIComponent(status)}&role=${encodeURIComponent(role)}`, { timeoutMs: 8000 }); if (request === generation.current) { setResult(value); if (!value.items.length && page > 1) setPage(page - 1); } }
+    const roleQuery = kind === 'users' && role ? `&role=${encodeURIComponent(role)}` : '';
+    try { const value = await api(`${base}?page=${page}&q=${encodeURIComponent(search)}&status=${encodeURIComponent(status)}${roleQuery}`, { timeoutMs: 8000 }); if (request === generation.current) { setResult(value); if (!value.items.length && page > 1) setPage(page - 1); } }
     catch (reason) { if (request === generation.current) setError(reason.message); }
     finally { if (request === generation.current) setLoading(false); }
-  }, [base, page, search, status, role]);
+  }, [base, kind, page, search, status, role]);
   useEffect(() => { void load(); return () => { generation.current++; }; }, [load, refreshVersion]);
   const modalOpen = Boolean(editor || selected || confirm);
   useEffect(() => {

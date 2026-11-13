@@ -1,5 +1,13 @@
 # Decision log
 
+## 2026-11-13 - Extend the demo exception through merchant payout eligibility
+
+The user clarified that demo approval must also permit immediate withdrawal requests. An approved settlement with `demo: true` now bypasses activity completion and holding dates consistently in merchant wallet totals, payout requests, admin payout approval and transfer locking. Existing approved demo records receive this behavior automatically. Normal verification still enforces the original dates. Claims/refunds, revoked or invalid activities, balances, recipient snapshots and admin transfer/completion requirements remain enforced. This supersedes the payout-wait restriction in the earlier demo decision.
+
+## 2026-11-13 - Allow explicitly marked immediate verification for demos
+
+At the user's request, expose a separate admin-only `Xác minh ngay (Demo)` action and `/portal/finance/groups/:id/review-demo` route. It bypasses completion and holding dates for settlement verification without editing activity schedules. Prefill editable demo evidence and explanation; store `settlement.demo: true` and a `settlement-demo-approved` audit event with the acting admin. Keep regular verification and payout waiting rules intact, and retain unresolved claim/refund, active payout, eligible escrow and self-approval checks. The UI identifies demo approvals explicitly.
+
 ## 2026-11-09 - Focus business group operations on one selected group
 
 Use a persistent searchable group browser on desktop and a collapsed chooser on mobile. Filtered-out groups cannot retain editable details; selecting another group remounts its workspace to isolate drafts. Keep an overview with status, counts, preparation checks, schedule preview and contextual next action, then separate Members, Chat, Itinerary, Deposits, Notices and Management tabs.

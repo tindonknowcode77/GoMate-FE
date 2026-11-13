@@ -8,6 +8,9 @@ const money = value => Number(value || 0).toLocaleString('vi-VN') + ' đ';
 const date = value => value ? new Date(value).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }) : '—';
 const names = { processing: 'Đang chuyển tiền', pending: 'Chờ duyệt', approved: 'Đã duyệt, chờ chuyển', completed: 'Đã ghi nhận chuyển tiền', rejected: 'Từ chối', blocked: 'Tạm khóa', waiting: 'Chờ xác minh' };
 const tabs = [['incoming', 'Đối soát tiền vào', 'arrow'], ['deposit_changes', 'Đổi mức cọc', 'wallet'], ['settlements', 'Xác minh hoạt động', 'activity'], ['refunds', 'Hoàn cọc', 'refresh'], ['payouts', 'Giải ngân', 'business'], ['disputes', 'Khiếu nại', 'shield'], ['audit', 'Lịch sử', 'grid']];
+const settlementReason = group => group.settlement.status === 'approved' ? 'Hoạt động đã được admin xác minh.'
+  : group.blockedReason || (group.payouts.some(payout => ['pending', 'approved', 'processing'].includes(payout.status)) ? 'Hoạt động có lệnh giải ngân đang xử lý.'
+  : !group.lots.some(lot => lot.state === 'held' && !lot.refundOnly) ? 'Không có cọc đã đối soát đủ điều kiện.' : '');
 export default function AdminFinance({ refreshVersion = 0 }) {
   const [data, setData] = useState(null), [depositChanges, setDepositChanges] = useState([]), [tab, setTab] = useState('incoming'), [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState('');
@@ -27,6 +30,10 @@ export default function AdminFinance({ refreshVersion = 0 }) {
   }, [page]);
   useEffect(() => { let active = true; const pending = sequence; queueMicrotask(() => { if (active) void load(); }); return () => { active = false; pending.current++; }; }, [load, refreshVersion]);
   const open = value => { setEditor(value); setError(''); setForm({ amount: value.payment?.amount || '', transactionRef: '', transferRef: '', note: '', evidence: '', overrideReason: '', orderCode: '', bankTransferConfirmed: false, bankTransferNotSent: false }); };
+  const openDemo = group => {
+    open({ kind: 'settlement', group, demo: true });
+    setForm(value => ({ ...value, evidence: 'Xác minh thủ công phục vụ trình diễn demo.', note: 'Admin xác minh ngay để demo, bỏ qua lịch và thời gian giữ cọc.', overrideReason: 'Admin xác minh thủ công thay xác nhận thành viên để trình diễn demo.' }));
+  };
   const close = () => { if (!busy) setEditor(null); };
   useEffect(() => {
     if (!editor) return;
@@ -44,7 +51,7 @@ export default function AdminFinance({ refreshVersion = 0 }) {
       const { kind, group, lot, payout, payment, bankEvent, action } = editor;
       if (kind === 'verify') { path = `/payments/${payment.id}/verify`; body = { amount: Number(form.amount), transactionRef: form.transactionRef, evidence: form.evidence }; }
       if (kind === 'assign') { path = `/incoming/${bankEvent.id}/assign`; body = { orderCode: form.orderCode.trim().toUpperCase() }; }
-      if (kind === 'settlement') { path = `/groups/${group.id}/review`; body = { evidence: form.evidence, note: form.note, overrideReason: form.overrideReason }; }
+      if (kind === 'settlement') { path = `/groups/${group.id}/${editor.demo ? 'review-demo' : 'review'}`; body = { evidence: form.evidence, note: form.note, overrideReason: form.overrideReason }; }
       if (kind === 'refund') { path = `/refunds/${lot.paymentId}/review`; body = { action, note: form.note, ...(action === 'complete' ? { transferRef: form.transferRef, bankTransferConfirmed: form.bankTransferConfirmed } : {}) }; }
       if (kind === 'payout') { path = `/groups/${group.id}/payouts/${payout.id}/review`; body = { action, note: form.note, ...(action === 'complete' ? { transferRef: form.transferRef, bankTransferConfirmed: form.bankTransferConfirmed } : {}), ...(action === 'transfer_failed' ? { bankTransferNotSent: form.bankTransferNotSent } : {}) }; }
       if (kind === 'dispute') { path = `/groups/${group.id}/disputes/${lot.paymentId}`; body = { note: form.note, ...(action ? { outcome: action } : {}) }; }
@@ -69,7 +76,7 @@ export default function AdminFinance({ refreshVersion = 0 }) {
   const tabCounts = {
     incoming: (data?.incomingTotal || 0) + (data?.unmatchedTotal || 0),
     deposit_changes: depositChanges.length,
-    settlements: groups.filter(group => group.settlement.status !== 'approved' && !group.blockedReason).length,
+    settlements: groups.filter(group => !settlementReason(group)).length,
     refunds: summary?.pendingRefunds || 0,
     payouts: summary?.pendingPayouts || 0,
     disputes: disputes.length,
@@ -78,7 +85,7 @@ export default function AdminFinance({ refreshVersion = 0 }) {
   const panelHeading = (eyebrow, title, description, count) => <header className="gm-finance-panel-heading"><div><span>{eyebrow}</span><h4>{title}</h4><p>{description}</p></div>{count !== undefined && <span className="gm-finance-result-count">{count}</span>}</header>;
   const field = (key, label, { minLength = 5, maxLength = 2000, type = 'text', required = true } = {}) => <label className="gm-field"><span>{label}</span>{type === 'textarea' ? <textarea aria-label={label} className="gm-simple-input" required={required} minLength={minLength} maxLength={maxLength} value={form[key]} onChange={event => setForm(value => ({ ...value, [key]: event.target.value }))} /> : <input aria-label={label} className="gm-simple-input" type={type} required={required} min={type === 'number' ? 1 : undefined} step={type === 'number' ? 1 : undefined} minLength={minLength} maxLength={maxLength} value={form[key]} onChange={event => setForm(value => ({ ...value, [key]: event.target.value }))} />}</label>;
   const target = editor?.lot?.refund || editor?.payout;
-  return <section className="gm-finance" aria-busy={loading}>
+  return <section className={`gm-finance${busy ? ' gm-finance--busy' : ''}`} aria-busy={loading || busy}>
     <header className="gm-finance-heading">
       <div><span className="gm-finance-eyebrow">TỔNG QUAN SỐ DƯ</span><p>Theo dõi tiền vào, tiền đang giữ và các khoản chi trả đã xác minh.</p></div>
       <PillButton variant="secondary" icon="refresh" disabled={loading} onClick={() => void load()}>{loading ? 'Đang cập nhật…' : 'Làm mới tài chính'}</PillButton>
@@ -123,12 +130,18 @@ export default function AdminFinance({ refreshVersion = 0 }) {
     </section>}
     {tab === 'settlements' && <section className="gm-panel gm-live-panel gm-finance-panel">
       {panelHeading('ĐIỀU KIỆN GIẢI NGÂN', 'Xác minh hoạt động', 'Kiểm tra hoạt động và điều kiện giữ cọc trước khi giải ngân.', groups.length)}
-      {groups.map(group => <article className="gm-finance-card" key={group.id}>
+      {groups.map(group => {
+        const reason = settlementReason(group), approved = group.settlement.status === 'approved';
+        const demoBlocked = approved || !['published', 'in-progress', 'completed'].includes(group.activityStatus) || group.lots.some(lot => ['refund_requested', 'refund_approved', 'disputed'].includes(lot.state)) || group.payouts.some(payout => ['pending', 'approved', 'processing'].includes(payout.status)) || !group.lots.some(lot => lot.state === 'held' && !lot.refundOnly);
+        return <article className="gm-finance-card" key={group.id}>
         <div className="gm-finance-card-heading"><div><strong>{group.title}</strong><small>Mã nhóm {group.id}</small></div><StatusPill status={group.settlement.status}>{names[group.settlement.status] || group.settlement.status}</StatusPill></div>
         <div className="gm-finance-facts"><div><span>Trạng thái hoạt động</span><strong>{group.activityStatus || 'Không còn hoạt động'}</strong></div><div><span>Hết thời gian giữ cọc</span><strong>{date(group.holdUntil)}</strong></div><div><span>Xác nhận tham dự</span><strong>{group.lots.filter(lot => lot.confirmation?.status === 'attended').length} / {group.lots.length}</strong></div></div>
-        {group.blockedReason && <p className="gm-finance-blocked"><Icon name="shield" size={15} />{group.blockedReason}</p>}
-        <div className="gm-finance-card-actions"><PillButton variant="secondary" disabled={Boolean(group.blockedReason) || group.settlement.status === 'approved' || busy} onClick={() => open({ kind: 'settlement', group })}>Xác minh hoạt động</PillButton></div>
-      </article>)}
+        {reason && <p id={`settlement-reason-${group.id}`} className="gm-finance-blocked"><Icon name={approved ? 'check' : 'shield'} size={15} />{approved ? reason : `Chưa thể xác minh: ${reason}`}</p>}
+        {group.settlement.demo && <p className="gm-finance-blocked">Đã xác minh thủ công phục vụ demo, bỏ qua lịch và thời gian chờ.</p>}
+        <div className="gm-finance-card-actions"><button type="button" className="gm-btn gm-btn--secondary" disabled={Boolean(reason) || busy} aria-describedby={reason ? `settlement-reason-${group.id}` : undefined} title={reason || 'Mở hồ sơ để nhập bằng chứng và xác minh hoạt động'} onClick={() => open({ kind: 'settlement', group })}>{approved ? 'Đã xác minh hoạt động' : reason ? 'Chưa thể xác minh' : 'Xác minh hoạt động'}</button></div>
+        {!approved && <div className="gm-finance-card-actions"><PillButton variant="secondary" icon="check" disabled={busy || demoBlocked} onClick={() => openDemo(group)}>Xác minh ngay (Demo)</PillButton><small>Bỏ qua ngày diễn ra và thời gian giữ cọc để trình diễn.</small></div>}
+      </article>;
+      })}
       {!groups.length && <div className="gm-finance-empty"><Icon name="check" size={18} /><span>Không có hoạt động cần xác minh trong trang này.</span></div>}
     </section>}
     {tab === 'refunds' && <section className="gm-panel gm-live-panel gm-finance-panel">
@@ -173,6 +186,7 @@ export default function AdminFinance({ refreshVersion = 0 }) {
     <div className="gm-live-actions gm-finance-pagination"><PillButton variant="secondary" disabled={page === 1 || loading} onClick={() => setPage(value => value - 1)}>Trang trước</PillButton><span>Trang {page} / {Math.max(1, Math.ceil(total / pageSize))}</span><PillButton variant="secondary" disabled={loading || page * pageSize >= total} onClick={() => setPage(value => value + 1)}>Trang sau</PillButton></div>
     {editor && <div className="gm-modal-backdrop"><section className="gm-user-modal gm-finance-dialog" role="dialog" aria-modal="true" aria-labelledby="finance-dialog-title"><header className="gm-modal-head"><h3 id="finance-dialog-title">{editor.action === 'complete' ? 'Ghi nhận chuyển tiền ngân hàng' : 'Xử lý hồ sơ tài chính'}</h3><PillButton variant="secondary" disabled={busy} onClick={close}>Đóng</PillButton></header><form className="gm-auth-form" onSubmit={save}><fieldset disabled={busy} className="gm-finance-fields">
       {target && <div className="gm-finance-target"><strong>{money(target.amount)}</strong><p>{target.bankAccount.bankId} · {target.bankAccount.accountNo} · {target.bankAccount.accountName}</p></div>}
+      {editor.demo && <div className="gm-finance-target"><strong>Xác minh ngay (Demo)</strong><p>Xác minh thủ công hoạt động “{editor.group.title}” ngay bây giờ, bỏ qua ngày diễn ra và thời gian giữ cọc. Thao tác được ghi rõ là demo trong lịch sử.</p></div>}
       {editor.kind === 'verify' && <>{field('amount', 'Số tiền thực nhận', { type: 'number' })}{field('transactionRef', 'Mã giao dịch tiền vào', { minLength: 6, maxLength: 120 })}{field('evidence', 'Bằng chứng đối soát ngân hàng', { type: 'textarea', minLength: 10 })}</>}
       {editor.kind === 'assign' && field('orderCode', 'Mã thanh toán GM', { minLength: 8, maxLength: 14 })}
       {editor.kind === 'settlement' && <>{field('evidence', 'Bằng chứng hoạt động thực tế', { type: 'textarea', minLength: 10 })}{editor.group.lots.some(lot => lot.state === 'held' && !lot.refundOnly && lot.confirmation?.status !== 'attended') && field('overrideReason', 'Lý do xác minh thay xác nhận thành viên', { type: 'textarea', minLength: 15, maxLength: 1000 })}</>}

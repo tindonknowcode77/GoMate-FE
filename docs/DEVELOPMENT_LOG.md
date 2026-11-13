@@ -1,5 +1,100 @@
 # Development log
 
+## 2026-11-13 - Make demo approvals immediately eligible for merchant withdrawals
+
+### Summary
+
+- Extend approved demo settlements to bypass completion/holding dates throughout wallet eligibility, merchant payout requests and admin payout review. Previously verified demo records also qualify without another approval.
+- Show the demo exception in the merchant wallet instead of a misleading future holding deadline. Preserve claim/refund/revocation restrictions and normal approval, transfer-lock and completion steps.
+
+### Files changed
+
+- `src/gomate-portal/BusinessWallet.jsx`, `tests/finance-settlement.web.cjs`.
+- Companion backend `src/modules/payment/finance.js`; `docs/DEVELOPMENT_LOG.md`, `docs/DECISIONS.md`.
+
+### Verification
+
+- `node tests/finance-settlement.web.cjs`: Passed. Future and holding-period demo approvals each expose 45,000 VND eligibility on 50,000 VND deposits, appear in the merchant dropdown, accept browser payout requests, and complete admin approval/transfer-lock/completion through the real API. Wallet records 90,000 VND paid out. Unresolved claims and revoked activities still block demo eligibility; normal holding and authorization checks remain covered.
+- Backend `node --test tests/finance.test.js`: 23/23 passed.
+- `npm run typecheck`, `npm run lint`, `npm run build`: Passed; five existing lint warnings remain.
+- `npx expo-doctor`: 20/21 passed; existing five package patch mismatches remain.
+
+### Remaining work
+
+- None for demo payout eligibility. Existing lint/Expo warnings remain.
+
+## 2026-11-13 - Add immediate manual settlement verification for demos
+
+### Summary
+
+- Add `Xác minh ngay (Demo)` beside regular activity verification. Its dialog prefills demo evidence, note and attendance override so the admin can confirm immediately.
+- Call a dedicated admin-only demo review endpoint that bypasses activity completion and waiting dates and records `demo: true` plus `settlement-demo-approved` audit history. Show the demo marker on approved cards.
+- Preserve original schedules and existing dispute, refund, payout, escrow eligibility and self-approval rules.
+
+### Files changed
+
+- `src/gomate-portal/AdminFinance.jsx`, `tests/finance-settlement.web.cjs`.
+- Companion backend: `src/modules/payment/finance.js`, `finance-routes.js`, payment-flow documentation.
+- `docs/DEVELOPMENT_LOG.md`, `docs/DECISIONS.md`.
+
+### Verification
+
+- `node tests/finance-settlement.web.cjs`: Passed. Immediate verification succeeds for a future activity and an unexpired hold, persists demo audit metadata and preserves activity dates. Ordinary-user access, normal-route bypass attempts, repeat demo approval and pending claim/payout/empty escrow attempts are rejected.
+- Backend `node --test tests/finance.test.js`: 23/23 passed.
+- `npm run typecheck`, `npm run lint`, `npm run build`: Passed; lint retains five existing warnings.
+- `npx expo-doctor`: 20/21 checks passed; existing five Expo patch-version mismatches remain.
+
+### Remaining work
+
+- Demo verification only bypasses the verification schedule; payout waiting rules still apply. Existing lint/Expo warnings remain.
+
+## 2026-11-13 - Clarify disabled activity verification in admin finance
+
+### Summary
+
+- Replace the misleading wait cursor on disabled finance actions with a not-allowed cursor; reserve the wait cursor for actual mutations.
+- Show `Chưa thể xác minh` with an accessible reason and tooltip for blocked activities, and `Đã xác minh hoạt động` after approval. Keep eligible activities clickable.
+- Align the eligibility badge and button with pending payout and eligible escrow checks in addition to existing completion, hold and claim blockers.
+
+### Files changed
+
+- `src/gomate-portal/AdminFinance.jsx`, `src/gomate-portal/finance.css`.
+- `tests/finance-settlement.web.cjs`, `docs/DEVELOPMENT_LOG.md`.
+
+### Verification
+
+- `node tests/finance-settlement.web.cjs`: Passed against isolated Express/MongoDB and Chromium. Covered unfinished activities, holding periods, disputes, active payouts, empty escrows, approved state, hover cursor and accessible reasons. Eligible activities successfully persist approval with evidence, including the missing-member-confirmation explanation. Direct API calls still reject the holding-period case. Mobile layout and browser error checks passed.
+- `npm run typecheck`, `npm run lint`, `npm run build`: Passed; lint retains five existing warnings.
+- `npx expo-doctor`: 20/21 checks passed; existing five Expo patch-version mismatches remain.
+
+### Remaining work
+
+- Verification remains subject to existing backend eligibility rules; this change does not bypass the holding period or unresolved claims. Existing lint/Expo warnings remain.
+
+## 2026-11-13 - Fix admin list requests and role filtering after UI merge
+
+### Summary
+
+- Send a role query only for a selected role in user management. Posts, businesses, reports and tickets no longer send the unsupported empty role field that caused HTTP 400 after the merge.
+- Add matching backend validation and effective-role filtering, including compatibility for older bundles that still send an empty role.
+
+### Files changed
+
+- `src/gomate-portal/AdminManagement.jsx`.
+- Companion backend changes: `src/modules/portal/admin.js`, `admin-validation.js`, admin regression tests and API documentation.
+- `docs/DEVELOPMENT_LOG.md`.
+
+### Verification
+
+- `npm run typecheck`, `npm run lint`, `npm run build`: Passed; lint retains five existing warnings.
+- `node tests/admin-crud.web.cjs`: Passed against isolated Express/MongoDB, including role filters, CRUD, post approval, reports, support and mobile layout.
+- Backend `node --test tests/admin-validation.test.js tests/admin-validation-http.test.js tests/admin-crud.test.js`: 6/6 passed, including the reported posts URL, all admin list kinds, effective-role precedence, search, pagination and malformed filters.
+- `npx expo-doctor`: 20/21 checks passed; the existing five Expo package patch mismatches remain.
+
+### Remaining work
+
+- Existing Expo/lint warnings and the unrelated finance browser test limitation from the merge entry remain.
+
 ## 2026-11-13 - Merge admin UI branch into current business workflows
 
 ### Summary

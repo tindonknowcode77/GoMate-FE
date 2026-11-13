@@ -1,4 +1,6 @@
 .gm-finance { display: grid; gap: 16px; min-width: 0; }
+.gm-finance .gm-btn:disabled { cursor: not-allowed; }
+.gm-finance.gm-finance--busy .gm-btn:disabled { cursor: wait; }
 .gm-finance-heading,.gm-finance-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
 .gm-finance .gm-active-tabs { display: flex; flex-wrap: wrap; gap: 6px; }
 .gm-finance .gm-active-tabs button { border: 1px solid #ded8e9; border-radius: 8px; padding: 8px 12px; background: #fff; color: #63527c; cursor: pointer; }
