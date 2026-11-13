@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Text } from '../components/LocalizedText';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { VietQrPaymentModal } from '../components/VietQrPaymentModal';
+import { BankPicker } from '../components/BankPicker';
+import { findBank } from '../constants/banks';
 import { confirmParticipation, getPaymentHistory, refundPayment, saveRefundBank, type BankAccount, type Payment, type PaymentHistoryResponse } from '../services/paymentService';
 import { colors, layout } from '../theme';
 
 const money = (value = 0) => value.toLocaleString('vi-VN') + ' đ';
-const banks = ['BIDV', 'VCB', 'MB', 'TCB', 'ACB', 'VPB', 'CTG', 'TPB'];
 const refundLabels: Record<string, string> = { pending: 'Chờ duyệt hoàn tiền', approved: 'Đã duyệt, chờ chuyển tiền', completed: 'Đã ghi nhận chuyển tiền hoàn', rejected: 'Yêu cầu bị từ chối' };
 const emptyBank: BankAccount = { bankId: 'BIDV', accountNo: '', accountName: '' };
 
@@ -50,14 +51,33 @@ export function UserWalletScreen({ onBack }: { onBack: () => void }) {
       <View style={styles.balance}><Text style={styles.balanceLabel}>Cọc đang giữ / xử lý</Text><Text style={styles.balanceValue}>{summary ? money(summary.totalPaid) : '—'}</Text><Text style={styles.balanceLabel}>Đã hoàn về ngân hàng: {summary ? money(summary.refundedAmount) : '—'}</Text></View>
       {feedback && <Text accessibilityRole="alert" style={{ color: feedback.error ? colors.danger : colors.success }}>{feedback.message}</Text>}
       <View style={styles.card}><View style={styles.row}><Text style={styles.title}>Ngân hàng nhận hoàn tiền</Text><Action label={editingBank ? 'Đóng' : bank ? 'Thay đổi' : 'Thêm ngân hàng'} disabled={busy} onPress={() => setEditingBank(value => !value)} /></View>
-        {bank && !editingBank && <><Text>{bank.bankId} · {bank.accountNo}</Text><Text>{bank.accountName}</Text></>}
+        {bank && !editingBank && (() => {
+          const bankInfo = findBank(bank.bankId);
+          return (
+            <View style={styles.bankDisplay}>
+              {bankInfo ? (
+                <Image source={bankInfo.logo} style={styles.bankDisplayLogo} resizeMode="contain" />
+              ) : null}
+              <View style={{ flex: 1 }}>
+                <Text style={styles.bankName}>{bankInfo ? `${bankInfo.shortName} (${bank.bankId})` : bank.bankId} · {bank.accountNo}</Text>
+                <Text style={styles.accountName}>{bank.accountName}</Text>
+              </View>
+            </View>
+          );
+        })()}
         {!bank && !editingBank && <Text style={styles.muted}>Chưa có tài khoản nhận tiền.</Text>}
         {editingBank && <>
-          <View style={styles.row}>{banks.map(value => <Pressable key={value} accessibilityRole="button" onPress={() => setBankForm(current => ({ ...current, bankId: value }))} style={[styles.chip, bankForm.bankId === value && styles.chipActive]}><Text>{value}</Text></Pressable>)}</View>
-          <TextInput accessibilityLabel="Mã ngân hàng nhận hoàn" style={styles.input} value={bankForm.bankId} maxLength={20} onChangeText={bankId => setBankForm(current => ({ ...current, bankId: bankId.toUpperCase() }))} />
-          <TextInput accessibilityLabel="Số tài khoản nhận hoàn" placeholder="Số tài khoản ngân hàng" keyboardType="number-pad" maxLength={25} style={styles.input} value={bankForm.accountNo} onChangeText={accountNo => setBankForm(current => ({ ...current, accountNo }))} />
-          <TextInput accessibilityLabel="Chủ tài khoản nhận hoàn" placeholder="Tên chủ tài khoản" maxLength={120} style={styles.input} value={bankForm.accountName} onChangeText={accountName => setBankForm(current => ({ ...current, accountName: accountName.toUpperCase() }))} />
-          <Action primary label="Lưu ngân hàng" disabled={busy} onPress={() => void run(async () => { const result = await saveRefundBank(bankForm); setBank(result.bankAccount); }, 'Đã lưu tài khoản nhận hoàn tiền.')} />
+          <Text style={styles.label}>Ngân hàng thụ hưởng</Text>
+          <BankPicker
+            value={bankForm.bankId}
+            disabled={busy}
+            onChange={selected => setBankForm(current => ({ ...current, bankId: selected.code }))}
+          />
+          <Text style={styles.label}>Số tài khoản</Text>
+          <TextInput accessibilityLabel="Số tài khoản nhận hoàn" placeholder="Số tài khoản ngân hàng" keyboardType="number-pad" maxLength={25} style={styles.input} value={bankForm.accountNo} onChangeText={accountNo => setBankForm(current => ({ ...current, accountNo: accountNo.trim() }))} />
+          <Text style={styles.label}>Tên chủ tài khoản</Text>
+          <TextInput accessibilityLabel="Chủ tài khoản nhận hoàn" placeholder="Tên chủ tài khoản (không dấu)" maxLength={120} style={styles.input} value={bankForm.accountName} onChangeText={accountName => setBankForm(current => ({ ...current, accountName: accountName.toUpperCase() }))} />
+          <Action primary label="Lưu ngân hàng" disabled={busy || !bankForm.bankId || !bankForm.accountNo.trim() || !bankForm.accountName.trim()} onPress={() => void run(async () => { const result = await saveRefundBank(bankForm); setBank(result.bankAccount); }, 'Đã lưu tài khoản nhận hoàn tiền.')} />
         </>}
       </View>
       <View style={styles.row}>{[['all', 'Tất cả'], ['paid', 'Đã nhận cọc'], ['refunds', 'Yêu cầu hoàn']].map(([key, label]) => <Pressable key={key} accessibilityRole="button" style={[styles.chip, filter === key && styles.chipActive]} onPress={() => setFilter(key as typeof filter)}><Text>{label}</Text></Pressable>)}<Action label="Làm mới ví" disabled={loading} onPress={() => void load()} /></View>
@@ -99,4 +119,9 @@ const styles = StyleSheet.create({
   title: { fontSize: 16, color: colors.text, fontWeight: '700' }, muted: { color: colors.textMuted, fontSize: 12, lineHeight: 18 }, input: { borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, color: colors.text, backgroundColor: colors.surface },
   button: { paddingHorizontal: 13, paddingVertical: 11, borderRadius: 10, borderWidth: 1, borderColor: colors.primaryLight, alignItems: 'center', justifyContent: 'center' }, primary: { backgroundColor: colors.primary, borderColor: colors.primary }, chip: { paddingHorizontal: 12, paddingVertical: 8, backgroundColor: colors.surface, borderRadius: 20, borderWidth: 1, borderColor: colors.border }, chipActive: { backgroundColor: colors.primarySoft, borderColor: colors.primaryLight },
   overlay: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 18, backgroundColor: 'rgba(0,0,0,.5)' }, modal: { width: '100%', maxWidth: 480, padding: 22, borderRadius: 20, backgroundColor: colors.surface, gap: 14 }, amount: { color: colors.primary, fontWeight: '800', fontSize: 26 },
+  label: { fontSize: 13, fontWeight: '600', color: colors.text, marginTop: 4 },
+  bankDisplay: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 4 },
+  bankDisplayLogo: { width: 54, height: 30 },
+  bankName: { fontSize: 15, fontWeight: '700', color: colors.text },
+  accountName: { fontSize: 13, color: colors.textMuted },
 });

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from '../services/api';
 import { usePortalNotice } from './PortalNotifications';
 import { StatusPill } from './GoMatePortal';
+import { SUPPORTED_BANKS, findBank } from '../constants/banks';
 import './finance.css';
 
 const money = value => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value || 0);
@@ -62,9 +63,28 @@ export default function BusinessWallet({ refreshVersion = 0 }) {
       <div className="gm-metric-grid">{[['Đã đối soát tiền vào', wallet.recordedAmount], ['Đang giữ cọc', wallet.escrowHeldAmount], ['Có thể yêu cầu giải ngân', wallet.withdrawableAmount], ['Đã chuyển doanh nghiệp', wallet.paidOutAmount], ['Chờ hoàn người dùng', wallet.refundableAmount]].map(([label, value]) => <div className="gm-finance-target" key={label}><small>{label}</small><br /><strong>{money(value)}</strong></div>)}</div>
       <p className="gm-finance-policy">Giữ cọc ít nhất {wallet.policy.settlementHoldHours} giờ sau lịch kết thúc. Admin xác minh hoạt động, xử lý khiếu nại rồi mới duyệt giải ngân. Phí nền tảng {wallet.policy.feeBps / 100}% trên phần đã giải ngân.</p>
       <section className="gm-panel gm-live-panel"><div className="gm-finance-heading"><h3>Tài khoản nhận giải ngân</h3><button className="gm-btn gm-btn--secondary" onClick={() => setEditBank(!editBank)} disabled={busy}>{editBank ? 'Đóng' : 'Cập nhật ngân hàng'}</button></div>
-        {wallet.bankAccount ? <p>{wallet.bankAccount.bankId} · {wallet.bankAccount.accountNo} · {wallet.bankAccount.accountName}</p> : <p>Chưa lưu tài khoản ngân hàng.</p>}
+        {wallet.bankAccount ? (() => {
+          const bankInfo = findBank(wallet.bankAccount.bankId);
+          return <div className="gm-bank-badge">
+            {bankInfo && <img src={bankInfo.logoUrl} alt={bankInfo.shortName} className="gm-bank-logo" />}
+            <div>
+              <strong>{bankInfo ? `${bankInfo.shortName} (${wallet.bankAccount.bankId})` : wallet.bankAccount.bankId} · {wallet.bankAccount.accountNo}</strong>
+              <p style={{ margin: 0 }}>{wallet.bankAccount.accountName}{wallet.bankAccount.branch ? ` · ${wallet.bankAccount.branch}` : ''}</p>
+            </div>
+          </div>;
+        })() : <p>Chưa lưu tài khoản ngân hàng.</p>}
         {editBank && <form className="gm-auth-form" onSubmit={event => { event.preventDefault(); void act('/portal/wallet/bank-account', bank, 'Đã lưu tài khoản nhận giải ngân.', 'PUT'); }}>
-          {[['bankId', 'Mã ngân hàng'], ['accountNo', 'Số tài khoản'], ['accountName', 'Chủ tài khoản'], ['branch', 'Chi nhánh']].map(([key, label]) => <label key={key}>{label}<input value={bank[key] || ''} required={key !== 'branch'} maxLength={key === 'accountNo' ? 25 : 120} onChange={event => setBank({ ...bank, [key]: event.target.value })} /></label>)}
+          <label>Ngân hàng
+            <div className="gm-bank-select-wrap">
+              {findBank(bank.bankId) && <img src={findBank(bank.bankId)?.logoUrl} alt={bank.bankId} className="gm-bank-logo" />}
+              <select value={bank.bankId || 'MB'} required onChange={event => setBank({ ...bank, bankId: event.target.value })}>
+                {SUPPORTED_BANKS.map(item => <option key={item.code} value={item.code}>{item.shortName} ({item.code}) - {item.name}</option>)}
+              </select>
+            </div>
+          </label>
+          <label>Số tài khoản<input value={bank.accountNo || ''} required maxLength={25} placeholder="Số tài khoản ngân hàng" onChange={event => setBank({ ...bank, accountNo: event.target.value.trim() })} /></label>
+          <label>Chủ tài khoản<input value={bank.accountName || ''} required maxLength={120} placeholder="Tên chủ tài khoản (viết hoa không dấu)" onChange={event => setBank({ ...bank, accountName: event.target.value.toUpperCase() })} /></label>
+          <label>Chi nhánh (không bắt buộc)<input value={bank.branch || ''} maxLength={120} placeholder="VD: Chi nhánh TP.HCM" onChange={event => setBank({ ...bank, branch: event.target.value })} /></label>
           <button className="gm-btn gm-btn--secondary" disabled={busy}>Lưu ngân hàng</button>
         </form>}
       </section>
