@@ -23,6 +23,11 @@ type DashboardData = {
   activityCategories: { category: string; count: number }[];
   recentActivity: RecentActivity[];
 };
+type PerformanceData = {
+  lateArrival: { late: number; present: number; total: number; rate: number };
+  businessCancellation: { total: number; rejected: number; withdrawn: number; cancelledActivities: number; cancelledOrRejected: number; rate: number };
+  topLocations: { name: string; area: string; activityCount: number; participantCount: number }[];
+};
 type Props = {
   onNavigate: (section: string) => void;
   onAddAdministrator: () => void;
@@ -77,11 +82,15 @@ function QueuePanel({ title, count, items, kind, emptyText, onNavigate, t, forma
 export default function AdminStats({ onNavigate, onAddAdministrator, t, formatDate }: Props) {
   const [period, setPeriod] = useState<Period>('week');
   const [data, setData] = useState<DashboardData | null>(null);
+  const [performance, setPerformance] = useState<PerformanceData | null>(null);
   const [requestState, setRequestState] = useState<RequestState>({ key: '', error: '' });
+  const [performanceRequestState, setPerformanceRequestState] = useState<RequestState>({ key: '', error: '' });
   const [retry, setRetry] = useState(0);
   const requestKey = `${period}:${retry}`;
   const loading = requestState.key !== requestKey;
   const error = loading ? '' : requestState.error;
+  const performanceLoading = performanceRequestState.key !== requestKey;
+  const performanceError = performanceLoading ? '' : performanceRequestState.error;
 
   useEffect(() => {
     let alive = true;
@@ -90,6 +99,14 @@ export default function AdminStats({ onNavigate, onAddAdministrator, t, formatDa
       .catch(reason => { if (alive) setRequestState({ key: requestKey, error: reason instanceof Error ? reason.message : 'Không tải được tổng quan.' }); });
     return () => { alive = false; };
   }, [period, requestKey]);
+
+  useEffect(() => {
+    let alive = true;
+    api<PerformanceData>('/portal/admin/analytics/performance', { timeoutMs: 15000 })
+      .then(value => { if (alive) { setPerformance(value); setPerformanceRequestState({ key: requestKey, error: '' }); } })
+      .catch(reason => { if (alive) setPerformanceRequestState({ key: requestKey, error: reason instanceof Error ? reason.message : 'Không tải được chỉ số hiệu suất.' }); });
+    return () => { alive = false; };
+  }, [requestKey]);
 
   useEffect(() => {
     const timer = setInterval(() => setRetry(value => value + 1), 30000);
@@ -141,6 +158,30 @@ export default function AdminStats({ onNavigate, onAddAdministrator, t, formatDa
         {roleStats.map(item => <button type="button" key={item.color} className={`gm-admin-role-metric is-${item.color}`} onClick={() => onNavigate('users')}>
           <span>{t(item.label)}</span><strong>{number(item.value)}</strong>
         </button>)}
+      </div>
+    </section>
+
+    <section className="gm-admin-performance-section">
+      <header className="gm-admin-dashboard-panel-heading"><div><span className="gm-eyebrow">{t('OPERATIONAL QUALITY')}</span><h3>{t('Performance and operations')}</h3><p>{t('Calculated from completed attendance and business event records')}</p></div></header>
+      {performanceError && <p className="gm-admin-stats-error" role="alert">{performanceError}</p>}
+      <div className="gm-admin-performance-grid" aria-busy={performanceLoading}>
+        <article className="gm-admin-performance-card gm-admin-performance-card--late">
+          <div><span>{t('Late arrival rate')}</span><strong>{performance ? `${performance.lateArrival.rate.toLocaleString('vi-VN', { maximumFractionDigits: 1 })}%` : '—'}</strong></div>
+          <p>{number(performance?.lateArrival.late ?? 0)} {t('late arrivals')} / {number(performance?.lateArrival.total ?? 0)} {t('attended members')}</p>
+          <small>{t('Present and late statuses only; hosts are excluded.')}</small>
+        </article>
+        <article className="gm-admin-performance-card gm-admin-performance-card--cancellation">
+          <div><span>{t('Business cancellation rate')}</span><strong>{performance ? `${performance.businessCancellation.rate.toLocaleString('vi-VN', { maximumFractionDigits: 1 })}%` : '—'}</strong></div>
+          <p>{number(performance?.businessCancellation.cancelledOrRejected ?? 0)} {t('cancelled or rejected')} / {number(performance?.businessCancellation.total ?? 0)} {t('business event entries')}</p>
+          <small>{number(performance?.businessCancellation.cancelledActivities ?? 0)} {t('cancelled events')} · {number(performance?.businessCancellation.rejected ?? 0)} {t('rejected')} · {number(performance?.businessCancellation.withdrawn ?? 0)} {t('withdrawn')}</small>
+        </article>
+        <section className="gm-admin-dashboard-panel gm-admin-top-locations">
+          <header className="gm-admin-dashboard-panel-heading"><div><h4>{t('Top locations')}</h4><p>{t('Ranked by activity and participant volume')}</p></div></header>
+          {performance?.topLocations.length ? <ol>{performance.topLocations.slice(0, 5).map((location, index) => <li key={`${location.name}:${location.area}`}>
+            <span className="gm-admin-location-rank">{index + 1}</span><span className="gm-admin-location-copy"><strong>{location.name}</strong><small>{location.area || t('Area not specified')}</small></span>
+            <span className="gm-admin-location-counts"><strong>{number(location.participantCount)}</strong><small>{number(location.activityCount)} {t('activities')}</small></span>
+          </li>)}</ol> : <p className="gm-admin-growth-empty">{performanceLoading ? t('Loading statistics') : t('No activity locations')}</p>}
+        </section>
       </div>
     </section>
 

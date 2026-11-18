@@ -452,6 +452,7 @@
 }
 @media(max-width: 800px) {
   .gm-admin-dashboard-analytics,.gm-admin-dashboard-queues,.gm-admin-dashboard-lower { grid-template-columns: 1fr; }
+  .gm-admin-revenue-summary { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .gm-admin-dashboard-panel .gm-admin-growth-bars { grid-auto-columns: minmax(42px,1fr); }
 }
 @media(max-width: 600px) {
@@ -467,6 +468,13 @@
   .gm-admin-role-metric { padding: 9px 10px; }
   .gm-admin-role-metric:nth-child(2) { border-right: 0; }
   .gm-admin-role-metric:nth-child(-n+2) { border-bottom: 1px solid #edf0f3; }
+  .gm-admin-performance-grid { grid-template-columns: 1fr; }
+  .gm-admin-top-locations { grid-column: auto; }
+  .gm-admin-revenue-heading { align-items: flex-start; flex-direction: column; }
+  .gm-admin-revenue-filters { justify-content: flex-start; }
+  .gm-admin-revenue-summary { gap: 7px; }
+  .gm-admin-revenue-summary-card { padding: 9px; }
+  .gm-admin-revenue-summary-card > strong { font-size: 13px; }
   .gm-admin-dashboard-panel { padding: 13px; }
   .gm-admin-dashboard-panel-heading { align-items: flex-start; }
   .gm-admin-dashboard-panel .gm-admin-period-control button { padding: 0 7px; }
@@ -478,6 +486,60 @@
   .gm-admin-quick-actions .gm-btn { flex: 1 1 calc(50% - 8px); justify-content: center; }
 }
 .gm-admin-kpi,.gm-admin-role-metric,.gm-admin-dashboard-heading .gm-btn { transition: none; }
+.gm-admin-performance-section { display: grid; gap: 11px; min-width: 0; }
+.gm-admin-revenue-report-page { display: grid; gap: 14px; width: 100%; max-width: 1240px; margin: 0 auto; }
+.gm-admin-performance-section > .gm-admin-dashboard-panel-heading h3 { margin-top: 3px; color: #273244; font-size: 14px; font-weight: 660; }
+.gm-admin-performance-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 11px; min-width: 0; }
+.gm-admin-performance-card { display: grid; align-content: start; gap: 10px; min-width: 0; border: 1px solid #e5eaf0; border-top: 3px solid #c58a2b; border-radius: 9px; padding: 15px; background: #fff; }
+.gm-admin-performance-card--cancellation { border-top-color: #ae6262; }
+.gm-admin-performance-card > div { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.gm-admin-performance-card > div span { color: #566274; font-size: 11px; font-weight: 650; line-height: 1.45; }
+.gm-admin-performance-card > div strong { color: #a66a12; font-size: 24px; font-weight: 720; white-space: nowrap; }
+.gm-admin-performance-card--cancellation > div strong { color: #9e4e4e; }
+.gm-admin-performance-card > p { color: #475467; font-size: 11px; font-weight: 600; line-height: 1.45; }
+.gm-admin-performance-card > small { color: #8792a1; font-size: 9px; line-height: 1.5; }
+.gm-admin-top-locations { grid-column: 1 / -1; }
+.gm-admin-top-locations ol { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.gm-admin-top-locations li { display: grid; grid-template-columns: 26px minmax(0,1fr) auto; align-items: center; gap: 9px; min-width: 0; border-bottom: 1px solid #f0f2f5; padding: 9px 0; }
+.gm-admin-top-locations li:last-child { border-bottom: 0; }
+.gm-admin-location-rank { display: grid; place-items: center; width: 23px; height: 23px; border-radius: 6px; background: #edf3fa; color: #326da1; font-size: 10px; font-weight: 700; }
+.gm-admin-location-copy,.gm-admin-location-counts { display: grid; min-width: 0; gap: 3px; }
+.gm-admin-location-copy strong { overflow: hidden; color: #344054; font-size: 10px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.gm-admin-location-copy small,.gm-admin-location-counts small { color: #8490a0; font-size: 9px; }
+.gm-admin-location-counts { text-align: right; }
+.gm-admin-location-counts strong { color: #08785f; font-size: 11px; }
+.gm-admin-revenue-panel { gap: 15px; }
+.gm-admin-revenue-heading { align-items: flex-start; }
+.gm-admin-revenue-heading h3 { margin-top: 3px; color: #273244; font-size: 15px; font-weight: 660; }
+.gm-admin-revenue-filters { display: flex; align-items: flex-end; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.gm-admin-revenue-filters > label { display: grid; gap: 4px; color: #667085; font-size: 9px; }
+.gm-admin-revenue-filters .gm-simple-input { min-width: 92px; min-height: 34px; padding: 6px 9px; font-size: 10px; }
+.gm-admin-revenue-filters .gm-admin-period-control button { min-height: 28px; padding: 0 9px; font-size: 10px; }
+.gm-admin-revenue-filters .gm-btn { display: inline-flex; align-items: center; gap: 5px; min-height: 34px; padding: 6px 9px; font-size: 10px; }
+.gm-admin-revenue-summary { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 8px; }
+.gm-admin-revenue-summary-card { display: grid; align-content: start; gap: 7px; min-width: 0; border: 1px solid #e7ebf0; border-radius: 7px; padding: 11px 12px; background: #fbfcfd; }
+.gm-admin-revenue-summary-card > span { color: #667085; font-size: 9px; font-weight: 600; line-height: 1.4; }
+.gm-admin-revenue-summary-card > strong { overflow-wrap: anywhere; color: #273244; font-size: 15px; font-weight: 700; }
+.gm-admin-revenue-summary-card > small { color: #8490a0; font-size: 8px; line-height: 1.4; }
+.gm-admin-revenue-summary-card.is-primary { border-color: #cae6dd; background: #f1faf6; }
+.gm-admin-revenue-summary-card.is-primary > strong { color: #08785f; }
+.gm-admin-revenue-summary-card.is-up > strong { color: #08785f; }
+.gm-admin-revenue-summary-card.is-down > strong { color: #a14f4f; }
+.gm-admin-revenue-summary-card.is-neutral > strong { color: #667085; font-size: 12px; }
+.gm-admin-revenue-chart-wrap { width: 100%; min-width: 0; overflow-x: auto; }
+.gm-admin-revenue-chart { display: block; width: 100%; min-width: 460px; height: auto; overflow: visible; }
+.gm-admin-chart-gridline { stroke: #e8edf1; stroke-width: 1; }
+.gm-admin-chart-axis-label { fill: #7b8796; font-size: 10px; }
+.gm-admin-revenue-bar { fill: #16806c; opacity: .86; }
+.gm-admin-revenue-bar:hover { fill: #0f6656; opacity: 1; }
+.gm-admin-revenue-sources { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px 16px; border-top: 1px solid #edf0f3; padding-top: 12px; }
+.gm-admin-revenue-sources > div:first-child { display: grid; gap: 3px; }
+.gm-admin-revenue-sources h4 { color: #475467; font-size: 10px; font-weight: 650; }
+.gm-admin-revenue-sources p { color: #8792a1; font-size: 8px; }
+.gm-admin-revenue-source { display: flex; align-items: center; gap: 11px; color: #566274; font-size: 9px; }
+.gm-admin-revenue-source > span { display: inline-flex; align-items: center; gap: 6px; }
+.gm-admin-revenue-source i { width: 8px; height: 8px; border-radius: 2px; background: #16806c; }
+.gm-admin-revenue-source > strong { color: #273244; font-size: 10px; }
 .gm-connected .gm-admin-overview-stats { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }
 .gm-connected .gm-admin-overview-stat { display: grid; grid-template-columns: 42px minmax(0,1fr) auto; grid-template-rows: auto auto; align-items: center; gap: 5px 12px; min-width: 0; min-height: 100px; padding: 15px 17px; border: 1px solid #e5eaf0; border-radius: 10px; background: #fff; text-align: left; cursor: pointer; transition: border-color .15s, box-shadow .15s, transform .15s; }
 .gm-connected .gm-admin-overview-stat:hover { border-color: #cbd5e1; box-shadow: 0 4px 14px rgba(16,24,40,.07); transform: translateY(-1px); }

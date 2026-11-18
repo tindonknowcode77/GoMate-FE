@@ -1,5 +1,31 @@
 # Development log
 
+## 2026-11-18 - Separate financial reporting from Admin overview
+
+### Summary
+
+- Move monthly/yearly revenue analytics out of Dashboard Home to a dedicated Admin `Báo cáo tài chính` page. Keep the existing finance reconciliation workspace separate as `Đối soát tài chính`.
+- Keep operational performance metrics on Dashboard Home and add an Admin menu route for the revenue report.
+- Add typed revenue report page/component with month/year filters, recognized revenue chart, payout totals and MoM/YoY summary.
+- Add protected performance and revenue analytics endpoints backed by MongoDB aggregations for attendance, business event outcomes, top locations and completed payout platform fees.
+
+### Files changed
+
+- `src/gomate-portal/AdminStats.tsx`, `AdminRevenueAnalytics.tsx`, `AdminRevenueReport.tsx`, `ConnectedPortal.jsx`, `connected-portal.css`, `src/i18n/portalTranslations.ts`.
+- Companion backend: `src/modules/portal/admin.js`, `src/database/mongo.js`.
+
+### Verification
+
+- `npm.cmd run typecheck`: Passed.
+- Targeted ESLint for Admin analytics and navigation: Passed.
+- `npm.cmd run build`: Passed; web export completed.
+- Backend `node --check` and `git diff --check`: Passed.
+- Tests were not run.
+
+### Remaining work
+
+- None for separating Admin revenue reporting.
+
 ## 2026-11-18 - Expand the Admin dashboard overview
 
 ### Summary
