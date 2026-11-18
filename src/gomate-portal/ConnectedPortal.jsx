@@ -41,6 +41,8 @@ function PortalWorkspace() {
   const t = usePortalText();
   const [me, setMe] = useState(null), [data, setData] = useState({ posts: [], applications: [], users: [], metrics: {} });
   const [selectedSection, setSection] = useState('overview'), [busy, setBusy] = useState(false), [error, setError] = useState('');
+  const [adminCreateRequest, setAdminCreateRequest] = useState(0);
+  const [adminCreateRoleId, setAdminCreateRoleId] = useState(null);
   const section = selectedSection === 'overview' && ['business', 'business-staff'].includes(me?.role) ? (me.role === 'business' ? 'create-post' : 'active-groups') : selectedSection;
   const [refreshError, setRefreshError] = useState('');
   const [refreshVersion, setRefreshVersion] = useState(0);
@@ -77,9 +79,8 @@ function PortalWorkspace() {
     const revision=profile.application ? profile.application.id+':'+profile.application.version : '';
     if(profile.application && applicationRevision.current!==revision) { applicationRevision.current=revision; setApplication(current => ({...current,...Object.fromEntries(Object.keys(current).map(key=>[key,profile.application[key] || (key === 'country' ? 'VN' : key === 'accountType' ? 'business' : '')]))})); setApplicationDetails({...profile.application,licenseName:profile.application.license?.name}); }
     const resources = [
-      [business || reviewing ? pages('/portal/posts', controller.signal) : { items: [] }, value => setData(current => ({ ...current, posts: value.items }))],
-      [business || reviewing ? api('/portal/metrics', options) : {}, value => setData(current => ({ ...current, metrics: value }))],
-      [reviewing ? pages('/portal/applications', controller.signal) : { items: [] }, value => setData(current => ({ ...current, applications: value.items }))],
+      [business ? pages('/portal/posts', controller.signal) : { items: [] }, value => setData(current => ({ ...current, posts: value.items }))],
+      [business ? api('/portal/metrics', options) : {}, value => setData(current => ({ ...current, metrics: value }))],
       [business || employee ? pages('/portal/locations', controller.signal) : { items: [] }, value => setLocations(value.items)],
       [business || employee ? pages('/portal/groups', controller.signal) : { items: [] }, value => setBusinessGroups(value.items)],
       [business ? pages('/portal/staff', controller.signal) : { items: [] }, value => setBusinessStaff(value.items)],
@@ -97,6 +98,14 @@ function PortalWorkspace() {
     return request;
   }, []);
   useEffect(() => { let alive = true; void load().catch(reason => { if (alive) setError(portalActionError('tải dữ liệu không gian làm việc', reason)); }); return () => { alive = false; loadAbort.current?.abort(); loading.current = null; }; }, [load]);
+  useEffect(() => {
+    if (me?.role !== 'admin' || section !== 'businesses') return undefined;
+    const controller = new AbortController();
+    pages('/portal/applications', controller.signal)
+      .then(value => setData(current => ({ ...current, applications: value.items })))
+      .catch(reason => { if (!controller.signal.aborted) setError(reason.message); });
+    return () => controller.abort();
+  }, [me?.role, section, refreshVersion]);
   const run = async (operation, action) => { if (lock.current) return false; lock.current = true; setBusy(true); setError(''); try { loadAbort.current?.abort(); await loading.current?.catch(() => {}); await action(); return true; } catch (reason) { const message = portalActionError(operation, reason); setError(message); if (getSession()) notify(message, 'error'); return false; } finally { lock.current = false; setBusy(false); } };
   useEffect(() => {
     const reconnect = () => { if (getSession() && !lock.current) { setRefreshVersion(value => value + 1); void load(true).catch(reason => { setError(reason.message); setRefreshError('Chưa kết nối được máy chủ.'); }); } };
@@ -119,7 +128,7 @@ function PortalWorkspace() {
     return () => { disposed = true; clearTimeout(timer); };
   }, [me?.id, load]);
   const apply = event => { event.preventDefault(); void run('gửi hồ sơ doanh nghiệp', async () => { const uploaded = document ? await fileValue(document) : undefined; const supplement = supplementalDocument ? await fileValue(supplementalDocument) : undefined; await api('/portal/applications', {method:'POST',body:JSON.stringify({...application,...(me.application?{version:me.application.version}:{}),...(uploaded?{document:uploaded}:{}),...(supplement?{supplementalDocument:supplement}:{})})}); setDocument(null); setSupplementalDocument(null); await load(); setSuccess('Đã gửi đầy đủ hồ sơ. Admin sẽ kiểm tra và thông báo kết quả.'); }); };
-  const decide = (kind, row, status) => void run(`${status === 'approved' ? 'duyệt' : 'từ chối'} ${kind === 'applications' ? `hồ sơ doanh nghiệp “${row.company}”` : `bài đăng “${row.title}”`}`, async () => { if (status === 'rejected' && !notes[row.id]?.trim()) throw Error('Nhập lý do từ chối để doanh nghiệp có thể cập nhật.'); await api(`/portal/${kind}/${row.id}`, { method: 'PATCH', body: JSON.stringify({ status, reviewNote: notes[row.id] || '', version: row.version }) }); await load(); const target = kind === 'applications' ? `hồ sơ doanh nghiệp “${row.company}”` : `bài đăng “${row.title}”`; setSuccess(status === 'approved' ? `Đã duyệt ${target}.` : `Đã từ chối ${target} và gửi lý do cho doanh nghiệp.`); });
+  const decide = (kind, row, status) => void run(`${status === 'approved' ? 'duyệt' : 'từ chối'} ${kind === 'applications' ? `hồ sơ doanh nghiệp “${row.company}”` : `bài đăng “${row.title}”`}`, async () => { if (status === 'rejected' && !notes[row.id]?.trim()) throw Error('Nhập lý do từ chối để doanh nghiệp có thể cập nhật.'); await api(`/portal/${kind}/${row.id}`, { method: 'PATCH', body: JSON.stringify({ status, reviewNote: notes[row.id] || '', version: row.version }) }); await load(); if (kind === 'applications') { const refreshed = await pages('/portal/applications'); setData(current => ({ ...current, applications: refreshed.items })); } const target = kind === 'applications' ? `hồ sơ doanh nghiệp “${row.company}”` : `bài đăng “${row.title}”`; setSuccess(status === 'approved' ? `Đã duyệt ${target}.` : `Đã từ chối ${target} và gửi lý do cho doanh nghiệp.`); });
   const download = (row, kind) => void run(`tải ${kind === 'supplemental' ? 'tài liệu bổ sung' : 'hồ sơ xác minh'} của “${row.company}”`, async () => { const response = await fetch(`${apiBaseUrl}/portal/applications/${row.id}/document${kind === 'supplemental' ? '?kind=supplemental' : ''}`, { headers: { Authorization: 'Bearer ' + getSession().accessToken } }); if (!response.ok) throw Error('Không tải được hồ sơ'); const url = URL.createObjectURL(await response.blob()); const anchor = window.document.createElement('a'); anchor.href = url; anchor.download = 'ho-so-doanh-nghiep'; anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); setSuccess(`Đã gửi yêu cầu tải ${kind === 'supplemental' ? 'tài liệu bổ sung' : 'hồ sơ xác minh'} của “${row.company}” đến trình duyệt.`); });
   const saveLocation = location => run(`${location.id ? 'cập nhật' : 'thêm'} địa điểm “${location.name}”`, async () => { const {name,address,city,phone,latitude,longitude,mapX,mapY,version} = location; await api('/portal/locations'+(location.id?'/'+location.id:''),{method:location.id?'PUT':'POST',body:JSON.stringify({name,address,city,phone,latitude,longitude,mapX,mapY,...(location.id?{version}:{})})}); await load(); setSuccess(`Đã ${location.id ? 'cập nhật' : 'thêm'} địa điểm “${name}”.`); });
   const deleteLocation = id => run(`xóa địa điểm “${locations.find(item => item.id === id)?.name || 'đã chọn'}”`, async () => { const location = locations.find(item=>item.id===id); await api('/portal/locations/'+id,{method:'DELETE',body:JSON.stringify({version:location?.version})}); await load(); setSuccess(`Đã xóa địa điểm “${location?.name || id}” khỏi thư viện.`); });
@@ -176,8 +185,8 @@ function PortalWorkspace() {
     {business && section === 'locations' && <LocationLibrary locations={locations} onSave={saveLocation} onDelete={deleteLocation} />}
     {business && section === 'business-staff' && <BusinessStaffManagement busy={busy} groups={businessGroups} accounts={businessStaff} onSave={saveBusinessStaff} onDelete={deleteBusinessStaff} />}
     {reviewing && section === 'finance' && <AdminFinance refreshVersion={refreshVersion} />}
-    {reviewing && ['users', 'businesses', 'posts', 'reports', 'tickets'].includes(section) && <AdminManagement refreshVersion={refreshVersion} key={section} kind={section} me={me} onChanged={load} />}
-    {reviewing && section === 'overview' && <AdminOverview metrics={data.metrics} applications={data.applications} posts={data.posts} onNavigate={setSection} t={t} formatDate={format} />}
+    {reviewing && ['users', 'businesses', 'posts', 'reports', 'tickets'].includes(section) && <AdminManagement refreshVersion={refreshVersion} key={`${section}:${section === 'users' ? adminCreateRequest : 0}`} kind={section} me={me} initialCreateRoleId={section === 'users' ? adminCreateRoleId : undefined} onQuickCreateConsumed={() => setAdminCreateRoleId(null)} onChanged={load} />}
+    {reviewing && section === 'overview' && <AdminOverview onNavigate={setSection} onAddAdministrator={() => { setAdminCreateRoleId('admin'); setAdminCreateRequest(value => value + 1); setSection('users'); }} t={t} formatDate={format} />}
     {me.role === 'admin' && section === 'businesses' && <AdminBusinessReview applications={data.applications} busy={busy} notes={notes} setNotes={setNotes} onApplicationDecision={(row, status) => decide('applications', row, status)} onDownload={download} />}
     {business && ['overview', 'posts'].includes(section) && <PostReviewPanel
       posts={data.posts}

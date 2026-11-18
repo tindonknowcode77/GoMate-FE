@@ -1,5 +1,63 @@
 # Development log
 
+## 2026-11-18 - Expand the Admin dashboard overview
+
+### Summary
+
+- Replace the compact Admin overview with KPI cards, account role totals, completed-period growth indicators, registration/activity charts and activity category distribution.
+- Add compact pending business/post queues, upcoming activities, recent account/business/post/activity events, report export and quick navigation. The administrator quick action opens the member form with the Admin role selected.
+- Add `GET /api/portal/admin/dashboard-stats` to return metrics, bounded queues, upcoming activities, category counts and recent activity in one dashboard request. Keep the existing admin stats endpoint for compatibility.
+- Load the full business review list when its section opens, keeping overview startup independent of full queue pagination.
+
+### Files changed
+
+- `src/gomate-portal/AdminStats.tsx`, `AdminOverview.jsx`, `AdminManagement.jsx`, `ConnectedPortal.jsx`, `connected-portal.css`, `src/i18n/portalTranslations.ts`.
+- Companion backend: `src/modules/portal/admin.js`.
+
+### Verification
+
+- `npm.cmd run typecheck`: Passed.
+- Targeted ESLint for Admin dashboard components and translations: Passed.
+- `npm.cmd run build`: Passed; web export completed.
+- `npm.cmd run lint`: Still fails on the existing unresolved `exceljs` import in `src/gomate-portal/formExcel.js`; five pre-existing warnings remain.
+- `npx.cmd expo-doctor`: 20/21 checks passed; the existing five Expo SDK patch-version mismatches remain.
+- Backend `node --check` for changed modules and `git diff --check`: Passed.
+- BE health and FE web returned HTTP 200; unauthenticated dashboard API request returned HTTP 401 as required.
+- Tests were not run.
+
+### Remaining work
+
+- Full FE lint requires resolving the existing `exceljs` module resolver error in `formExcel.js`.
+
+## 2026-11-18 - Expand admin roles, statistics and filtering
+
+### Summary
+
+- Add assignable member roles and a role manager to the Admin Portal while keeping system business, host and staff access derived from existing workflows.
+- Add admin statistics for user roles, activity states, pending business verification and weekly/monthly growth.
+- Add debounced search, status and role filters, date ranges, sorting and server pagination to admin member and post tables.
+- Add companion admin-only API routes and MongoDB aggregation/index support in GoMate-BE.
+
+### Files changed
+
+- `src/gomate-portal/AdminManagement.jsx`, `AdminOverview.jsx`, `ConnectedPortal.jsx`, `AdminStats.tsx`, `AdminRoleManager.tsx`.
+- `src/gomate-portal/admin-management.css`, `connected-portal.css`, `adminFormValidation.js`, `src/i18n/portalTranslations.ts`.
+- Companion backend: `src/modules/portal/admin.js`, `admin-validation.js`, `repository.js`, `src/database/mongo.js`, `src/app.js`.
+
+### Verification
+
+- `npm.cmd run typecheck`: Passed.
+- Targeted ESLint on new TypeScript components and admin validation/translations: Passed.
+- `npm.cmd run build`: Passed; web export completed.
+- `npm.cmd run lint`: Fails on the existing `src/gomate-portal/formExcel.js` unresolved `exceljs` import; five pre-existing warnings remain. No Admin Portal lint errors remain.
+- Backend `node --check` on changed JavaScript modules: Passed.
+- BE and FE development servers returned HTTP 200 on ports 3000 and 8081.
+- Tests were not run.
+
+### Remaining work
+
+- Full FE lint still requires resolving the existing `exceljs` module resolver error in `formExcel.js`.
+
 ## 2026-11-13 - Make demo approvals immediately eligible for merchant withdrawals
 
 ### Summary

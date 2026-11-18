@@ -9,6 +9,7 @@ export function validateAdminForm(kind, form, editing) {
   }
   if (kind === 'users') {
     check('name', 'Họ tên', 100, 2);
+    if (typeof form.roleId !== 'string' || !form.roleId.trim() || form.roleId.length > 100) throw Error('Chọn vai trò hợp lệ.');
     if (!editing) {
       check('email', 'Email', 254);
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) throw Error('Email không hợp lệ.');
