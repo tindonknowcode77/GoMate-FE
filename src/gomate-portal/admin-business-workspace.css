@@ -1,0 +1,36 @@
+.gm-business-report-picker { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; margin-bottom: 20px; padding: 24px; }
+.gm-business-report-picker > div:first-child, .gm-business-report-picker > .gm-live-actions { grid-column: 1 / -1; }
+.gm-business-report-picker h3, .gm-business-report-picker p { margin: 0; }
+.gm-business-inspection { min-width: 0; margin: 18px 0; padding: 16px; border: 1px solid #e5eaf0; border-radius: 12px; background: #fff; }
+.gm-connected .gm-modal-backdrop:has(.gm-business-inspection) { z-index: 1000; }
+.gm-connected:has(.gm-business-inspection) { z-index: 1001; }
+.gm-business-inspection > h4 { margin: 0 0 12px; }
+.gm-business-history-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+.gm-business-history-tabs button { padding: 10px 12px; border: 1px solid #d8e0ec; border-radius: 8px; background: #f7f9fc; color: #344054; font: inherit; cursor: pointer; }
+.gm-business-history-tabs button[aria-selected=true] { background: #edf4ff; border-color: #7aa9eb; color: #1959b3; }
+.gm-business-history-tools { display: flex; align-items: end; gap: 10px; margin-bottom: 12px; }
+.gm-business-history-tools label { flex: 1; min-width: 0; }
+.gm-business-history-card { padding: 14px; border: 1px solid #e2e8f0; border-radius: 10px; margin: 12px 0; overflow-wrap: anywhere; }
+.gm-business-history-card header, .gm-business-history-heading, .gm-business-message-list header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.gm-business-history-card h4 { margin: 0; }
+.gm-business-history-card p, .gm-business-message-list p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.gm-business-history-status { padding: 4px 8px; border-radius: 6px; background: #f0f4fa; font-size: 12px; }
+.gm-business-history-card dl { display: grid; gap: 6px; }
+.gm-business-history-card dl > div { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px; }
+.gm-business-history-card dd { margin: 0; }
+.gm-business-history-card small, .gm-business-message-list time, .gm-business-message-list small { color: #667085; font-size: 12px; }
+.gm-business-history-pagination { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+.gm-business-message-list { display: grid; gap: 12px; max-height: 520px; overflow-y: auto; padding: 0; list-style: none; }
+.gm-business-message-list > li { padding: 12px; border: 1px solid #e5eaf0; border-radius: 10px; background: #f8fafc; }
+.gm-business-message-list small { display: block; overflow-wrap: anywhere; }
+.gm-business-inspection .gm-admin-revenue-panel { min-width: 0; padding: 12px; }
+.gm-business-inspection .gm-admin-revenue-summary { grid-template-columns: repeat(2,minmax(0,1fr)); }
+.gm-business-inspection .gm-admin-revenue-heading { flex-wrap: wrap; }
+@media(max-width: 720px) {
+  .gm-business-report-picker { grid-template-columns: minmax(0,1fr); padding: 16px; }
+  .gm-business-inspection { padding: 10px; }
+  .gm-business-history-tabs button { flex: 1 1 42%; }
+  .gm-business-history-tools { flex-wrap: wrap; }
+  .gm-business-inspection .gm-admin-revenue-summary { grid-template-columns: minmax(0,1fr); }
+  .gm-business-inspection .gm-admin-revenue-filters { max-width: 100%; flex-wrap: wrap; }
+}

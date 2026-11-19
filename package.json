@@ -20,6 +20,8 @@
     "test:business:controls": "node tests/business-campaign-controls.web.cjs",
     "test:business:groups": "node tests/business-groups.web.cjs",
     "test:admin:web": "node tests/admin-crud.web.cjs",
+    "test:admin:contract": "node tests/admin-current-contract.web.cjs",
+    "test:admin:business": "node tests/admin-business-history.web.cjs",
     "test:excel:web": "node tests/form-excel.web.cjs",
     "test:portal:reliability": "node tests/portal-reliability.web.cjs",
     "demo:excel": "node scripts/generate-demo-excel.cjs",

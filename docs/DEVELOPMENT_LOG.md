@@ -1,5 +1,129 @@
 # Development log
 
+## 2026-11-19 - Financial report selector spacing
+
+### Summary
+
+- Remove the scope explanation below the financial report heading.
+- Add 24px inner padding (16px on small screens) so the heading, search,
+  business selector and pagination have space from the panel border.
+
+### Files changed
+
+- `src/gomate-portal/AdminBusinessPicker.tsx`
+- `src/gomate-portal/admin-business-workspace.css`
+- `docs/DEVELOPMENT_LOG.md`
+
+### Verification
+
+- Typecheck, web export and `npm run test:admin:business`: Passed.
+- Reviewed the exported financial report screenshot; subtitle removed and
+  content inset from all panel edges.
+- Lint: No errors; 5 existing warnings remain.
+- Expo Doctor: 20/21 checks passed; existing SDK patch mismatches remain.
+- `git diff --check`: Passed.
+
+### Remaining work
+
+- None for this UI change.
+
+## 2026-11-19 - Regional rankings and business financial/history review
+
+### Summary
+
+- Replace venue-based top locations with city and district tabs, aggregating
+  structured regions and common city aliases without exposing venue/address names.
+- Add a searchable, paginated company selector to financial reporting and scope
+  reports/comparisons by company. Show period deposits/refunds and separately
+  labeled current escrow/pending payout balances.
+- Add post, activity, conversation and finance tabs to both Admin business profile
+  dialogs. Keep deleted/withdrawn business history available; paginate and search
+  stored messages without changing participants' read status.
+- Restrict history to the selected business, retain existing chat permissions,
+  record successful Admin reads, and fix the profile modal stacking above the
+  sticky header. Add keyboard navigation and narrow-screen layouts.
+
+### Files changed
+
+- FE: `AdminStats.tsx`, `AdminRevenueReport.tsx`, `AdminRevenueAnalytics.tsx`,
+  `AdminBusinessPicker.tsx`, `AdminBusinessWorkspace.tsx`, its CSS/declaration,
+  `AdminBusinessReview.jsx`, `AdminManagement.jsx`, `src/i18n/portalTranslations.ts`,
+  `tests/admin-business-history.web.cjs`, `package.json`.
+- BE: `src/modules/portal/admin-analytics.js`, `admin-business-history.js`,
+  `admin.js`, `src/database/mongo.js`, `tests/admin-business-history.test.js`,
+  `tests/admin-current-contract.test.js`, `docs/admin-api.md`.
+- Documentation: this log and `docs/DECISIONS.md`.
+
+### Verification
+
+- BE `npm test`: Passed, 182/182 tests, including scope isolation, non-Admin
+  rejection, regional grouping, financial amounts, historical/deleted records,
+  pagination/search, access auditing and unchanged participant read markers.
+- FE unit tests plus BE integration: Passed, 16/16.
+- `npm run test:admin:business`: Passed; regional tabs, per-company finance,
+  both profile entry points, post/activity/conversation history, old messages,
+  content search, keyboard tab navigation, and desktop/mobile layouts.
+- `npm run test:admin:contract`, `npm run test:admin:web`: Passed.
+- Typecheck and lint: Passed; the same 5 pre-existing lint warnings remain.
+- Web export: Passed; actual BE startup with existing local MongoDB and built
+  app/portal/demo/health: HTTP 200. Test server stopped after verification.
+- Expo Doctor: 20/21 checks passed; the same five SDK patch mismatches remain.
+- Screenshots reviewed at 1440px and 390px; `git diff --check`: Passed.
+
+### Remaining work
+
+- Existing lint/Expo warnings remain outside this change. The inspection view
+  displays stored chat text and attachment metadata; binary attachment downloads
+  are outside scope. No deployment or Git push performed.
+
+## 2026-11-19 - Restore the current Admin API contract and activity error handling
+
+### Summary
+
+- Implement the missing backend dashboard, performance, revenue and role endpoints
+  required by the current Admin screens. Support account/post date filters and
+  sorting, role assignment and session invalidation with existing revision guards.
+- Refresh both business review data and Admin tables after CRUD mutations.
+- Import the missing activity `HttpError` and reject leaving started/closed
+  activities before applying the near-start reason/penalty rules. Give the Match
+  test's distant activity a distinct title so it respects duplicate prevention.
+- Preserve the existing unique role-name index on local MongoDB; tombstone deleted
+  role names so they can be reused without dropping an index or deleting history.
+
+### Files changed
+
+- FE: `src/gomate-portal/ConnectedPortal.jsx`, `src/i18n/portalTranslations.ts`,
+  `tests/admin-current-contract.web.cjs`, `package.json`, `docs/DECISIONS.md`.
+- BE: `src/modules/portal/admin.js`, `admin-validation.js`, `admin-analytics.js`,
+  `admin-roles.js`, `repository.js`, `src/database/mongo.js`, activity repository
+  and routes, `tests/admin-current-contract.test.js`, activity/Match regressions,
+  `docs/admin-api.md`, `README.md`.
+
+### Verification
+
+- BE `npm test`: Passed, 176/176 tests, including new Admin authorization, query
+  validation, Vietnam date boundaries, completed payout revenue, custom roles,
+  stale writes/session invalidation, duplicate create and membership lifecycle.
+- FE unit tests plus backend integration: Passed, 16/16.
+- FE `npm run test:admin:contract`: Passed; current dashboard, performance, revenue,
+  account/post lists, date/sort filters and custom role CRUD have no failing API
+  responses or browser runtime errors.
+- FE `npm run test:admin:web`: Passed; account/business/post/report/support CRUD,
+  persistence, approvals and mobile layout.
+- FE `npm run typecheck`, `npm run lint`: Passed; lint retains 5 existing warnings.
+- Root `npm run build:web`: Passed, rebuilt current web with API `/api`.
+- Actual BE startup using local `.env`/MongoDB: Passed after index compatibility
+  fix; health, app, portal and demo return 200. Temporary server on 3011 stopped.
+- `npx expo-doctor`: 20/21 checks passed; existing patch mismatches remain for
+  expo, constants, image-picker, location and sharing. Dependencies unchanged.
+- `git diff --check`: Passed in both repositories.
+
+### Remaining work
+
+- The five existing lint warnings and Expo patch mismatches are outside these four
+  fixes. Other unrelated browser suites from the earlier audit were not certified
+  by this targeted Admin repair. No production deployment or Git push performed.
+
 ## 2026-11-18 - Separate financial reporting from Admin overview
 
 ### Summary

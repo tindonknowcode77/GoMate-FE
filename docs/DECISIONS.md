@@ -1,5 +1,39 @@
 # Decision log
 
+## 2026-11-19 - Scope business financial reports and Admin investigation
+
+Rank activity regions from structured city/district fields, with separate city
+and district lists. Never treat a venue name or detailed address as a region;
+missing structured fields do not create guessed location labels.
+
+Scope company reports by business application ID resolved to its owner on the
+server. Keep period deposits/refunds separate from current held/pending balances,
+and recognize only completed payout fees as platform revenue. A paginated company
+directory supports archived companies as well as active businesses.
+
+Provide a read-only investigation workspace in both Admin business profile entry
+points. It includes owner posts, business activities and their groups, plus direct
+chat involving the business owner. Unrelated staff direct chats and personal
+activity groups are excluded. Keep participant chat access rules and read markers
+unchanged. Log successful Admin history reads in `admin_business_access` without
+copying message content or search terms. This adds no automatic fraud finding,
+external monitoring, message deletion, account restriction or attachment retention
+change. See [Admin API](../../GoMate-BE/docs/admin-api.md).
+
+## 2026-11-19 - Complete the current Admin backend contract
+
+Persist custom classification roles in `admin_roles` and assign them through
+`users.adminRoleId`. The existing `users.role` remains the authorization source:
+custom roles map to `user`, only the system Admin role maps to `admin`, and host,
+business and business staff are derived from existing activity/approval records.
+Changing a member's role invalidates existing sessions; system roles cannot be
+edited or deleted. Existing Admin mutation revisions remain authoritative.
+
+Dashboard and date filters use Vietnam calendar boundaries. Revenue recognizes
+only completed escrow payout fees at `processedAt`, with net business transfers
+reported separately. Overview growth compares completed calendar weeks/months.
+See [the backend contract](../../GoMate-BE/docs/admin-api.md).
+
 ## 2026-11-13 - Extend the demo exception through merchant payout eligibility
 
 The user clarified that demo approval must also permit immediate withdrawal requests. An approved settlement with `demo: true` now bypasses activity completion and holding dates consistently in merchant wallet totals, payout requests, admin payout approval and transfer locking. Existing approved demo records receive this behavior automatically. Normal verification still enforces the original dates. Claims/refunds, revoked or invalid activities, balances, recipient snapshots and admin transfer/completion requirements remain enforced. This supersedes the payout-wait restriction in the earlier demo decision.

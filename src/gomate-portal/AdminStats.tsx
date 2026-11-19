@@ -27,6 +27,8 @@ type PerformanceData = {
   lateArrival: { late: number; present: number; total: number; rate: number };
   businessCancellation: { total: number; rejected: number; withdrawn: number; cancelledActivities: number; cancelledOrRejected: number; rate: number };
   topLocations: { name: string; area: string; activityCount: number; participantCount: number }[];
+  topCities: { name: string; area: string; activityCount: number; participantCount: number }[];
+  topDistricts: { name: string; area: string; activityCount: number; participantCount: number }[];
 };
 type Props = {
   onNavigate: (section: string) => void;
@@ -83,6 +85,7 @@ export default function AdminStats({ onNavigate, onAddAdministrator, t, formatDa
   const [period, setPeriod] = useState<Period>('week');
   const [data, setData] = useState<DashboardData | null>(null);
   const [performance, setPerformance] = useState<PerformanceData | null>(null);
+  const [regionLevel, setRegionLevel] = useState<'city' | 'district'>('city');
   const [requestState, setRequestState] = useState<RequestState>({ key: '', error: '' });
   const [performanceRequestState, setPerformanceRequestState] = useState<RequestState>({ key: '', error: '' });
   const [retry, setRetry] = useState(0);
@@ -122,6 +125,7 @@ export default function AdminStats({ onNavigate, onAddAdministrator, t, formatDa
     { label: 'Administrators', value: data?.usersByRole.admin ?? 0, color: 'admin' },
   ];
   const pendingTotal = (data?.pendingPosts ?? 0) + (data?.activities.pendingReview ?? 0);
+  const topRegions = (regionLevel === 'city' ? performance?.topCities : performance?.topDistricts) ?? [];
 
   return <section className="gm-admin-dashboard-home" aria-busy={loading}>
     <div className="gm-admin-dashboard-heading">
@@ -176,11 +180,11 @@ export default function AdminStats({ onNavigate, onAddAdministrator, t, formatDa
           <small>{number(performance?.businessCancellation.cancelledActivities ?? 0)} {t('cancelled events')} · {number(performance?.businessCancellation.rejected ?? 0)} {t('rejected')} · {number(performance?.businessCancellation.withdrawn ?? 0)} {t('withdrawn')}</small>
         </article>
         <section className="gm-admin-dashboard-panel gm-admin-top-locations">
-          <header className="gm-admin-dashboard-panel-heading"><div><h4>{t('Top locations')}</h4><p>{t('Ranked by activity and participant volume')}</p></div></header>
-          {performance?.topLocations.length ? <ol>{performance.topLocations.slice(0, 5).map((location, index) => <li key={`${location.name}:${location.area}`}>
-            <span className="gm-admin-location-rank">{index + 1}</span><span className="gm-admin-location-copy"><strong>{location.name}</strong><small>{location.area || t('Area not specified')}</small></span>
+          <header className="gm-admin-dashboard-panel-heading"><div><h4>{t('Top regions')}</h4><p>{t('Grouped by district and city')}</p></div><div className="gm-admin-period-control" role="group" aria-label={t('Region level')}><button type="button" aria-pressed={regionLevel === 'city'} onClick={() => setRegionLevel('city')}>{t('Cities')}</button><button type="button" aria-pressed={regionLevel === 'district'} onClick={() => setRegionLevel('district')}>{t('Districts')}</button></div></header>
+          {topRegions.length ? <ol>{topRegions.slice(0, 5).map((location, index) => <li key={`${location.name}:${location.area}`}>
+            <span className="gm-admin-location-rank">{index + 1}</span><span className="gm-admin-location-copy"><strong>{location.name}</strong><small>{location.area || t('City / province')}</small></span>
             <span className="gm-admin-location-counts"><strong>{number(location.participantCount)}</strong><small>{number(location.activityCount)} {t('activities')}</small></span>
-          </li>)}</ol> : <p className="gm-admin-growth-empty">{performanceLoading ? t('Loading statistics') : t('No activity locations')}</p>}
+          </li>)}</ol> : <p className="gm-admin-growth-empty">{performanceLoading ? t('Loading statistics') : t('No regional activity data')}</p>}
         </section>
       </div>
     </section>

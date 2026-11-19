@@ -17,8 +17,10 @@ type RevenueData = {
   transactions: number;
   buckets: RevenueBucket[];
   sources: RevenueSource[];
+  business?: { id: string; company: string };
+  businessSummary?: { receivedDeposits: number; refundedDeposits: number; currentHeld: number; currentPendingPayouts: number };
 };
-type Props = { t: (key: string) => string };
+type Props = { t: (key: string) => string; businessId?: string; company?: string };
 type RequestState = { key: string; error: string };
 
 const formatMoney = (value: number) => `${Number(value || 0).toLocaleString('vi-VN')} ₫`;
@@ -63,16 +65,17 @@ function RevenueChart({ buckets, t }: { buckets: RevenueBucket[]; t: Props['t'] 
   </div>;
 }
 
-export default function AdminRevenueAnalytics({ t }: Props) {
+export default function AdminRevenueAnalytics({ t, businessId, company }: Props) {
   const [type, setType] = useState<RevenueType>('monthly');
   const [year, setYear] = useState(() => new Date().getFullYear());
   const [month, setMonth] = useState(() => new Date().getMonth() + 1);
-  const [data, setData] = useState<RevenueData | null>(null);
+  const [result, setData] = useState<RevenueData | null>(null);
   const [requestState, setRequestState] = useState<RequestState>({ key: '', error: '' });
   const [retry, setRetry] = useState(0);
-  const requestKey = `${type}:${year}:${month}:${retry}`;
+  const requestKey = `${businessId || 'all'}:${type}:${year}:${month}:${retry}`;
   const loading = requestState.key !== requestKey;
   const error = loading ? '' : requestState.error;
+  const data = loading || error ? null : result;
   const currentYear = new Date().getFullYear();
   const years = useMemo(() => Array.from({ length: 7 }, (_, index) => currentYear - index), [currentYear]);
 
@@ -80,11 +83,12 @@ export default function AdminRevenueAnalytics({ t }: Props) {
     let alive = true;
     const params = new URLSearchParams({ type, year: String(year) });
     if (type === 'monthly') params.set('month', String(month));
+    if (businessId) params.set('businessId', businessId);
     api<RevenueData>(`/portal/admin/analytics/revenue?${params}`, { timeoutMs: 15000 })
       .then(value => { if (alive) { setData(value); setRequestState({ key: requestKey, error: '' }); } })
       .catch(reason => { if (alive) setRequestState({ key: requestKey, error: reason instanceof Error ? reason.message : 'Không tải được doanh thu.' }); });
     return () => { alive = false; };
-  }, [type, year, month, requestKey]);
+  }, [businessId, type, year, month, requestKey]);
 
   const growth = data?.growthPercentage;
   const growthLabel = growth === null || growth === undefined ? t('No comparison data') : `${growth > 0 ? '+' : ''}${growth.toLocaleString('vi-VN', { maximumFractionDigits: 1 })}%`;
@@ -92,7 +96,7 @@ export default function AdminRevenueAnalytics({ t }: Props) {
 
   return <section className="gm-admin-dashboard-panel gm-admin-revenue-panel" aria-busy={loading}>
     <header className="gm-admin-dashboard-panel-heading gm-admin-revenue-heading">
-      <div><span className="gm-eyebrow">{t('FINANCIAL REPORT')}</span><h3>{t('Revenue analytics')}</h3><p>{t('Recognized platform fees from completed business payouts')}</p></div>
+      <div><span className="gm-eyebrow">{t('FINANCIAL REPORT')}</span><h3>{company || t('Revenue analytics')}</h3><p>{t('Recognized platform fees from completed business payouts')}</p></div>
       <div className="gm-admin-revenue-filters">
         <div className="gm-admin-period-control" role="group" aria-label={t('Revenue period')}>
           <button type="button" aria-pressed={type === 'monthly'} onClick={() => setType('monthly')}>{t('Monthly')}</button>
@@ -111,6 +115,13 @@ export default function AdminRevenueAnalytics({ t }: Props) {
       <article className={`gm-admin-revenue-summary-card ${growthTone}`}><span>{t(data?.comparison === 'YoY' ? 'Year over year growth' : 'Month over month growth')}</span><strong>{data ? growthLabel : '—'}</strong><small>{t('Compared with the previous complete period')}</small></article>
       <article className="gm-admin-revenue-summary-card"><span>{t('Business payouts completed')}</span><strong>{data ? formatMoney(data.settledPayouts) : '—'}</strong><small>{t('Net transferred to businesses')}</small></article>
     </div>
+
+    {data?.businessSummary && <div className="gm-admin-revenue-summary gm-business-finance-summary">
+      <article className="gm-admin-revenue-summary-card"><span>{t('Verified deposits in period')}</span><strong>{formatMoney(data.businessSummary.receivedDeposits)}</strong></article>
+      <article className="gm-admin-revenue-summary-card"><span>{t('Completed refunds in period')}</span><strong>{formatMoney(data.businessSummary.refundedDeposits)}</strong></article>
+      <article className="gm-admin-revenue-summary-card"><span>{t('Current held deposits')}</span><strong>{formatMoney(data.businessSummary.currentHeld)}</strong><small>{t('Current balance across all periods')}</small></article>
+      <article className="gm-admin-revenue-summary-card"><span>{t('Current pending payouts')}</span><strong>{formatMoney(data.businessSummary.currentPendingPayouts)}</strong><small>{t('Current balance across all periods')}</small></article>
+    </div>}
 
     <RevenueChart buckets={data?.buckets ?? []} t={t} />
 
