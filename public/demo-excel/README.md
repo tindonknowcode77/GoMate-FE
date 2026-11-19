@@ -21,6 +21,19 @@ trong DoanhNghiep/DiaDiem/BaiDang. Mỗi dòng trong Nhom là một nhóm độc
 ngày giờ viết dạng `YYYY-MM-DDTHH:mm`, theo giờ Việt Nam. Không dùng công thức.
 Số điện thoại và giấy chứng nhận nên để kiểu Text để giữ số 0 đầu.
 
+Email/URL được Excel tự chuyển thành liên kết và chữ có định dạng vẫn đọc được
+theo nội dung hiển thị; ứng dụng không truy cập liên kết. Công thức không được
+tính hoặc dùng kết quả lưu sẵn. Trường sai, ô trống, dòng thiếu/lặp được bỏ qua,
+giữ nguyên dữ liệu đang có trên form; các trường hợp lệ vẫn được điền. Bảng
+thông báo ghi rõ sheet, địa chỉ ô, tên trường và lý do để sửa từng mục.
+
+Tọa độ, cặp thời gian bắt đầu/kết thúc và chi phí/tiền cọc được kiểm tra cùng
+nhau để tránh trộn với dữ liệu cũ. Khi nhóm có dữ liệu lỗi, phần hợp lệ được
+cập nhật theo số dòng Excel và các nhóm khác trên form được giữ nguyên. File
+nhóm đầy đủ hợp lệ vẫn thay thế danh sách nhóm như trước. File hỏng hoặc sai
+sheet chính vẫn dừng nhập toàn bộ. Việc gửi/lưu form tiếp tục kiểm tra dữ liệu
+bắt buộc; nhập Excel không tự gửi/lưu.
+
 File xác minh có sheet GiayPhep và TaiLieuBoSung: chèn một ảnh PNG/JPEG vào mỗi
 sheet. Ảnh sẽ tự điền vào phần tài liệu tương ứng, có xem trước. PDF vẫn chọn
 riêng trên form. Mẫu không có ảnh vẫn nhập các trường văn bản; cần chọn giấy

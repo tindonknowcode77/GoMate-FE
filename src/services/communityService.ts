@@ -10,7 +10,10 @@ export type BlockedUser = { userId: string; name: string; avatarUrl: string | nu
 export const listBlockedUsers = async () => (await api<{ items: BlockedUser[] }>('/community/blocks')).items;
 export const blockUser = (userId: string) => api<void>(`/community/blocks/${encodeURIComponent(userId)}`, { method: 'PUT', body: '{}' });
 export const unblockUser = (userId: string) => api<void>(`/community/blocks/${encodeURIComponent(userId)}`, { method: 'DELETE' });
-export type Report = { id: string; activityId: string; reason: string; detail: string; status: string; createdAt: string };
+export type Report = { id: string; activityId: string; reason: string; detail: string; status: string; createdAt: string; reviewNote?: string; correctedStatus?: string; type?: string; kind?: string };
+export type AttendanceHistoryItem = { id: string; title: string; activityStatus: string; status: 'present' | 'late' | 'absent' | 'unmarked'; updatedAt: string | null };
+export const listAttendanceHistory = () => allPages<AttendanceHistoryItem>('/community/attendance');
+export const submitAttendanceComplaint = (activityId: string, kind: 'attendance' | 'other', detail: string, requestedStatus?: 'present' | 'late') => post<{ report: Report }>('/community/attendance/complaints', { activityId, kind, detail, ...(kind === 'attendance' ? { requestedStatus: requestedStatus || 'present' } : {}) });
 export const listReports = async () => (await api<{ items: Report[] }>('/community/reports')).items;
 export const reportActivity = (activityId: string, reason: string, detail: string) => post<{ report: Report }>('/community/reports', { activityId, reason, detail });
 export type RatingValue = { score: number; comment: string; members: { userId: string; score: number }[] };

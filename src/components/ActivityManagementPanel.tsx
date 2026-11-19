@@ -125,6 +125,7 @@ export function ActivityManagementPanel({ activityId, onPlan, onOpenGroup, onMem
                 {member.status === 'present' ? 'Có mặt' : member.status === 'late' ? 'Đến muộn' : member.status === 'absent' ? 'Vắng mặt' : 'Chưa điểm danh'}
               </Text>
             </View>
+            {member.correctionReportId && <Text style={styles.muted}>Admin đã xác minh điểm danh.</Text>}
             <View style={styles.attendancePills}>
               {attendanceOptions.map(([status, label]) => {
                 const selected = member.status === status;
@@ -132,7 +133,7 @@ export function ActivityManagementPanel({ activityId, onPlan, onOpenGroup, onMem
                   <Pressable
                     key={status}
                     accessibilityRole="button"
-                    disabled={busy}
+                    disabled={busy || Boolean(member.correctionReportId)}
                     onPress={() => void run(async () => {
                       await markAttendance(activityId, member.userId, status);
                       await refresh();

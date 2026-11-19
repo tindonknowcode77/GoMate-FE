@@ -2,6 +2,7 @@ import { usePortalText } from './usePortalText';
 import { useRef, useState } from 'react';
 import { Icon, PillButton } from './GoMatePortal';
 import FormExcelTools from './FormExcelTools';
+import { mergeExcelGroups } from './formExcel';
 
 const fieldStyle = 'gm-simple-input';
 const sharedFields = ['category','locationId','location','meetingPoint','city','startsAt','endsAt','estimatedCost','depositAmount'];
@@ -95,9 +96,10 @@ export default function MultiGroupPostComposer({ locations, onPublish, onSaveLoc
   return (
     <form className="gm-auth-form gm-multi-post-form" onSubmit={submit}>
       <FormExcelTools kind="post" disabled={busy} onImport={data => {
-        setPromo(data.promo); setGroups(data.groups); setShared(false);
-        setTotalParticipants(data.groups.reduce((sum, group) => sum + group.maxParticipants, 0));
-        setSplitCount(data.groups.length); nextGroupNumber.current = data.groups.length;
+        const merged = mergeExcelGroups(groups, data.groups, data.groupsComplete);
+        setPromo(current => ({ ...current, ...data.promo })); setGroups(merged); setShared(false);
+        setTotalParticipants(merged.reduce((sum, group) => sum + Number(group.maxParticipants || 0), 0));
+        setSplitCount(merged.length); nextGroupNumber.current = merged.length;
         setFormError(''); setSplitNotice('');
       }} />
       <section className="gm-promo-section">

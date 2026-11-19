@@ -5,6 +5,7 @@ import { Image, Modal, Pressable, ScrollView, View } from 'react-native';
 import { Text } from './LocalizedText';
 import { RemoteState } from './RemoteState';
 import { getPublicProfile, imageUrl, PublicProfile } from '../services/profileService';
+import { ReputationStats } from './ReputationStats';
 import { useRemote } from '../services/useRemote';
 import { colors } from '../theme';
 
@@ -23,6 +24,7 @@ export function MemberProfileModal({ userId, onClose }: { userId: string; onClos
           <Text style={{ fontSize: 23, fontWeight: '700' }}>{profile.name}{profile.age !== null ? `, ${profile.age}` : ''}</Text><Text>{profile.location}</Text>
           {profile.occupation ? <Text>{profile.occupation}</Text> : null}<Text>{profile.bio}</Text>
           <Text>Sở thích: {profile.interests.join(', ')}</Text><Text>Ngôn ngữ: {profile.languages.join(', ')}</Text>
+          <ReputationStats reputation={profile.reputation} />
           {profile.companionGoal ? <Text>Đồng hành: {profile.companionGoal}</Text> : null}
           {profile.availableTimes?.length ? <Text>Thường rảnh: {profile.availableTimes.join(' · ')}</Text> : null}
           {profile.school || profile.education ? <Text>{[profile.school, profile.education].filter(Boolean).join(' · ')}</Text> : null}

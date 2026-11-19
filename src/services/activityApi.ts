@@ -78,7 +78,7 @@ export const getActivity = async (id: string) => (await api<{ activity: Activity
 export const deleteActivity = (id: string) => api<void>(idPath(id), { method: 'DELETE' });
 export const transitionActivity = async (id: string, action: 'start' | 'complete') => (await post<{ activity: ActivityDto }>(`${idPath(id)}/${action}`, {})).activity;
 export const confirmActivitySchedule = async (id: string, version: number) => (await post<{ activity: ActivityDto }>(`${idPath(id)}/confirm-schedule`, { version })).activity;
-export type Attendance = { userId: string; name: string; status: 'unmarked' | 'present' | 'absent' | 'late' };
+export type Attendance = { userId: string; name: string; status: 'unmarked' | 'present' | 'absent' | 'late'; correctionReportId?: string };
 export type ActivityUpdate = { id: string; type: string; text?: string; createdAt: string; userId?: string; status?: string; actorId?: string; actorName?: string };
 export const listAttendance = (id: string) => allPages<Attendance>(`${idPath(id)}/attendance`);
 export const listUpdates = (id: string) => allPages<ActivityUpdate>(`${idPath(id)}/updates`);

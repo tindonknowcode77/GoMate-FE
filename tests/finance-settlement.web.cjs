@@ -41,7 +41,7 @@ const be = name => import(pathToFileURL(root + '/src/' + name + '.js').href);
     const page = await browser.newPage(), errors = []; page.on('pageerror', error => errors.push(error.message));
     await page.addInitScript(session => localStorage.setItem('gomate.session', JSON.stringify(session)), { accessToken: token, user: { ...user, emailVerified: true } });
     await page.goto(base + '/portal');
-    await page.locator('.gm-sidebar-nav').getByRole('button', { name: 'Tài chính & doanh thu', exact: true }).click();
+    await page.locator('.gm-sidebar-nav').getByRole('button', { name: 'Đối soát tài chính', exact: true }).click();
     await page.getByRole('tab', { name: 'Xác minh hoạt động', exact: true }).click();
     const card = id => page.locator('.gm-finance-card').filter({ has: page.locator('.gm-finance-card-heading strong', { hasText: new RegExp(`^${id}$`) }) });
     for (const [id, message] of [

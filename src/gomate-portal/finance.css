@@ -11,6 +11,18 @@
 .gm-finance-card p { margin: 7px 0; }
 .gm-finance-card small,.gm-finance td small { display: block; color: #7a7485; margin: 4px 0; }
 .gm-finance-dialog { max-height: 90dvh; overflow-y: auto; width: min(620px, calc(100vw - 28px)); }
+.gm-connected .gm-payout-backdrop { z-index: 1100; }
+.gm-payout-content { display: grid; gap: 16px; min-width: 0; }
+.gm-payout-bank { display: grid; gap: 10px; margin: 0; }
+.gm-payout-bank > div { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.gm-payout-bank dt { color: #667085; }
+.gm-payout-bank dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.gm-payout-qr { display: grid; justify-items: center; gap: 8px; text-align: center; }
+.gm-payout-qr img { display: block; width: min(100%, 300px); height: auto; }
+.gm-payout-receipt-image { display: block; max-width: 100%; max-height: 480px; object-fit: contain; margin: auto; }
+.gm-payout-receipt-form { padding: 0; }
+.gm-payout-content p { margin: 0; line-height: 1.6; }
+.gm-payout-content small { color: #667085; }
 .gm-finance-fields { display: grid; gap: 14px; border: 0; padding: 0; margin: 0; min-width: 0; }
 .gm-finance-ack { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; }
 .gm-finance-target { padding: 14px; background: #f3effa; border-radius: 10px; overflow-wrap: anywhere; }

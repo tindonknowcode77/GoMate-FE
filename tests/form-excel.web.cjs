@@ -2,13 +2,26 @@ const assert = require('node:assert/strict');
 const { createRequire } = require('node:module');
 const { pathToFileURL } = require('node:url');
 const { once } = require('node:events');
-const { existsSync } = require('node:fs');
+const { existsSync, mkdtempSync } = require('node:fs');
+const { tmpdir } = require('node:os');
 const { resolve } = require('node:path');
 const { chromium } = require('playwright');
 const Excel = require('exceljs');
 const root = resolve(__dirname, '../../GoMate-BE'), beRequire = createRequire(root + '/package.json');
 const be = name => import(pathToFileURL(root + '/src/' + name + '.js').href);
 const fixture = name => resolve(__dirname, '../public/demo-excel', name + '.xlsx');
+async function fixtureBuffer(name) {
+  const book = new Excel.Workbook(); await book.xlsx.readFile(fixture(name));
+  if (name.startsWith('post-')) {
+    const date = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+    book.getWorksheet('Nhom').eachRow((row, index) => {
+      if (index > 1) for (const column of ['F', 'G']) {
+        const cell = row.getCell(column); cell.value = date + String(cell.value).slice(10);
+      }
+    });
+  }
+  return Buffer.from(await book.xlsx.writeBuffer());
+}
 
 (async () => {
   const { MongoMemoryServer } = beRequire('mongodb-memory-server');
@@ -25,10 +38,11 @@ const fixture = name => resolve(__dirname, '../public/demo-excel', name + '.xlsx
     browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE || (existsSync('C:/Program Files/Google/Chrome/Application/chrome.exe') ? 'C:/Program Files/Google/Chrome/Application/chrome.exe' : undefined), headless: true });
     const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, timezoneId: 'Asia/Ho_Chi_Minh' }); page.setDefaultTimeout(20000);
     const errors = []; page.on('pageerror', error => errors.push(error.message));
+    const artifacts = mkdtempSync(resolve(tmpdir(), 'gomate-excel-import-')); console.log('Screenshots:', artifacts);
     await page.goto(base + '/portal'); await page.getByLabel('Email', { exact: true }).fill(user.email); await page.getByLabel('Mật khẩu', { exact: true }).fill('ExcelDemo123!'); await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
     await page.getByRole('button', { name: 'Tải Excel mẫu', exact: true }).waitFor();
     const imported = () => page.locator('.gm-excel-tools [role=status]').waitFor();
-    const upload = name => page.getByLabel('Nhập file Excel', { exact: true }).setInputFiles(fixture(name));
+    const upload = async name => page.getByLabel('Nhập file Excel', { exact: true }).setInputFiles({ name: name + '.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer: await fixtureBuffer(name) });
     const download = page.waitForEvent('download'); await page.getByRole('button', { name: 'Tải Excel mẫu', exact: true }).click();
     const file = await download; const template = new Excel.Workbook(); await template.xlsx.readFile(await file.path());
     assert.ok(template.getWorksheet('DoanhNghiep')); assert.ok(template.getWorksheet('GiayPhep'));
@@ -38,6 +52,29 @@ const fixture = name => resolve(__dirname, '../public/demo-excel', name + '.xlsx
     assert.equal(await page.getByLabel('Tên doanh nghiệp', { exact: true }).inputValue(), 'CÔNG TY DEMO GOMATE 1');
     assert.equal(await page.getByLabel('Số điện thoại', { exact: true }).inputValue(), '0901234567');
     assert.equal(await page.locator('.gm-document-preview img').count(), 2);
+    // Excel auto-links emails. A bad company cell and blank phone must preserve
+    // the existing draft while the valid address and email are still applied.
+    const partial = new Excel.Workbook(); await partial.xlsx.readFile(fixture('verification-1'));
+    const details = partial.getWorksheet('DoanhNghiep');
+    details.getCell('C4').value = { formula: '1+1', result: 2 };
+    details.getCell('C7').value = '123 Demo address';
+    details.getCell('C12').value = { text: 'linked@example.com', hyperlink: 'mailto:linked@example.com' };
+    details.getCell('C13').value = '';
+    await page.getByLabel('Nhập file Excel', { exact: true }).setInputFiles({ name: 'partial-verification.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer: Buffer.from(await partial.xlsx.writeBuffer()) });
+    await page.locator('.gm-excel-tools [role=alert]').waitFor();
+    assert.equal(await page.getByLabel('Tên doanh nghiệp', { exact: true }).inputValue(), 'CÔNG TY DEMO GOMATE 1');
+    assert.equal(await page.getByLabel('Số điện thoại', { exact: true }).inputValue(), '0901234567');
+    assert.equal(await page.getByLabel('Địa chỉ chi tiết', { exact: true }).inputValue(), '123 Demo address');
+    assert.equal(await page.getByLabel('Email liên hệ', { exact: true }).inputValue(), 'linked@example.com');
+    assert.ok((await page.locator('.gm-excel-issues').innerText()).includes('DoanhNghiep!C4'));
+    assert.ok((await page.locator('.gm-excel-issues').innerText()).includes('DoanhNghiep!C13'));
+    await page.screenshot({ path: resolve(artifacts, 'partial-import-desktop.png'), fullPage: true });
+    await page.setViewportSize({ width: 390, height: 844 });
+    assert.ok(await page.locator('.gm-excel-tools').evaluate(el => el.getBoundingClientRect().right <= innerWidth));
+    assert.ok(await page.locator('.gm-excel-issues-scroll').evaluate(el => el.clientHeight <= 260));
+    await page.screenshot({ path: resolve(artifacts, 'partial-import-mobile.png'), fullPage: true });
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await upload('verification-1'); await imported();
     assert.equal(await db.collection('business_applications').countDocuments(), 0, 'import must not submit');
     await page.getByRole('button', { name: 'Gửi hồ sơ xác minh', exact: true }).click();
     await page.getByText('Chờ duyệt', { exact: true }).first().waitFor();
@@ -45,16 +82,20 @@ const fixture = name => resolve(__dirname, '../public/demo-excel', name + '.xlsx
     assert.equal(application.certificateNumber, 'DEMO-GOMATE-001'); assert.ok(application.license); assert.ok(application.supplementalLicense);
     await db.collection('business_applications').updateOne({ id: application.id }, { $set: { status: 'approved' } });
     await page.reload(); await page.locator('.gm-multi-post-form').waitFor();
-    // A wrong workbook and a formula must leave the existing draft untouched.
+    // A wrong workbook blocks import. Individual bad cells preserve only the
+    // affected values, while other fields can still update the draft.
     await upload('location-1'); await page.locator('.gm-excel-tools [role=alert]').waitFor();
     assert.equal(await page.getByLabel('Tiêu đề bài đăng', { exact: true }).inputValue(), '');
     await upload('post-2'); await imported(); assert.equal(await page.locator('.gm-generated-group').count(), 3);
     await upload('post-1'); await imported(); assert.equal(await page.locator('.gm-generated-group').count(), 2);
     const title = await page.getByLabel('Tiêu đề bài đăng', { exact: true }).inputValue();
-    const bad = new Excel.Workbook(); await bad.xlsx.readFile(fixture('post-1')); bad.getWorksheet('BaiDang').getCell('C2').value = { formula: '1+1', result: 2 };
+    const bad = new Excel.Workbook(); await bad.xlsx.load(await fixtureBuffer('post-1')); bad.getWorksheet('BaiDang').getCell('C2').value = { formula: '1+1', result: 2 };
+    bad.getWorksheet('BaiDang').getCell('C5').value = 'Valid imported offer';
     await page.getByLabel('Nhập file Excel', { exact: true }).setInputFiles({ name: 'formula.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer: Buffer.from(await bad.xlsx.writeBuffer()) });
     await page.locator('.gm-excel-tools [role=alert]').waitFor(); assert.equal(await page.getByLabel('Tiêu đề bài đăng', { exact: true }).inputValue(), title);
-    await bad.xlsx.readFile(fixture('post-1')); bad.getWorksheet('Nhom').getCell('J2').value = 999999;
+    assert.ok((await page.locator('.gm-excel-issues').innerText()).includes('BaiDang!C2'));
+    assert.ok(await page.locator('input').evaluateAll(inputs => inputs.some(input => input.value === 'Valid imported offer')));
+    await bad.xlsx.load(await fixtureBuffer('post-1')); bad.getWorksheet('Nhom').getCell('J2').value = 999999;
     await page.getByLabel('Nhập file Excel', { exact: true }).setInputFiles({ name: 'bad-deposit.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer: Buffer.from(await bad.xlsx.writeBuffer()) });
     await page.locator('.gm-excel-tools [role=alert]').waitFor(); assert.equal(await page.getByLabel('Tiêu đề bài đăng', { exact: true }).inputValue(), title);
     assert.equal(await db.collection('business_posts').countDocuments(), 0);
@@ -79,6 +120,6 @@ const fixture = name => resolve(__dirname, '../public/demo-excel', name + '.xlsx
     await page.setViewportSize({ width: 390, height: 844 });
     assert.ok(await page.locator('.gm-excel-tools').evaluate(el => el.getBoundingClientRect().right <= innerWidth));
     assert.deepEqual(errors, []);
-    console.log('PASS Excel download, three real import/submit/persistence flows, images, wrong-template/formula rejection, no auto-submit and mobile controls.');
+    console.log('PASS Excel download, three import/submit/persistence flows, images, hyperlink email, partial import, exact cell diagnostics, wrong-template rejection, no auto-submit and mobile controls.');
   } finally { await browser?.close(); if (server) await new Promise(resolve => server.close(resolve)); await client.close(); await mongo.stop(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

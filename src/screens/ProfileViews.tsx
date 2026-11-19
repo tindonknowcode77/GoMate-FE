@@ -1,5 +1,6 @@
 import { useFeedbackState } from '../services/feedback';
-import { ComponentProps, useRef, useState } from 'react';
+import { ComponentProps, useEffect, useRef, useState } from 'react';
+import { ReputationStats } from '../components/ReputationStats';
 import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -116,6 +117,7 @@ export function ProfilePreview({ profile }: { profile: UserProfile }) {
   const age = profile.birthDate ? Number(today.slice(0, 4)) - Number(profile.birthDate.slice(0, 4)) - (today.slice(5) < profile.birthDate.slice(5) ? 1 : 0) : null;
   const lead = profile.photos?.[0]?.url || profile.avatarUrl || profile.coverUrl;
   return <View style={{ gap: 16 }}>
+    <ReputationStats reputation={profile.reputation} />
     {profile.coverUrl && <Image source={{ uri: imageUrl(profile.coverUrl) }} style={{ width: '100%', aspectRatio: 8 / 3, borderRadius: 18 }} />}
     {lead ? <Image source={{ uri: imageUrl(lead) }} style={styles.previewHero} /> : <View style={[styles.previewHero, styles.emptyHero]}><Ionicons name="person-outline" size={70} color={colors.primaryLight} /></View>}
     <View style={styles.card}><Text style={styles.profileName}>{profile.name}{age !== null && Number.isFinite(age) ? `, ${age}` : ''}</Text>{profile.username ? <Text style={styles.note}>@{profile.username}</Text> : null}<Text>{profile.bio || 'Thêm một lời giới thiệu về bạn.'}</Text>
@@ -131,9 +133,12 @@ export function ProfilePreview({ profile }: { profile: UserProfile }) {
 }
 function InfoLine({ icon, text }: { icon: IconName; text: string }) { return text ? <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}><Ionicons name={icon} size={20} color={colors.primary} /><Text style={{ flex: 1 }}>{text}</Text></View> : null; }
 
-export function UserProfileScreen({ onEdit, onPreview, onVerification, onReviews, onMyActivities, onNotifications, onSettings, onFriends, onWallet }: { onEdit: () => void; onPreview: () => void; onVerification: () => void; onReviews: () => void; onMyActivities: () => void; onFriends: () => void; onNotifications: () => void; onSettings: () => void; onWallet?: () => void }) {
+export function UserProfileScreen({ onEdit, onPreview, onVerification, onReviews, onMyActivities, onNotifications, onSettings, onFriends, onWallet, onAttendance }: { onEdit: () => void; onPreview: () => void; onVerification: () => void; onReviews: () => void; onMyActivities: () => void; onFriends: () => void; onNotifications: () => void; onSettings: () => void; onWallet?: () => void; onAttendance?: () => void }) {
   const remote = useProfile(), profile = remote.profile;
+  const reloadProfile = remote.reload;
+  useEffect(() => { void reloadProfile(true); }, [reloadProfile]);
   const menu: { label: string; icon: IconName; action: () => void }[] = [
+    ...(onAttendance ? [{ label: 'Điểm danh & khiếu nại', icon: 'clipboard-outline' as IconName, action: onAttendance }] : []),
     ...(onWallet ? [{ label: 'Ví & Lịch sử thanh toán', icon: 'wallet-outline' as IconName, action: onWallet }] : []),
     { label: 'Xác minh tài khoản', icon: 'shield-checkmark-outline', action: onVerification }, { label: 'Điểm đánh giá của tôi', icon: 'star-outline', action: onReviews },
     { label: 'Bạn bè', icon: 'people-outline', action: onFriends }, { label: 'Hoạt động của tôi', icon: 'calendar-outline', action: onMyActivities }, { label: 'Thông báo', icon: 'notifications-outline', action: onNotifications }, { label: 'Cài đặt', icon: 'settings-outline', action: onSettings },
@@ -141,6 +146,7 @@ export function UserProfileScreen({ onEdit, onPreview, onVerification, onReviews
   return <ScrollView contentContainerStyle={styles.page}><Text style={styles.title}>Hồ sơ của tôi</Text><RemoteState loading={remote.loading} error={remote.error} onRetry={remote.reload} />
     {profile && !remote.loading && !remote.error && <>
       <View style={styles.card}>{profile.coverUrl && <Image source={{ uri: imageUrl(profile.coverUrl) }} style={{ width: '100%', aspectRatio: 8 / 3, borderRadius: 16, marginBottom: 12 }} />}<View style={styles.avatarArea}>{profile.avatarUrl ? <Image source={{ uri: imageUrl(profile.avatarUrl) }} style={styles.avatar} /> : <View style={styles.avatar}><Text style={styles.initial}>{profile.name.charAt(0)}</Text></View>}<Text style={styles.profileName}>{profile.name}</Text>{profile.username ? <Text style={styles.note}>@{profile.username}</Text> : null}<Text>{profile.location || 'Chưa chọn khu vực'}</Text></View>
+        <ReputationStats reputation={profile.reputation} />
         {!profile.profileComplete && <Text style={styles.note}>Cần bổ sung: {profile.missingFields.map(key => missingFieldLabels[key] || key).join(', ')}.</Text>}
         <Text style={styles.note}>{profile.bio || 'Chia sẻ một chút về bạn với người đồng hành.'}</Text>
         <View style={{ flexDirection: 'row', gap: 10 }}>{([{ label: 'Chỉnh sửa hồ sơ', icon: 'create-outline', action: onEdit }, { label: 'Xem trước hồ sơ', icon: 'eye-outline', action: onPreview }] as const).map(item => <Pressable key={item.label} accessibilityRole="button" accessibilityLabel={item.label} onPress={item.action} style={{ flex: 1, backgroundColor: colors.primarySoft, borderRadius: 14, padding: 12, alignItems: 'center', gap: 7 }}><Ionicons name={item.icon} size={20} color={colors.primary} /><Text style={[styles.link, { textAlign: 'center' }]}>{item.label}</Text></Pressable>)}</View>

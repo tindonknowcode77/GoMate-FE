@@ -1,5 +1,127 @@
 # Development log
 
+## 2026-11-19 - Member refund QR, profile reputation and attendance complaints
+
+### Summary
+
+- Reuse the payout QR/bill dialog for member refunds with one confirmation,
+  correct beneficiary/amount, resume and private saved-bill retrieval.
+- Show ratings and absence rate in own, preview and public profiles. Add
+  Profile → Điểm danh & khiếu nại with history, attendance/other complaints and
+  Admin replies. Attendance notices open this screen; payment notices open wallet.
+- Add Admin report review with verified attendance outcome and explanation;
+  protect corrected results in organizer controls. Refresh profile metrics without
+  unmounting the screen. Explain that unmarked attendance does not count as absent.
+
+### Files changed
+
+- `src/gomate-portal/AdminPayoutTransfer.jsx`, `AdminFinance.jsx`,
+  `AdminAttendanceComplaint.jsx`, `AdminManagement.jsx`.
+- `src/components/ReputationStats.tsx`, profile modal/attendance controls;
+  `src/screens/AttendanceHistoryScreen.tsx`, profile/public/settings/MainApp screens.
+- Profile/community/activity services and ProfileContext.
+- `tests/member-attendance.web.cjs`, `tests/finance.web.cjs`; companion BE APIs/tests.
+- `docs/DECISIONS.md`, this log.
+
+### Verification
+
+- BE full suite: 201/201 passed.
+- Attendance browser test: passed own/public 4.5 rating, 50%→0% after correction,
+  unmarked notice deep link, complaint submission and Admin response; screenshots
+  reviewed at mobile and desktop widths.
+- Finance and finance-settlement browser tests: passed, including member refund
+  confirmation/QR/upload/resume and business payout compatibility.
+- Typecheck/web export: passed. Lint: 0 errors, 5 existing warnings.
+- Expo Doctor: 20/21, existing five SDK patch mismatches remain.
+
+### Remaining work
+
+- None. Manual bill upload records the transfer; no automated bank transfer occurs.
+
+## 2026-11-19 - Simplify Admin business payouts to QR and receipt upload
+
+### Summary
+
+- Replace three payout processing dialogs and repeated notes/reference fields
+  with one confirmation, a QR for the frozen business beneficiary/net amount,
+  and an image upload followed by Save bill & complete.
+- Resume in-progress transfers without confirming again, preview selected bills,
+  show file errors beside the upload, and let Admins retrieve/download saved bills.
+  Add keyboard focus handling, responsive layout and protected modal stacking.
+- Preserve rejection and verified transfer-failure handling, financial eligibility
+  and audit records. Keep earlier Excel import work intact.
+
+### Files changed
+
+- `src/gomate-portal/AdminPayoutTransfer.jsx`, `AdminFinance.jsx`, `finance.css`.
+- `tests/finance.web.cjs`, `tests/finance-settlement.web.cjs`.
+- `docs/DECISIONS.md`, this log; companion BE finance API/receipt helper/tests
+  and `docs/PAYMENT_FLOW.md`.
+
+### Verification
+
+- BE `npm test`: 192/192 passed; subsequent focused finance tests: 33/33 passed.
+- `node tests/finance.web.cjs`: Passed; one confirmation, frozen QR recipient/net
+  amount, cancellation before confirmation, resume without another POST, invalid
+  file feedback, bill preview/upload/private retrieval, mobile layout and totals.
+- `node tests/finance-settlement.web.cjs`: Passed; ordinary/demo settlement rules,
+  merchant requests and compatible legacy payout operations.
+- Updated the older browser fixtures to use the current finance menu label and
+  seed a report-only incoming payment for the manual reconciliation branch.
+- Typecheck/web export: Passed. Lint: No errors; 5 pre-existing warnings remain.
+- Expo Doctor: 20/21 checks; pre-existing SDK patch mismatches remain.
+- Reviewed desktop/mobile dialog screenshots and a downloaded dummy-data VietQR
+  image; `git diff --check`: Passed.
+
+### Remaining work
+
+- None for the requested manual transfer flow. Existing lint/Expo warnings remain.
+
+## 2026-11-19 - Partial Excel imports and exact cell diagnostics
+
+### Summary
+
+- Fix auto-linked email/URL cells incorrectly triggering the formula error;
+  read displayed hyperlink and rich-text content without following links.
+- Import valid fields independently. Preserve draft values for blank, missing,
+  duplicate or invalid fields, and report every skipped item by sheet, cell,
+  field label and reason. Never evaluate formulas or use cached formula results.
+- Keep related coordinate, schedule and cost/deposit pairs consistent. Merge
+  partial group rows into their matching draft rows; complete lists still replace
+  the group list. Invalid images leave existing documents and valid text intact.
+- Create the requested license-based workbook in the user's Downloads folder,
+  embedding the original supplied license. Leave website, industry and legal
+  representative details blank where the supplied page does not establish them;
+  explain these omissions in a separate reference sheet. Keep the user workbook
+  and supplied license outside Git/public demo fixtures.
+
+### Files changed
+
+- `src/gomate-portal/formExcel.js`, `FormExcelTools.jsx`, `form-excel.css`,
+  `LocationLibrary.jsx`, `MultiGroupPostComposer.jsx`.
+- `tests/form-excel.test.cjs`, `tests/form-excel.web.cjs`, `package.json`.
+- `public/demo-excel/README.md`, `docs/DECISIONS.md`, this log.
+
+### Verification
+
+- `npm run test:excel`: Passed, 8/8 tests covering hyperlinks/rich text, per-cell
+  errors, blanks/duplicates/missing fields, locked identity, images, zero values,
+  paired coordinates/schedules/costs, group merging and blocking file errors.
+- `npm run test:excel:web`: Passed; all three import/submit/persistence flows,
+  embedded documents, auto-linked email, partial draft updates, exact cell
+  diagnostics, no automatic submission, desktop and 390px layouts. Reviewed
+  diagnostic-table screenshots. Test-only post dates are refreshed in memory
+  so old public demo dates do not make the browser test expire.
+- Read the original user workbook and generated workbook through the actual
+  importer: Passed; email, embedded license and leading-zero identifiers/phone.
+- Typecheck and web export: Passed. Lint: No errors, 5 existing warnings.
+- Expo Doctor: 20/21 checks; existing SDK patch-version mismatches remain.
+- `git diff --check`: Passed.
+
+### Remaining work
+
+- None for the requested change. Existing lint/Expo warnings remain.
+
 ## 2026-11-19 - Financial report selector spacing
 
 ### Summary

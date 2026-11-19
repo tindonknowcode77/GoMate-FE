@@ -1,5 +1,58 @@
 # Decision log
 
+## 2026-11-19 - Member refunds and attendance appeal workflow
+
+Use the same one-confirmation, frozen-recipient QR and private bill workflow for
+member refunds as business payouts. Keep transfers locked until bill completion;
+resume returns the original instructions, and one bill cannot cover multiple
+refunds/payouts. Existing financial authorization and settlement rules still apply.
+
+Show absence rate from distinct completed activities with present/late/absent
+records; exclude unmarked and unfinished activities. Return no-data instead of a
+misleading 0%. Ratings remain the existing activity rating aggregate.
+
+Unmarked after start and explicit absence trigger critical attendance notices,
+including when ordinary activity notices are disabled. Members can appeal from
+their profile or the notice, and raise other activity issues. Admin reviews the
+original snapshot, records an explanation and verified outcome, and the source
+attendance changes with a version check and audit event. Organizer actions cannot
+overwrite that correction. Source-based metrics reflect the correction on reload.
+Attendance corrections do not move money or automatically resolve financial claims.
+
+## 2026-11-19 - One confirmation for manual business payouts
+
+Replace the Admin payout approve/start/complete dialogs with a single confirmation
+that atomically approves and reserves the outgoing transfer. Show a VietQR for
+the request's frozen beneficiary, net amount and request memo. Keep money locked
+while Admin transfers manually; closing/reopening the dialog resumes the same
+instruction without another approval. Another Admin cannot take over an active
+transfer through this flow.
+
+Complete only after a valid receipt image is uploaded. Keep image bytes in a
+private backend collection and metadata on the escrow; expose receipt retrieval
+only to authenticated Admins. Do not fabricate a bank transaction reference or
+treat the image as automatic bank verification. Preserve eligibility checks,
+duplicate/replay protection, refund/dispute locks, audit history and recognition
+of amounts/fees only on completion. Legacy non-QR payout operations remain
+compatible, but QR-started requests cannot bypass receipts via legacy completion.
+
+## 2026-11-19 - Import valid Excel fields and report skipped cells
+
+Treat workbook import as a draft patch, not a submission. Accept displayed text
+from Excel hyperlinks and rich text without opening links. Reject formula/shared
+formula cells and cached results, Excel errors and unsupported cell types per
+field. Keep existing values for invalid, blank, duplicate or missing fields, and
+show all diagnostics with sheet, cell and field labels. Unreadable workbooks and
+missing primary sheets remain blocking errors.
+
+Validate coordinate, schedule and cost/deposit pairs together to avoid combining
+incompatible halves from different drafts. Apply incomplete group imports by
+Excel row without dropping other draft groups; only complete valid group lists
+replace the list. Invalid document sheets do not discard valid text fields or
+replace existing documents. Locked business identity and explicit submit/save
+validation remain in force. User-supplied licenses and generated workbooks stay
+outside the public demo fixtures and Git repository.
+
 ## 2026-11-19 - Scope business financial reports and Admin investigation
 
 Rank activity regions from structured city/district fields, with separate city

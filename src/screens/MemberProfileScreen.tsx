@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { Image, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Text } from '../components/LocalizedText';
+import { ReputationStats } from '../components/ReputationStats';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { RemoteState } from '../components/RemoteState';
 import { FriendRequestButton } from '../components/FriendRequestButton';
@@ -18,7 +19,7 @@ export function MemberProfileScreen({ person, onBack }: { person: PersonProfile;
       {profile.avatarUrl ? <Image source={{ uri: imageUrl(profile.avatarUrl) }} style={{ width: 76, height: 76, borderRadius: 38 }} /> : null}
       <Text style={{ fontSize: 25, fontWeight: '700' }}>{profile.name}{profile.age !== null ? `, ${profile.age}` : ''}</Text>
       <Text>{profile.location}</Text><Text style={{ color: colors.textSecondary, lineHeight: 22 }}>{profile.bio}</Text>
-      <Text>{profile.reputation?.average ? `★ ${profile.reputation.average.toFixed(1)} · ${profile.reputation.count} đánh giá` : 'Chưa có đánh giá'}</Text>
+      <ReputationStats reputation={profile.reputation} />
       <Text>{profile.reputation?.completedActivities ?? 0} hoạt động tổ chức đã hoàn tất</Text>
       <Text>Sở thích: {profile.interests.join(' · ')}</Text><Text>Ngôn ngữ: {profile.languages.join(' · ')}</Text>
       {profile.companionGoal ? <Text>{profile.companionGoal}</Text> : null}{profile.contribution ? <Text>{profile.contribution}</Text> : null}

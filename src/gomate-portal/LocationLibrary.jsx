@@ -70,7 +70,8 @@ export default function LocationLibrary({ locations, onSave, onDelete }) {
           <form className="gm-auth-form" onSubmit={submit}>
             <FormExcelTools kind="location" onImport={data => {
               setForm(current => ({ ...current, ...data }));
-              mapAPI.pin(data.latitude !== '' ? data : null); mapAPI.search('');
+              if (Object.hasOwn(data, 'latitude') && Object.hasOwn(data, 'longitude')) mapAPI.pin(data);
+              mapAPI.search('');
             }} />
             <Field label={t("Location name")}><input className={fieldStyle} value={form.name} required maxLength={120} onChange={patch('name')} placeholder={t("e.g. Luma Social Club - District 1")} /></Field>
             <Field label={t("Search address")}>

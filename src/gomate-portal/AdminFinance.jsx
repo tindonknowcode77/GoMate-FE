@@ -3,6 +3,7 @@ import { api } from '../services/api';
 import { Icon, PillButton, StatusPill } from './GoMatePortal';
 import { usePortalNotice } from './PortalNotifications';
 import './finance.css';
+import AdminPayoutTransfer from './AdminPayoutTransfer';
 
 const money = value => Number(value || 0).toLocaleString('vi-VN') + ' đ';
 const date = value => value ? new Date(value).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }) : '—';
@@ -15,6 +16,8 @@ export default function AdminFinance({ refreshVersion = 0 }) {
   const [data, setData] = useState(null), [depositChanges, setDepositChanges] = useState([]), [tab, setTab] = useState('incoming'), [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState('');
   const [editor, setEditor] = useState(null), [form, setForm] = useState({});
+  const [payoutEditor, setPayoutEditor] = useState(null);
+  const closePayout = useCallback(() => setPayoutEditor(null), []);
   const sequence = useRef(0), lock = useRef(false), notify = usePortalNotice();
   const load = useCallback(async () => {
     const current = ++sequence.current; setLoading(true);
@@ -145,25 +148,25 @@ export default function AdminFinance({ refreshVersion = 0 }) {
       {!groups.length && <div className="gm-finance-empty"><Icon name="check" size={18} /><span>Không có hoạt động cần xác minh trong trang này.</span></div>}
     </section>}
     {tab === 'refunds' && <section className="gm-panel gm-live-panel gm-finance-panel">
-      {panelHeading('YÊU CẦU THÀNH VIÊN', 'Hoàn cọc', 'Duyệt yêu cầu và ghi nhận giao dịch hoàn tiền đã thực hiện.', refunds.length)}
+      {panelHeading('YÊU CẦU THÀNH VIÊN', 'Hoàn cọc', 'Xác nhận một lần, quét QR hoàn cọc và tải bill để hoàn tất.', refunds.length)}
       {refunds.map(({ group, lot }) => <article className="gm-finance-card" key={lot.refund.id}>
         <div className="gm-finance-card-heading"><div><strong>{group.title}</strong><small>{lot.refund.policy === 'full_refund' ? 'Hoàn đủ theo chính sách' : 'Cần xem xét tình huống hủy sát giờ hoặc vắng mặt'}</small></div><StatusPill status={lot.refund.status}>{names[lot.refund.status]}</StatusPill></div>
         <div className="gm-finance-amount-row"><span>Số tiền hoàn</span><strong>{money(lot.refund.amount)}</strong></div>
         <p className="gm-finance-reason">{lot.refund.reason}</p>
         <div className="gm-finance-facts"><div><span>Ngân hàng</span><strong>{lot.refund.bankAccount.bankId}</strong></div><div><span>Số tài khoản</span><strong>{lot.refund.bankAccount.accountNo}</strong></div><div><span>Chủ tài khoản</span><strong>{lot.refund.bankAccount.accountName}</strong></div><div><span>Ngày yêu cầu</span><strong>{date(lot.refund.requestedAt)}</strong></div></div>
         {lot.refund.transferRef && <p className="gm-finance-transfer-ref"><Icon name="check" size={14} />Mã chuyển tiền: {lot.refund.transferRef}</p>}
-        {(lot.refund.status === 'pending' || lot.refund.status === 'approved') && <div className="gm-finance-card-actions">{lot.refund.status === 'pending' && <><PillButton disabled={busy} onClick={() => open({ kind: 'refund', group, lot, action: 'approve' })}>Duyệt hoàn tiền</PillButton>{lot.refund.policy === 'manual_review' && <PillButton variant="secondary" disabled={busy} onClick={() => open({ kind: 'refund', group, lot, action: 'reject' })}>Từ chối hoàn</PillButton>}</>}{lot.refund.status === 'approved' && <PillButton disabled={busy} onClick={() => open({ kind: 'refund', group, lot, action: 'complete' })}>Xác nhận đã hoàn tiền</PillButton>}</div>}
+        <div className="gm-finance-card-actions">{['pending', 'approved', 'processing'].includes(lot.refund.status) && <PillButton disabled={busy} onClick={() => setPayoutEditor({ group, payout: lot.refund, refundPaymentId: lot.paymentId })}>{lot.refund.status === 'processing' ? 'Tiếp tục hoàn cọc' : 'Hoàn cọc'}</PillButton>}{lot.refund.status === 'pending' && lot.refund.policy === 'manual_review' && <PillButton variant="secondary" disabled={busy} onClick={() => open({ kind: 'refund', group, lot, action: 'reject' })}>Từ chối hoàn</PillButton>}{lot.refund.receipt && <PillButton variant="secondary" disabled={busy} onClick={() => setPayoutEditor({ group, payout: lot.refund, refundPaymentId: lot.paymentId })}>Xem bill hoàn cọc</PillButton>}</div>
       </article>)}
       {!refunds.length && <div className="gm-finance-empty"><Icon name="check" size={18} /><span>Chưa có yêu cầu hoàn cọc trong trang này.</span></div>}
     </section>}
     {tab === 'payouts' && <section className="gm-panel gm-live-panel gm-finance-panel">
-      {panelHeading('CHI TRẢ DOANH NGHIỆP', 'Giải ngân', 'Theo dõi phê duyệt, lệnh chuyển và chứng từ ngân hàng.', payouts.length)}
+      {panelHeading('CHI TRẢ DOANH NGHIỆP', 'Giải ngân', 'Xác nhận một lần, quét QR chuyển khoản và tải bill để hoàn tất.', payouts.length)}
       {payouts.map(({ group, payout }) => <article className="gm-finance-card" key={payout.id}>
         <div className="gm-finance-card-heading"><div><strong>{group.title}</strong><small>Mã yêu cầu {payout.referenceCode}</small></div><StatusPill status={payout.status}>{names[payout.status]}</StatusPill></div>
         <div className="gm-finance-money-breakdown"><div><span>Chuyển doanh nghiệp</span><strong>{money(payout.amount)}</strong></div><div><span>Phí GoMate</span><strong>{money(payout.feeAmount)}</strong></div></div>
         <div className="gm-finance-facts"><div><span>Ngân hàng</span><strong>{payout.bankAccount.bankId}</strong></div><div><span>Số tài khoản</span><strong>{payout.bankAccount.accountNo}</strong></div><div><span>Chủ tài khoản</span><strong>{payout.bankAccount.accountName}</strong></div></div>
         {payout.transferRef && <p className="gm-finance-transfer-ref"><Icon name="check" size={14} /><span>Mã ngân hàng: {payout.transferRef}</span></p>}
-        <div className="gm-finance-card-actions">{payout.status === 'pending' && <PillButton disabled={busy} onClick={() => open({ kind: 'payout', group, payout, action: 'approve' })}>Duyệt giải ngân</PillButton>}{['pending', 'approved'].includes(payout.status) && <PillButton variant="secondary" disabled={busy} onClick={() => open({ kind: 'payout', group, payout, action: 'reject' })}>Từ chối giải ngân</PillButton>}{payout.status === 'approved' && <PillButton disabled={busy} onClick={() => open({ kind: 'payout', group, payout, action: 'start_transfer' })}>Khóa lệnh & chuẩn bị chuyển</PillButton>}{payout.status === 'processing' && <PillButton disabled={busy} onClick={() => open({ kind: 'payout', group, payout, action: 'complete' })}>Xác nhận đã chuyển tiền</PillButton>}{payout.status === 'processing' && <PillButton variant="secondary" disabled={busy} onClick={() => open({ kind: 'payout', group, payout, action: 'transfer_failed' })}>Ngân hàng xác nhận chưa chuyển</PillButton>}</div>
+        <div className="gm-finance-card-actions">{['pending', 'approved'].includes(payout.status) && <PillButton disabled={busy} onClick={() => setPayoutEditor({ group, payout })}>Giải ngân</PillButton>}{['pending', 'approved'].includes(payout.status) && <PillButton variant="secondary" disabled={busy} onClick={() => open({ kind: 'payout', group, payout, action: 'reject' })}>Từ chối giải ngân</PillButton>}{payout.status === 'processing' && <PillButton disabled={busy} onClick={() => setPayoutEditor({ group, payout })}>Tiếp tục giải ngân</PillButton>}{payout.status === 'completed' && payout.receipt && <PillButton variant="secondary" disabled={busy} onClick={() => setPayoutEditor({ group, payout })}>Xem bill chuyển khoản</PillButton>}{payout.status === 'processing' && <PillButton variant="secondary" disabled={busy} onClick={() => open({ kind: 'payout', group, payout, action: 'transfer_failed' })}>Ngân hàng xác nhận chưa chuyển</PillButton>}</div>
       </article>)}
       {!payouts.length && <div className="gm-finance-empty"><Icon name="check" size={18} /><span>Chưa có yêu cầu giải ngân trong trang này.</span></div>}
       {data?.legacyPayouts.length > 0 && <details className="gm-finance-legacy"><summary>Lệnh cũ cần kiểm tra chứng từ <span>{data.legacyPayouts.length}</span></summary><div>{data.legacyPayouts.map(row => <p key={row.id}>{row.referenceCode} · {money(row.amount)} · Chưa đưa vào doanh thu đã xác minh.</p>)}</div></details>}
@@ -184,6 +187,7 @@ export default function AdminFinance({ refreshVersion = 0 }) {
       {!groups.some(group => group.audit.length) && <div className="gm-finance-empty"><Icon name="check" size={18} /><span>Chưa có lịch sử đối soát trong trang này.</span></div>}
     </section>}
     <div className="gm-live-actions gm-finance-pagination"><PillButton variant="secondary" disabled={page === 1 || loading} onClick={() => setPage(value => value - 1)}>Trang trước</PillButton><span>Trang {page} / {Math.max(1, Math.ceil(total / pageSize))}</span><PillButton variant="secondary" disabled={loading || page * pageSize >= total} onClick={() => setPage(value => value + 1)}>Trang sau</PillButton></div>
+    {payoutEditor && <AdminPayoutTransfer key={payoutEditor.payout.id} {...payoutEditor} onClose={closePayout} onChanged={load} onCompleted={() => { setPayoutEditor(null); notify(payoutEditor.refundPaymentId ? 'Đã lưu bill và hoàn tất hoàn cọc.' : 'Đã lưu bill và hoàn tất giải ngân.'); void load(); }} />}
     {editor && <div className="gm-modal-backdrop"><section className="gm-user-modal gm-finance-dialog" role="dialog" aria-modal="true" aria-labelledby="finance-dialog-title"><header className="gm-modal-head"><h3 id="finance-dialog-title">{editor.action === 'complete' ? 'Ghi nhận chuyển tiền ngân hàng' : 'Xử lý hồ sơ tài chính'}</h3><PillButton variant="secondary" disabled={busy} onClick={close}>Đóng</PillButton></header><form className="gm-auth-form" onSubmit={save}><fieldset disabled={busy} className="gm-finance-fields">
       {target && <div className="gm-finance-target"><strong>{money(target.amount)}</strong><p>{target.bankAccount.bankId} · {target.bankAccount.accountNo} · {target.bankAccount.accountName}</p></div>}
       {editor.demo && <div className="gm-finance-target"><strong>Xác minh ngay (Demo)</strong><p>Xác minh thủ công hoạt động “{editor.group.title}” ngay bây giờ, bỏ qua ngày diễn ra và thời gian giữ cọc. Thao tác được ghi rõ là demo trong lịch sử.</p></div>}

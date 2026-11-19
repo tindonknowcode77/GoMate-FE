@@ -8,12 +8,13 @@ export type UserProfile = {
   education: string; school: string; companionGoal: string; availableTimes: string[]; activityWish: string; contribution: string;
   profileComplete: boolean; missingFields: string[];
   coverUrl?: string | null; occupation?: string; demo?: boolean; isStaff?: boolean;
+  reputation?: Reputation;
 };
 export type ProfileDraft = Pick<UserProfile, 'name' | 'username' | 'bio' | 'location' | 'interests' | 'languages' | 'gender' | 'religion' | 'alcohol' | 'birthDate' | 'occupation' | 'education' | 'school' | 'companionGoal' | 'availableTimes' | 'activityWish' | 'contribution'>;
 export const missingFieldLabels: Record<string, string> = { birthDate: 'ngày sinh', gender: 'giới tính', name: 'họ tên', location: 'khu vực', bio: 'giới thiệu', interests: 'sở thích', languages: 'ngôn ngữ' };
 export function imageUrl(url: string) { return url.startsWith('/') && /^https?:/.test(apiBaseUrl) ? `${apiBaseUrl.replace(/\/api$/, '')}${url}` : url; }
 export const getProfile = async () => (await api<{ profile: UserProfile }>('/profile/me')).profile;
-export type Reputation = { average: number | null; count: number; completedActivities: number };
+export type Reputation = { average: number | null; count: number; completedActivities: number; absenceRate: number | null; attendanceCount: number; absentCount: number; presentCount: number; lateCount: number };
 export type PublicProfile = { reputation?: Reputation } & Pick<UserProfile, 'id' | 'name' | 'username' | 'bio' | 'location' | 'interests' | 'languages' | 'avatarUrl' | 'coverUrl' | 'occupation' | 'demo' | 'age' | 'photos' | 'education' | 'school' | 'companionGoal' | 'availableTimes' | 'activityWish' | 'contribution'>;
 export const getPublicProfile = async (id: string) => { const result = await api<{ profile: PublicProfile; reputation?: Reputation }>(`/profile/${encodeURIComponent(id)}`); return { ...result.profile, reputation: result.reputation }; };
 export async function saveProfile(fields: ProfileDraft) {
