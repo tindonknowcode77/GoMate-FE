@@ -3,8 +3,9 @@ import { api, post } from './api';
 import type { ParticipantPreferences } from '../components/ActivityChoices';
 import { imageUrl } from './profileService';
 
-export type RequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled' | 'left' | 'removed' | 'closed';
+export type RequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled' | 'cancelled_conflict' | 'left' | 'removed' | 'closed';
 export type ActivityDto = {
+  requestStatus?: RequestStatus;
   isBusinessManager?: boolean; autoCompletedAt?: string; cancelledAt?: string;
   readiness?: { confirmedParticipants: number; externalParticipants: number; minimum: number; ready: boolean; reason: string };
   business?: Activity['business'];
@@ -55,6 +56,7 @@ export function toActivity(row: ActivityDto, requestStatus?: RequestStatus): Act
   };
 }
 export const listActivities = (query = '') => allPages<ActivityDto>(`/activities${query ? `?${query}` : ''}`);
+export const listActivityPage = (query: string, page: number) => api<Page<ActivityDto>>(`/activities?${query ? query + '&' : ''}page=${page}&limit=20`);
 export const listOwned = () => allPages<ActivityDto>('/activities/mine');
 export const listJoined = () => allPages<ActivityDto>('/me/activities');
 export const getActivityCounts = () => api<{ pending: number; hostRequests: number }>('/me/activity-counts');
@@ -83,6 +85,28 @@ export type ActivityUpdate = { id: string; type: string; text?: string; createdA
 export const listAttendance = (id: string) => allPages<Attendance>(`${idPath(id)}/attendance`);
 export const listUpdates = (id: string) => allPages<ActivityUpdate>(`${idPath(id)}/updates`);
 export const markAttendance = (id: string, userId: string, status: Attendance['status']) => api(`${idPath(id)}/attendance/${encodeURIComponent(userId)}`, { method: 'PATCH', body: JSON.stringify({ status }) });
+export const bulkMarkAttendance = async (id: string, body: { markAll?: Attendance['status']; items?: { userId: string; status: Attendance['status'] }[] }) =>
+  (await api<{ items: Attendance[] }>(`${idPath(id)}/attendance/bulk`, { method: 'PUT', body: JSON.stringify(body) })).items;
+export type AttendanceQrToken = { token: string; activityId: string; issuedAt: string; expiresAt: string; ttlSeconds: number };
+export const createAttendanceQrToken = async (id: string) => (await post<{ qr: AttendanceQrToken }>(`${idPath(id)}/attendance/qr-token`, {})).qr;
+export const qrCheckInAttendance = (id: string, token: string) => post<{ attendance: Attendance; alreadyCheckedIn: boolean }>(`${idPath(id)}/attendance/qr-checkin`, { token });
+export type ActivityMemory = { id: string; activityId: string; uploaderId: string; uploaderName: string; uploaderAvatarUrl?: string | null; imageUrl: string; caption: string; createdAt: string };
+export const listActivityMemories = async (id: string) => (await api<{ items: ActivityMemory[]; total: number }>(`${idPath(id)}/memories`)).items;
+export const uploadActivityMemory = async (id: string, imageBase64: string, caption = '') => (await post<{ memory: ActivityMemory }>(`${idPath(id)}/memories`, { imageBase64, caption })).memory;
+export const deleteActivityMemory = (id: string, memoryId: string) => api<void>(`${idPath(id)}/memories/${encodeURIComponent(memoryId)}`, { method: 'DELETE' });
+export type ActivitySummaryDto = {
+  activityId: string; title: string; category: string; organizerType: string; status: string;
+  startsAt: string; endsAt: string | null; completedAt: string | null; location: string; imageUrl: string | null;
+  hostId: string; hostName: string;
+  attendance: {
+    total: number; attendedCount: number; presentCount: number; lateCount: number; absentCount: number; unmarkedCount: number;
+    members: { userId: string; name: string; avatarUrl: string | null; role: string; status: Attendance['status'] }[];
+  };
+  rating: { average: number | null; count: number; hasRated: boolean; canRate: boolean; isHost: boolean };
+  memories: ActivityMemory[];
+  coverImages: string[];
+};
+export const getActivitySummary = async (id: string) => (await api<{ summary: ActivitySummaryDto }>(`${idPath(id)}/summary`)).summary;
 export const addActivityUpdate = (id: string, text: string, clientId?: string) => post(`${idPath(id)}/updates`, { text, ...(clientId ? { clientId } : {}) });
 
 export const addActivityFriends = async (id: string, friendIds: string[], useReservedSeats = true) => (await post<{ activity: ActivityDto }>(`${idPath(id)}/members/friends`, { friendIds, useReservedSeats })).activity;

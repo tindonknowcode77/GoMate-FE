@@ -1,5 +1,46 @@
 # Development log
 
+## 2026-11-20 - Reduce request amplification and repair realtime/history logic
+
+### Summary
+
+- Share a Socket.IO connection across chat and live list/unread subscribers;
+  consume pushed metadata and load all missed history pages after reconnect.
+- Coalesce identical GETs and overlapping background refreshes; queue one fresh
+  foreground read after a pending request without starving slow results.
+- Load discovery on demand, paginate discovery/inbox/notifications, move inbox
+  filters before BE pagination, and avoid fetching all conversations for a badge.
+- Load Portal resources by active section with explicit load-more controls;
+  preserve notification totals. Use live refresh for invitations, friends and
+  join requests and reduce remaining group/member background polling.
+- Align Expo SDK 57 patch dependencies. Update the existing Portal reliability
+  assertions to the current status-pill and Admin-approved deposit-change contract.
+
+### Files changed
+
+- `src/services/{api,useRemote,usePagedRemote,useLiveRefresh,chatEvents,chatService,activityApi,communityService}.ts`.
+- Chat, discovery, inbox, notifications, home and group/member screens; unread,
+  invitations and join-request components; Portal workspace/chat/header and copy.
+- `tests/remote-reliability.test.cjs`, `tests/realtime-performance.web.cjs`,
+  `tests/portal-reliability.web.cjs`, package manifests/lockfile and this log.
+- `docs/DECISIONS.md`; BE architecture/deployment notes are linked there.
+
+### Verification
+
+- FE unit files (`node --test tests/*.test.cjs`): 26 passed.
+- TypeScript, Expo lint (zero errors; five pre-existing warnings), web export and
+  Expo Doctor (21/21): passed.
+- Real-browser realtime/performance scenario: passed, including 125-message
+  recovery and Portal explicit pagination. Current Admin contract and Portal
+  reliability browser scenarios: passed.
+- Companion BE full suite: 203 passed; isolated group snapshot reduced from
+  118 to 8 DB commands and from 101 write commands to zero.
+
+### Remaining work
+
+- Verify deployed latency and native devices. Multi-instance immediate events
+  require shared pub/sub; the current implementation reconciles every 30 seconds.
+
 ## 2026-11-19 - Member refund QR, profile reputation and attendance complaints
 
 ### Summary

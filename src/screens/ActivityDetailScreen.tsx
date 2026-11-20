@@ -5,6 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { MemberProfileModal } from '../components/MemberProfileModal';
+import { UserAvatar } from '../components/UserAvatar';
 import { Text } from '../components/LocalizedText';
 import { GradientButton } from '../components/GradientButton';
 import { ScreenHeader } from '../components/ScreenHeader';
@@ -43,7 +44,7 @@ export function ActivityDetailScreen({ activity, error, isHost = false, onBack, 
 
           {activity.coordinates && <RouteMap point={activity.coordinates} />}
           <Pressable onPress={() => setShowHost(true)} style={styles.hostCard}>
-            <View style={styles.hostAvatar}><Text style={styles.hostInitial}>{activity.host.charAt(0)}</Text></View>
+            <UserAvatar uri={activity.hostAvatarUrl} name={activity.host} size={46} borderColor={colors.primarySoft} />
             <View style={styles.hostCopy}>
               <View style={styles.hostNameRow}><Text style={styles.hostName}>{activity.host}</Text></View>
               <Text style={styles.hostMeta}>{activity.hostRating == null ? 'Chưa có đánh giá' : `★ ${activity.hostRating}`} · {activity.hostCompletedActivities} hoạt động đã hoàn thành</Text>
@@ -65,6 +66,17 @@ export function ActivityDetailScreen({ activity, error, isHost = false, onBack, 
           <Section title="Yêu cầu">
             {activity.requirements.map((item) => <Bullet key={item} text={item} />)}
           </Section>
+          {((activity.itinerary?.length ?? 0) > 0 || (activity.plan?.length ?? 0) > 0 || activity.planLink || activity.planFile) && (
+            <Section title="Kế hoạch dự kiến">
+              {(activity.itinerary?.length ? activity.itinerary.map(step => (
+                <Bullet key={step.id} text={`${step.time} · ${step.title}${step.place ? ` (${step.place})` : ''}`} />
+              )) : (activity.plan ?? []).map((line, i) => (
+                <Bullet key={`${i}-${line}`} text={line} />
+              )))}
+              {activity.planFile ? <Bullet text={`Tệp đính kèm: ${activity.planFile.name}`} /> : null}
+              {activity.planLink ? <Bullet text={`Link kế hoạch: ${activity.planLink}`} /> : null}
+            </Section>
+          )}
           <GradientButton disabled={blocked} label={activity.isBusinessManager ? 'Mở nhóm được phân công' : blocked ? (activity.backendStatus === 'cancelled' ? 'Hoạt động đã bị hủy' : ['completed', 'expired'].includes(activity.backendStatus || '') ? 'Hoạt động đã kết thúc' : activity.backendStatus === 'in-progress' || (activity.startsAt && new Date(activity.startsAt).getTime() <= now) ? 'Hoạt động đã bắt đầu' : (activity.registrationDeadline && new Date(activity.registrationDeadline).getTime() <= now) ? 'Đã hết hạn đăng ký' : Number(activity.members.split('/')[0]) >= Number(activity.members.split('/')[1]) ? 'Đã đủ chỗ' : 'Đã đóng đăng ký') : activity.requestStatus === 'pending' ? 'Hủy yêu cầu' : activity.requestStatus === 'approved' ? 'Mở nhóm' : isHost ? 'Quản lý hoạt động' : 'Yêu cầu tham gia'} onPress={onPrimary} style={styles.cta} trailing={<Ionicons color={colors.white} name={isHost ? 'settings-outline' : 'heart'} size={19} />} />
         </View>
       </ScrollView>

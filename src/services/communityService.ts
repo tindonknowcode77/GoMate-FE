@@ -5,6 +5,7 @@ export const getAccountSettings = async () => (await api<{ settings: AccountSett
 export const saveAccountSettings = async (patch: Partial<AccountSettings>) => (await api<{ settings: AccountSettings }>('/community/settings', { method: 'PATCH', body: JSON.stringify(patch) })).settings;
 export type Notification = { id: string; type: string; title: string; text: string; activityId?: string; conversationId?: string; actorId?: string; createdAt: string; readAt: string | null };
 export const listNotifications = () => allPages<Notification>('/community/notifications');
+export const listNotificationPage = (page = 1) => api<{ items: Notification[]; hasMore: boolean; total: number; unreadCount: number }>(`/community/notifications?page=${page}&limit=20`);
 export const readNotification = (id?: string) => api<void>(`/community/notifications/${id ? encodeURIComponent(id) + '/' : ''}read`, { method: 'PATCH', body: '{}' });
 export type BlockedUser = { userId: string; name: string; avatarUrl: string | null; createdAt: string };
 export const listBlockedUsers = async () => (await api<{ items: BlockedUser[] }>('/community/blocks')).items;
@@ -16,7 +17,7 @@ export const listAttendanceHistory = () => allPages<AttendanceHistoryItem>('/com
 export const submitAttendanceComplaint = (activityId: string, kind: 'attendance' | 'other', detail: string, requestedStatus?: 'present' | 'late') => post<{ report: Report }>('/community/attendance/complaints', { activityId, kind, detail, ...(kind === 'attendance' ? { requestedStatus: requestedStatus || 'present' } : {}) });
 export const listReports = async () => (await api<{ items: Report[] }>('/community/reports')).items;
 export const reportActivity = (activityId: string, reason: string, detail: string) => post<{ report: Report }>('/community/reports', { activityId, reason, detail });
-export type RatingValue = { score: number; comment: string; members: { userId: string; score: number }[] };
-export type RatingForm = { activityId: string; title: string; members: { id: string; name: string; avatarUrl: string | null }[]; submitted: { value: RatingValue; createdAt: string } | null };
+export type RatingValue = { score: number | null; comment: string; members: { userId: string; score: number; note?: string }[] };
+export type RatingForm = { activityId: string; title: string; hostId?: string; isHost?: boolean; canRateActivity?: boolean; canRateMembers?: boolean; members: { id: string; name: string; avatarUrl: string | null }[]; submitted: { value: RatingValue; createdAt: string } | null };
 export const getRatingForm = (id: string) => api<RatingForm>(`/community/ratings/${encodeURIComponent(id)}`);
 export const submitRating = (id: string, value: RatingValue) => post(`/community/ratings/${encodeURIComponent(id)}`, value);

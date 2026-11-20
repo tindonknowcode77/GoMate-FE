@@ -12,13 +12,16 @@ import { Text } from '../LocalizedText';
 import { PreferencesSummary } from '../ActivityChoices';
 import { BusinessIdentity } from '../BusinessIdentity';
 
-export function MatchHeader({ distance = 'Chưa có vị trí', onBack, onFilter }: { onSearch?: () => void; distance?: string; onBack: () => void; onFilter: () => void }) {
+export function MatchHeader({ distance = 'Chưa có vị trí', onBack, onFilter, onSearch }: { onSearch?: () => void; distance?: string; onBack: () => void; onFilter: () => void }) {
   return (
     <View>
       <View style={styles.header}>
         <Pressable accessibilityLabel="Quay lại" onPress={onBack} style={styles.headerButton}><Ionicons color={colors.text} name="chevron-back" size={24} /></Pressable>
         <Text style={styles.headerTitle}>Match</Text>
-        <Pressable accessibilityLabel="Mở bộ lọc" onPress={onFilter} style={styles.headerButton}><Ionicons color={colors.primary} name="options-outline" size={23} /></Pressable>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          {onSearch && <Pressable accessibilityRole="button" accessibilityLabel="Tìm kiếm hoạt động" onPress={onSearch} style={styles.headerButton}><Ionicons color={colors.primary} name="search-outline" size={22} /></Pressable>}
+          <Pressable accessibilityLabel="Mở bộ lọc" onPress={onFilter} style={styles.headerButton}><Ionicons color={colors.primary} name="options-outline" size={23} /></Pressable>
+        </View>
       </View>
       <View style={styles.contextRow}>
 
@@ -70,6 +73,20 @@ export function ActivityMatchCard({ preview = false, favorite = false, onFavorit
             </Pressable>{showHost && activity.hostId ? <MemberProfileModal userId={activity.hostId} onClose={() => setShowHost(false)} /> : null}
           </DetailSection>
           {activity.requirements.length > 0 && <DetailSection title="Lưu ý">{activity.requirements.map((item) => <Bullet key={item} text={item} />)}</DetailSection>}
+          {((activity.itinerary?.length ?? 0) > 0 || (activity.plan?.length ?? 0) > 0 || activity.planLink || activity.planFile) && (
+            <DetailSection title="Kế hoạch dự kiến">
+              {(activity.itinerary?.length ? activity.itinerary.slice(0, 4).map(step => (
+                <Bullet key={step.id} timeline text={`${step.time} · ${step.title}${step.place ? ` (${step.place})` : ''}`} />
+              )) : (activity.plan ?? []).slice(0, 4).map((line, i) => (
+                <Bullet key={`${i}-${line}`} timeline text={line} />
+              )))}
+              {(activity.itinerary?.length ?? 0) > 4 && <Text style={{ color: colors.primary, fontSize: 12, fontWeight: '600' }}>+ {(activity.itinerary?.length ?? 0) - 4} mốc khác trong nhóm</Text>}
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
+                {activity.planFile && <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.primarySoft, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 5 }}><Ionicons name="document-attach-outline" size={14} color={colors.primary} /><Text style={{ color: colors.primary, fontSize: 12, fontWeight: '600' }}>{activity.planFile.name}</Text></View>}
+                {activity.planLink && <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.primarySoft, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 5 }}><Ionicons name="link-outline" size={14} color={colors.primary} /><Text style={{ color: colors.primary, fontSize: 12, fontWeight: '600' }}>Có link kế hoạch đính kèm</Text></View>}
+              </View>
+            </DetailSection>
+          )}
           {activity.coordinates && <DetailSection title="Bản đồ địa điểm"><RouteMap point={activity.coordinates} /></DetailSection>}
           {(activity.images?.length ?? 0) > 1 && <DetailSection title="Ảnh hoạt động"><View style={[styles.photoRow, { flexWrap: 'wrap' }]}>{activity.images!.map((source, index) => <ImageBackground accessibilityLabel={`Ảnh hoạt động ${index + 1}`} imageStyle={styles.photoImage} key={index} resizeMode="cover" source={source} style={[styles.photo, { flex: undefined, flexGrow: 0, flexShrink: 0, flexBasis: '31%', width: '31%' }]} />)}</View></DetailSection>}
         </View>

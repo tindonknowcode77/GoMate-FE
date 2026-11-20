@@ -55,6 +55,7 @@ export async function initializeSession() {
   // MainApp checks the restored session against BE; network failure keeps a retry path.
 }
 export const setUnauthorizedHandler = (handler?: () => void) => { onUnauthorized = handler; };
+export function expireSession() { setSession(null); onUnauthorized?.(); }
 if (Platform.OS === 'web' && typeof window !== 'undefined') window.addEventListener('storage', event => {
   if (event.key !== sessionKey && event.key !== null) return;
   session = restoreSession(); generation++;
@@ -66,7 +67,25 @@ export class ApiError extends Error {
   constructor(message: string, public status: number, public code?: string) { super(message); }
 }
 
-export async function api<T>(path: string, options: RequestInit & { timeoutMs?: number } = {}): Promise<T> {
+const pendingGets = new Map<string, Promise<unknown>>();
+export function api<T>(path: string, options: RequestInit & { timeoutMs?: number } = {}): Promise<T> {
+  const method = (options.method ?? 'GET').toUpperCase();
+  if (method !== 'GET') {
+    pendingGets.clear();
+    return request<T>(path, options).finally(() => pendingGets.clear());
+  }
+  if (options.signal || options.headers || options.body) return request<T>(path, options);
+  const key = JSON.stringify([session?.accessToken ?? '', path, options]);
+  const existing = pendingGets.get(key);
+  if (existing) return existing as Promise<T>;
+  const task = request<T>(path, options);
+  pendingGets.set(key, task);
+  const clear = () => { if (pendingGets.get(key) === task) pendingGets.delete(key); };
+  void task.then(clear, clear);
+  return task;
+}
+
+async function request<T>(path: string, options: RequestInit & { timeoutMs?: number } = {}): Promise<T> {
   const token = session?.accessToken;
   const controller = new AbortController();
   const abort = () => controller.abort();

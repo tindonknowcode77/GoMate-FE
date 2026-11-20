@@ -7,11 +7,12 @@ import { Text } from './LocalizedText';
 import { RemoteState } from './RemoteState';
 import { GradientButton } from './GradientButton';
 import { ActivityLifecyclePanel } from './ActivityLifecyclePanel';
+import { AttendanceRoster } from './AttendanceRoster';
 import { BusinessIdentity } from './BusinessIdentity';
 import { JoinRequestsPanel } from './JoinRequestsPanel';
 import { Activity } from '../data/activities';
 import {
-  ActivityDto, Attendance, deleteActivity, getActivity, getPortalGroup,
+  ActivityDto, Attendance, bulkMarkAttendance, deleteActivity, getActivity, getPortalGroup,
   listAttendance, markAttendance, PortalGroupDetail, recordPortalDeposit,
   sendPortalOffer, toActivity, updatePortalOffer,
 } from '../services/activityApi';
@@ -109,45 +110,24 @@ export function ActivityManagementPanel({ activityId, onPlan, onOpenGroup, onMem
         ))}
       </View>}
 
-      {activeRun && attendance.length > 0 && <View style={styles.card}>
-        <View style={styles.sectionHeader}>
-          <View style={{ flex: 1, gap: 2 }}>
-            <Text style={styles.sectionTitle}>Điểm danh thành viên</Text>
-            <Text style={styles.muted}>Cập nhật trạng thái tham gia của từng thành viên trước khi hoàn tất hoạt động</Text>
-          </View>
-          <View style={styles.count}><Text style={styles.countText}>{markedCount}/{attendance.length}</Text></View>
-        </View>
-        {attendance.map(member => (
-          <View key={member.userId} style={styles.attendanceItem}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-              <Text style={styles.memberName}>{member.name}{member.userId === row.hostId ? ' (Ban tổ chức)' : ''}</Text>
-              <Text style={[styles.muted, { color: member.status === 'unmarked' ? colors.warningText : colors.primary, fontWeight: '700' }]}>
-                {member.status === 'present' ? 'Có mặt' : member.status === 'late' ? 'Đến muộn' : member.status === 'absent' ? 'Vắng mặt' : 'Chưa điểm danh'}
-              </Text>
-            </View>
-            {member.correctionReportId && <Text style={styles.muted}>Admin đã xác minh điểm danh.</Text>}
-            <View style={styles.attendancePills}>
-              {attendanceOptions.map(([status, label]) => {
-                const selected = member.status === status;
-                return (
-                  <Pressable
-                    key={status}
-                    accessibilityRole="button"
-                    disabled={busy || Boolean(member.correctionReportId)}
-                    onPress={() => void run(async () => {
-                      await markAttendance(activityId, member.userId, status);
-                      await refresh();
-                    })}
-                    style={[styles.pill, selected && styles.pillActive, busy && { opacity: 0.5 }]}
-                  >
-                    <Text style={[styles.pillText, selected && styles.pillTextActive]}>{label}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
-        ))}
-      </View>}
+      {activeRun && attendance.length > 0 && (
+        <AttendanceRoster
+          activityId={activityId}
+          people={attendance}
+          hostId={row.hostId}
+          editable
+          busy={busy}
+          onMark={(userId, status) => void run(async () => {
+            await markAttendance(activityId, userId, status);
+            await refresh();
+          })}
+          onMarkAll={status => void run(async () => {
+            await bulkMarkAttendance(activityId, { markAll: status });
+            await refresh();
+          })}
+          onCheckedIn={() => void refresh()}
+        />
+      )}
 
       {row.organizerType === 'business' && portalGroup && activeRun && <View style={styles.card}>
         <Text style={styles.sectionTitle}>{editingOfferId ? 'Cập nhật thông báo ưu đãi' : 'Thông báo & ưu đãi nhóm'}</Text>

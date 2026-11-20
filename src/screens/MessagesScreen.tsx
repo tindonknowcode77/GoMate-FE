@@ -1,13 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Text } from '../components/LocalizedText';
 import { RemoteState } from '../components/RemoteState';
-import { Conversation, listConversations } from '../services/chatService';
+import { Conversation, listConversationPage } from '../services/chatService';
 import { getSession } from '../services/api';
 import { imageUrl } from '../services/profileService';
-import { searchKey } from '../data/profileOptions';
-import { useRemote } from '../services/useRemote';
+import { usePagedRemote } from '../services/usePagedRemote';
+import { useLiveRefresh } from '../services/useLiveRefresh';
 import { colors, layout } from '../theme';
 export type { Conversation } from '../services/chatService';
 type InboxFilter = 'all' | 'unread' | 'group' | 'direct';
@@ -21,12 +21,15 @@ function timeLabel(value?: string) {
 }
 
 export function MessagesScreen({ onOpenChat, onFriends }: { onOpenChat: (conversation: Conversation) => void; onFriends: () => void }) {
-  const remote = useRemote(listConversations, []);
   const [focused, setFocused] = useState(false);
   const [query, setQuery] = useState(''), [filter, setFilter] = useState<InboxFilter>('all');
+  const [search, setSearch] = useState('');
+  useEffect(() => { const timer = setTimeout(() => setSearch(query.trim()), 300); return () => clearTimeout(timer); }, [query]);
+  const loadPage = useCallback((page: number) => listConversationPage(page, { q: search, type: filter === 'group' || filter === 'direct' ? filter : undefined, unread: filter === 'unread' }), [search, filter]);
+  const remote = usePagedRemote(loadPage);
   const reload = remote.reload;
-  useEffect(() => { const timer = setInterval(() => void reload(), 10000); return () => clearInterval(timer); }, [reload]);
-  const rows = remote.data.filter(row => (filter === 'all' || filter === 'unread' && row.unreadCount > 0 || row.type === filter) && searchKey(row.name + ' ' + row.activityTitle + ' ' + (row.lastMessage?.text || '')).includes(searchKey(query)));
+  useLiveRefresh(reload);
+  const rows = remote.data.items;
   return <View style={styles.screen}>
     <View style={styles.top}><View><Text style={styles.title}>Tin nhắn</Text><Text style={styles.subtitle}></Text></View><Pressable accessibilityRole="button" accessibilityLabel="Bạn bè và cuộc trò chuyện mới" onPress={onFriends} style={styles.newChat}><Ionicons name="people-outline" color={colors.primary} size={25} /></Pressable></View>
     <View style={[styles.search, focused && { borderColor: colors.primaryLight }]}><Ionicons name="search-outline" color={colors.textMuted} size={22} /><TextInput accessibilityLabel="Tìm kiếm cuộc trò chuyện" onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} placeholder="Tìm kiếm cuộc trò chuyện..." placeholderTextColor={colors.textMuted} value={query} onChangeText={setQuery} style={styles.searchInput} />{!!query && <Pressable accessibilityLabel="Xóa tìm kiếm" onPress={() => setQuery('')}><Ionicons name="close-circle" color={colors.textMuted} size={19} /></Pressable>}</View>
@@ -44,6 +47,7 @@ export function MessagesScreen({ onOpenChat, onFriends }: { onOpenChat: (convers
           </View>
         </Pressable>;
       })}
+      {remote.data.hasMore && <Pressable accessibilityRole="button" disabled={remote.loading} onPress={remote.loadMore} style={styles.friendButton}><Text style={{ color: colors.primary }}>Tải thêm cuộc trò chuyện</Text></Pressable>}
     </ScrollView>
   </View>;
 }

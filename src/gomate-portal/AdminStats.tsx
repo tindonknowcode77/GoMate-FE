@@ -112,7 +112,10 @@ export default function AdminStats({ onNavigate, onAddAdministrator, t, formatDa
   }, [requestKey]);
 
   useEffect(() => {
-    const timer = setInterval(() => setRetry(value => value + 1), 30000);
+    const timer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      setRetry(value => value + 1);
+    }, 30000);
     return () => clearInterval(timer);
   }, []);
 

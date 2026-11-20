@@ -1,5 +1,6 @@
 // English UI copy is the key; Vietnamese is the default display language.
 export const portalTranslations: Record<string, string> = {
+  'Load more': 'Tải thêm', 'locations': 'địa điểm', 'staff': 'nhân sự', 'applications': 'hồ sơ',
   'Business posts': 'Bài đăng doanh nghiệp',
   'Previous page': 'Trang trước', 'Next page': 'Trang sau', 'Participants': 'Người tham gia',
   'Top regions': 'Khu vực nổi bật', 'Grouped by district and city': 'Thống kê theo quận/huyện và tỉnh/thành phố', 'Region level': 'Cấp khu vực', 'Cities': 'Tỉnh / thành phố', 'Districts': 'Quận / huyện', 'City / province': 'Tỉnh / thành phố', 'No regional activity data': 'Chưa có dữ liệu hoạt động theo khu vực',

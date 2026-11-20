@@ -49,7 +49,10 @@ const be = name => import(pathToFileURL(beRoot + '/src/' + name + '.js').href);
     const nav = (page, name) => page.locator('.gm-sidebar-nav').getByRole('button', { name, exact: true }).click();
     const panel = admin.locator('.gm-admin-management');
     await nav(admin, 'Tài khoản'); await panel.locator('tbody tr').first().waitFor();
-    assert.ok(await panel.locator('.gm-status--purple').count()); assert.ok(await panel.locator('.gm-status--blue').count()); assert.ok(await panel.locator('.gm-status--green').count());
+    // The current account contract colors the activity status; the effective
+    // role is separate secondary text rather than the pill's color.
+    await expect(panel.locator('.gm-status--green')).toHaveCount(4);
+    await expect(panel.locator('td:has(.gm-status) .gm-admin-secondary')).toHaveCount(4);
     await db.collection('users').updateOne({ id: users[2].id }, { $set: { name: 'Updated via refresh' } });
     await admin.getByRole('button', { name: 'Làm mới', exact: true }).click();
     await panel.getByText('Updated via refresh', { exact: true }).waitFor();
@@ -79,7 +82,9 @@ const be = name => import(pathToFileURL(beRoot + '/src/' + name + '.js').href);
     await owner.getByRole('tab', { name: 'Quản lý', exact: true }).click();
     const toggle = owner.getByRole('switch', { name: 'Tự động duyệt thành viên' }); await toggle.waitFor(); await toggle.click(); await expect(toggle).toBeChecked();
     const amount = owner.getByLabel('Tiền cọc / người (VND)', { exact: true }); await amount.fill('70000'); await owner.getByRole('button', { name: 'Lưu mức cọc', exact: true }).click(); await expect(owner.getByRole('button', { name: 'Lưu mức cọc', exact: true })).toBeDisabled();
-    await expect.poll(async () => (await db.collection('activities').findOne({ id: groupId })).depositAmount).toBe(70000);
+    // Deposit changes now require Admin approval and preserve the active amount.
+    await expect.poll(async () => (await db.collection('activities').findOne({ id: groupId })).depositChangeRequest?.requestedAmount).toBe(70000);
+    assert.equal((await db.collection('activities').findOne({ id: groupId })).depositAmount, 50000);
     const joined = await fetch(base + `/api/activities/${groupId}/join-requests`, { method: 'POST', headers: { Authorization: `Bearer ${sessions[2].accessToken}`, 'Content-Type': 'application/json' }, body: '{}' });
     assert.equal(joined.status, 201); assert.equal((await joined.json()).request.status, 'approved');
     await nav(owner, 'Bài đăng của tôi');

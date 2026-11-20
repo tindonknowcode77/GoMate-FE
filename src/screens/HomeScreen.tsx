@@ -6,7 +6,7 @@ import { Text } from '../components/LocalizedText';
 import { RemoteState } from '../components/RemoteState';
 import { Activity } from '../data/activities';
 import { listJoined, listOwned, toActivity } from '../services/activityApi';
-import { listNotifications } from '../services/communityService';
+import { listNotificationPage } from '../services/communityService';
 import { useProfile } from '../services/ProfileContext';
 import { useRemote } from '../services/useRemote';
 import { colors, layout } from '../theme';
@@ -19,7 +19,7 @@ export function HomeScreen({ onMatchPress, onMyActivitiesPress, onNotificationsP
   const wide = width >= 768;
   const { profile } = useProfile();
   const loader = useCallback(async () => {
-    const [joined, owned, notices] = await Promise.all([listJoined(), listOwned(), listNotifications().catch(() => [])]);
+    const [joined, owned, notices] = await Promise.all([listJoined(), listOwned(), listNotificationPage().then(page => page.items).catch(() => [])]);
     const items = [...joined, ...owned].filter(row => !['completed', 'expired', 'cancelled'].includes(row.status || '') && (!row.endsAt || new Date(row.endsAt).getTime() > Date.now()))
       .sort((a, b) => a.startsAt.localeCompare(b.startsAt)).map(row => toActivity(row, joined.some(item => item.id === row.id && !item.isBusinessManager) ? 'approved' : undefined));
     return { items, notices };

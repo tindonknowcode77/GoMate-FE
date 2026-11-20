@@ -24,10 +24,15 @@ const eventPayload = value => value ? Object.fromEntries(['category','location',
 const statusLabel = { pending: 'Chờ duyệt', approved: 'Đã duyệt', rejected: 'Từ chối', deleted:'Đã xóa', publishing: 'Đang xuất bản', withdrawn: 'Đã rút' };
 const tone = status => status === 'approved' ? 'green' : status === 'rejected' ? 'red' : 'orange';
 const format = iso => iso ? new Date(iso).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', dateStyle: 'short', timeStyle: 'short' }) : '—';
-async function pages(path, signal) {
+async function pages(path, signal, visiblePages = 1) {
   const items = [];
-  for (let page = 1; page <= 500; page++) { const result = await api(path + '?page=' + page, { signal, timeoutMs: 8000 }); items.push(...result.items); if (items.length >= result.total || !result.items.length) return { items }; }
-  throw Error('Danh sách quá lớn. Vui lòng liên hệ quản trị viên.');
+  let total = 0;
+  for (let page = 1; page <= visiblePages; page++) {
+    const result = await api(path + '?page=' + page, { signal, timeoutMs: 8000 });
+    total = result.total; items.push(...result.items);
+    if (items.length >= total || !result.items.length) break;
+  }
+  return { items, total, hasMore: items.length < total };
 }
 async function fileValue(file) {
   if (!file || file.size > 10 * 1024 * 1024) throw Error('Chọn hồ sơ PDF/PNG/JPEG tối đa 10 MB.');
@@ -56,6 +61,8 @@ function PortalWorkspace() {
   const loading = useRef(null);
   const loadAbort = useRef(null);
   const loadedToken = useRef(null);
+  const sectionRef = useRef(section), visiblePages = useRef({});
+  const [hasMore, setHasMore] = useState({}), [noticeTotal, setNoticeTotal] = useState(0);
   const load = useCallback((force = false) => {
     if (loading.current && !force) return loading.current;
     if (force) loadAbort.current?.abort();
@@ -71,6 +78,7 @@ function PortalWorkspace() {
     if (controller.signal.aborted || getSession()?.accessToken !== token) { if (deadlineExceeded) throw Error('Workspace refresh timeout'); return; }
     if (loadedToken.current !== token) {
       loadedToken.current = token; applicationRevision.current = '';
+      visiblePages.current = {}; setHasMore({});
       setData({ posts: [], applications: [], users: [], metrics: {} }); setLocations([]); setBusinessGroups([]); setBusinessStaff([]); setNotices([]); setSection('overview'); setNotes({});
       setDocument(null); setSupplementalDocument(null); setApplicationDetails(null);
       setApplication(current => Object.fromEntries(Object.keys(current).map(key => [key, key === 'country' ? 'VN' : key === 'accountType' ? 'business' : ''])));
@@ -79,14 +87,15 @@ function PortalWorkspace() {
     const reviewing = profile.role === 'admin', business = profile.role === 'business', employee = profile.role === 'business-staff';
     const revision=profile.application ? profile.application.id+':'+profile.application.version : '';
     if(profile.application && applicationRevision.current!==revision) { applicationRevision.current=revision; setApplication(current => ({...current,...Object.fromEntries(Object.keys(current).map(key=>[key,profile.application[key] || (key === 'country' ? 'VN' : key === 'accountType' ? 'business' : '')]))})); setApplicationDetails({...profile.application,licenseName:profile.application.license?.name}); }
-    const resources = [
-      [business ? pages('/portal/posts', controller.signal) : { items: [] }, value => setData(current => ({ ...current, posts: value.items }))],
-      [business ? api('/portal/metrics', options) : {}, value => setData(current => ({ ...current, metrics: value }))],
-      [business || employee ? pages('/portal/locations', controller.signal) : { items: [] }, value => setLocations(value.items)],
-      [business || employee ? pages('/portal/groups', controller.signal) : { items: [] }, value => setBusinessGroups(value.items)],
-      [business ? pages('/portal/staff', controller.signal) : { items: [] }, value => setBusinessStaff(value.items)],
-      [pages('/portal/notifications', controller.signal), value => setNotices(value.items)],
-    ];
+    const active = sectionRef.current === 'overview' && (business || employee) ? business ? 'create-post' : 'active-groups' : sectionRef.current;
+    const resources = [];
+    const list = (key, path, apply) => resources.push([pages(path, controller.signal, visiblePages.current[key] || 1), value => { apply(value); setHasMore(current => ({ ...current, [key]: value.hasMore })); }]);
+    if (business && ['posts', 'active-groups'].includes(active)) list('posts', '/portal/posts', value => setData(current => ({ ...current, posts: value.items })));
+    if (business && active === 'overview') resources.push([api('/portal/metrics', options), value => setData(current => ({ ...current, metrics: value }))]);
+    if ((business || employee) && ['create-post', 'locations', 'active-groups'].includes(active)) list('locations', '/portal/locations', value => setLocations(value.items));
+    if ((business || employee) && ['create-post', 'active-groups', 'business-staff'].includes(active)) list('groups', '/portal/groups', value => setBusinessGroups(value.items));
+    if (business && active === 'business-staff') list('staff', '/portal/staff', value => setBusinessStaff(value.items));
+    list('notifications', '/portal/notifications', value => { setNotices(value.items); setNoticeTotal(value.total); });
     const results = await Promise.allSettled(resources.map(async ([pending, apply]) => { const value = await pending; if (!controller.signal.aborted && getSession()?.accessToken === token) apply(value); }));
     if (controller.signal.aborted || getSession()?.accessToken !== token) { if (deadlineExceeded) throw Error('Workspace refresh timeout'); return; }
     const failed = results.find(result => result.status === 'rejected');
@@ -100,14 +109,24 @@ function PortalWorkspace() {
   }, []);
   useEffect(() => { let alive = true; void load().catch(reason => { if (alive) setError(portalActionError('tải dữ liệu không gian làm việc', reason)); }); return () => { alive = false; loadAbort.current?.abort(); loading.current = null; }; }, [load]);
   useEffect(() => {
+    sectionRef.current = section;
+    if (loadedToken.current) void load(true).catch(reason => setError(reason.message));
+  }, [section, load]);
+  useEffect(() => {
     if (me?.role !== 'admin' || section !== 'businesses') return undefined;
     const controller = new AbortController();
-    pages('/portal/applications', controller.signal)
-      .then(value => setData(current => ({ ...current, applications: value.items })))
+    pages('/portal/applications', controller.signal, visiblePages.current.applications || 1)
+      .then(value => { if (!controller.signal.aborted) { setData(current => ({ ...current, applications: value.items })); setHasMore(current => ({ ...current, applications: value.hasMore })); } })
       .catch(reason => { if (!controller.signal.aborted) setError(reason.message); });
     return () => controller.abort();
   }, [me?.role, section, refreshVersion]);
   const run = async (operation, action) => { if (lock.current) return false; lock.current = true; setBusy(true); setError(''); try { loadAbort.current?.abort(); await loading.current?.catch(() => {}); await action(); return true; } catch (reason) { const message = portalActionError(operation, reason); setError(message); if (getSession()) notify(message, 'error'); return false; } finally { lock.current = false; setBusy(false); } };
+  const loadMore = key => {
+    if (lock.current) return;
+    visiblePages.current[key] = (visiblePages.current[key] || 1) + 1;
+    if (key === 'applications') setRefreshVersion(value => value + 1);
+    else void run('tải thêm dữ liệu', () => load(true));
+  };
   useEffect(() => {
     const reconnect = () => { if (getSession() && !lock.current) { setRefreshVersion(value => value + 1); void load(true).catch(reason => { setError(reason.message); setRefreshError('Chưa kết nối được máy chủ.'); }); } };
     window.addEventListener('online', reconnect);
@@ -129,8 +148,8 @@ function PortalWorkspace() {
     return () => { disposed = true; clearTimeout(timer); };
   }, [me?.id, load]);
   const apply = event => { event.preventDefault(); void run('gửi hồ sơ doanh nghiệp', async () => { const uploaded = document ? await fileValue(document) : undefined; const supplement = supplementalDocument ? await fileValue(supplementalDocument) : undefined; await api('/portal/applications', {method:'POST',body:JSON.stringify({...application,...(me.application?{version:me.application.version}:{}),...(uploaded?{document:uploaded}:{}),...(supplement?{supplementalDocument:supplement}:{})})}); setDocument(null); setSupplementalDocument(null); await load(); setSuccess('Đã gửi đầy đủ hồ sơ. Admin sẽ kiểm tra và thông báo kết quả.'); }); };
-  const decide = (kind, row, status) => void run(`${status === 'approved' ? 'duyệt' : 'từ chối'} ${kind === 'applications' ? `hồ sơ doanh nghiệp “${row.company}”` : `bài đăng “${row.title}”`}`, async () => { if (status === 'rejected' && !notes[row.id]?.trim()) throw Error('Nhập lý do từ chối để doanh nghiệp có thể cập nhật.'); await api(`/portal/${kind}/${row.id}`, { method: 'PATCH', body: JSON.stringify({ status, reviewNote: notes[row.id] || '', version: row.version }) }); await load(); if (kind === 'applications') { const refreshed = await pages('/portal/applications'); setData(current => ({ ...current, applications: refreshed.items })); } const target = kind === 'applications' ? `hồ sơ doanh nghiệp “${row.company}”` : `bài đăng “${row.title}”`; setSuccess(status === 'approved' ? `Đã duyệt ${target}.` : `Đã từ chối ${target} và gửi lý do cho doanh nghiệp.`); });
-  const download = (row, kind) => void run(`tải ${kind === 'supplemental' ? 'tài liệu bổ sung' : 'hồ sơ xác minh'} của “${row.company}”`, async () => { const response = await fetch(`${apiBaseUrl}/portal/applications/${row.id}/document${kind === 'supplemental' ? '?kind=supplemental' : ''}`, { headers: { Authorization: 'Bearer ' + getSession().accessToken } }); if (!response.ok) throw Error('Không tải được hồ sơ'); const url = URL.createObjectURL(await response.blob()); const anchor = window.document.createElement('a'); anchor.href = url; anchor.download = 'ho-so-doanh-nghiep'; anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); setSuccess(`Đã gửi yêu cầu tải ${kind === 'supplemental' ? 'tài liệu bổ sung' : 'hồ sơ xác minh'} của “${row.company}” đến trình duyệt.`); });
+  const decide = (kind, row, status) => run(`${status === 'approved' ? 'duyệt' : 'từ chối'} ${kind === 'applications' ? `hồ sơ doanh nghiệp “${row.company}”` : `bài đăng “${row.title}”`}`, async () => { if (status === 'rejected' && !notes[row.id]?.trim()) throw Error('Nhập lý do từ chối để doanh nghiệp có thể cập nhật.'); await api(`/portal/${kind}/${row.id}`, { method: 'PATCH', body: JSON.stringify({ status, reviewNote: notes[row.id] || '', version: row.version }) }); await load(); setRefreshVersion(value => value + 1); if (kind === 'applications') { const refreshed = await pages('/portal/applications', undefined, visiblePages.current.applications || 1); setData(current => ({ ...current, applications: refreshed.items })); } const target = kind === 'applications' ? `hồ sơ doanh nghiệp “${row.company}”` : `bài đăng “${row.title}”`; setSuccess(status === 'approved' ? `Đã duyệt ${target}.` : `Đã từ chối ${target} và gửi lý do cho doanh nghiệp.`); });
+  const download = (row, kind) => void run(`tải ${kind === 'supplemental' ? 'tài liệu bổ sung' : 'hồ sơ xác minh'} của “${row.company}”`, async () => { const response = await fetch(`${apiBaseUrl}/portal/applications/${row.id}/document${kind === 'supplemental' ? '?kind=supplemental' : ''}`, { headers: { Authorization: 'Bearer ' + getSession().accessToken } }); if (!response.ok) throw Error('Không tải được hồ sơ'); const mime = response.headers.get('content-type')?.split(';')[0] || ''; const ext = mime === 'application/pdf' ? '.pdf' : mime === 'image/png' ? '.png' : mime === 'image/jpeg' ? '.jpg' : ''; const fileMeta = kind === 'supplemental' ? row.supplementalLicense : row.license; const url = URL.createObjectURL(await response.blob()); const anchor = window.document.createElement('a'); anchor.href = url; anchor.download = fileMeta?.name || `ho-so-doanh-nghiep${ext}`; anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); setSuccess(`Đã gửi yêu cầu tải ${kind === 'supplemental' ? 'tài liệu bổ sung' : 'hồ sơ xác minh'} của “${row.company}” đến trình duyệt.`); });
   const saveLocation = location => run(`${location.id ? 'cập nhật' : 'thêm'} địa điểm “${location.name}”`, async () => { const {name,address,city,phone,latitude,longitude,mapX,mapY,version} = location; await api('/portal/locations'+(location.id?'/'+location.id:''),{method:location.id?'PUT':'POST',body:JSON.stringify({name,address,city,phone,latitude,longitude,mapX,mapY,...(location.id?{version}:{})})}); await load(); setSuccess(`Đã ${location.id ? 'cập nhật' : 'thêm'} địa điểm “${name}”.`); });
   const deleteLocation = id => run(`xóa địa điểm “${locations.find(item => item.id === id)?.name || 'đã chọn'}”`, async () => { const location = locations.find(item=>item.id===id); await api('/portal/locations/'+id,{method:'DELETE',body:JSON.stringify({version:location?.version})}); await load(); setSuccess(`Đã xóa địa điểm “${location?.name || id}” khỏi thư viện.`); });
   const createLocationInline = async value => { let saved; const ok = await run(`lưu địa điểm “${value.name}” vào thư viện`, async()=>{saved=await api('/portal/locations',{method:'POST',body:JSON.stringify(value)});await load();setSuccess(`Đã lưu địa điểm “${value.name}” vào thư viện.`);}); return ok ? saved : null; };
@@ -177,7 +196,7 @@ function PortalWorkspace() {
   if (!getSession() || !me || getSession()?.user.emailVerified === false) return <PortalAuth onAuthenticated={load} initialError={error} />;
   const business = me.role === 'business', employee = me.role === 'business-staff', reviewing = me.role === 'admin';
   const navigation = business ? [['wallet', 'Ví & đối soát', 'wallet'], ['create-post', 'Create Post', 'activity'], ['active-groups', 'Quản lý nhóm', 'users'], ['locations', 'Location Library', 'grid'], ['business-staff', 'Business Staff', 'users'], ['posts', 'Bài đăng của tôi', 'activity']] : employee ? [['active-groups','Nhóm được phân công','activity']] : reviewing ? [['overview', 'Tổng quan', 'grid'], ['businesses', 'Hồ sơ doanh nghiệp', 'shield'], ['posts', 'Duyệt bài đăng', 'edit'], ...(me.role === 'admin' ? [['revenue-report', 'Báo cáo tài chính', 'activity'], ['finance', 'Đối soát tài chính', 'wallet'], ['users', 'Tài khoản', 'users'], ['reports', 'Báo cáo', 'shield'], ['tickets', 'Hỗ trợ', 'edit']] : [])] : [['overview', 'Xác minh doanh nghiệp', 'shield']];
-  return <div className="gomate-portal gm-connected"><div className="gm-dashboard"><aside className="gm-sidebar"><div className="gm-sidebar-brand"><Logo /></div><div className="gm-sidebar-role">{t(business ? 'Doanh nghiệp' : employee ? 'Nhân sự doanh nghiệp' : reviewing ? 'Quản trị GoMate' : 'Đăng ký đối tác')}</div><nav className="gm-sidebar-nav">{navigation.map(([id, label, icon]) => <button key={id} type="button" onClick={() => setSection(id)} className={`gm-nav-item ${section === id ? 'is-active' : ''}`}><Icon name={icon} />{t(label)}</button>)}</nav><div className="gm-sidebar-bottom"><a href="/" className="gm-nav-item">{t("Mở app GoMate ↗")}</a><button className="gm-nav-item" onClick={() => void run('đăng xuất tài khoản', async () => { await logout(); setMe(null); setSuccess('Đã đăng xuất tài khoản.'); })}><Icon name="logout" />{t("Đăng xuất")}</button></div></aside><main className="gm-main"><header className="gm-topbar"><div><strong>{t(me.application?.company || me.name)}</strong><p className="gm-live-muted">{t(business ? 'Doanh nghiệp đã xác minh' : employee ? 'Nhân sự doanh nghiệp' : me.role)}</p></div><PortalHeaderActions busy={busy} onRefresh={()=>void run('làm mới dữ liệu không gian làm việc', async () => { setRefreshVersion(value => value + 1); await load(true); setSuccess('Đã làm mới dữ liệu không gian làm việc.'); })} notifications={notices} /></header><div className={"gm-page-content " + (section === 'active-groups' ? 'gm-groups-page' : '')}>{t(alerts)}
+  return <div className="gomate-portal gm-connected"><div className="gm-dashboard"><aside className="gm-sidebar"><div className="gm-sidebar-brand"><Logo /></div><div className="gm-sidebar-role">{t(business ? 'Doanh nghiệp' : employee ? 'Nhân sự doanh nghiệp' : reviewing ? 'Quản trị GoMate' : 'Đăng ký đối tác')}</div><nav className="gm-sidebar-nav">{navigation.map(([id, label, icon]) => <button key={id} type="button" onClick={() => setSection(id)} className={`gm-nav-item ${section === id ? 'is-active' : ''}`}><Icon name={icon} />{t(label)}</button>)}</nav><div className="gm-sidebar-bottom"><a href="/" className="gm-nav-item">{t("Mở app GoMate ↗")}</a><button className="gm-nav-item" onClick={() => void run('đăng xuất tài khoản', async () => { await logout(); setMe(null); setSuccess('Đã đăng xuất tài khoản.'); })}><Icon name="logout" />{t("Đăng xuất")}</button></div></aside><main className="gm-main"><header className="gm-topbar"><div><strong>{t(me.application?.company || me.name)}</strong><p className="gm-live-muted">{t(business ? 'Doanh nghiệp đã xác minh' : employee ? 'Nhân sự doanh nghiệp' : me.role)}</p></div><PortalHeaderActions busy={busy} onRefresh={()=>void run('làm mới dữ liệu không gian làm việc', async () => { setRefreshVersion(value => value + 1); await load(true); setSuccess('Đã làm mới dữ liệu không gian làm việc.'); })} notifications={notices} notificationTotal={noticeTotal} onLoadMore={hasMore.notifications ? () => loadMore('notifications') : undefined} /></header><div className={"gm-page-content " + (section === 'active-groups' ? 'gm-groups-page' : '')}>{t(alerts)}
     {section === 'overview' && business && <div className="gm-metric-grid">{[['Bài đăng', data.metrics.posts || 0, 'edit'], ['Chờ duyệt', data.metrics.pendingPosts || 0, 'shield'], ['Đã duyệt', data.metrics.approvedPosts || 0, 'check']].map(([label, value, icon]) => <MetricCard key={label} label={t(label)} value={value} icon={icon} tone="purple" />)}</div>}
     {!business && !reviewing && !employee && <BusinessVerificationForm application={application} setApplication={setApplication} document={document} setDocument={setDocument} supplementalDocument={supplementalDocument} setSupplementalDocument={setSupplementalDocument} applicationDetails={applicationDetails} currentApplication={me.application} busy={busy} onSubmit={apply} />}
     {business && section === 'create-post' && <div className="gm-multi-post-page"><section className="gm-panel gm-live-panel gm-multi-post-panel"><div className="gm-panel-heading"><div><span className="gm-eyebrow">{t("BUSINESS CAMPAIGN")}</span><h3>{t("Create one post and multiple groups")}</h3></div><StatusPill tone="green">{t(locations.length)} {t(" saved locations")}</StatusPill></div><MultiGroupPostComposer locations={locations} onSaveLocation={createLocationInline} onPublish={publishMultiGroupPost} busy={busy} /></section><section className="gm-panel gm-live-panel gm-generated-groups-panel"><div className="gm-panel-heading"><div><span className="gm-eyebrow">{t("GROUPS")}</span><h3>{t("Generated groups")}</h3></div><span className="gm-group-count">{t(businessGroups.length)} {t(" total")}</span></div>{businessGroups.length ? businessGroups.map(group => <article className="gm-generated-group-preview-row" key={group.id}><span><strong>{group.name}</strong><small>{group.promotionalPostTitle} {t(" · ")}{t(group.meetingPoint || group.location)} {t(" · ")}{t(format(group.startsAt))}</small></span><StatusPill>{t(group.status === 'draft' ? 'Draft' : group.status)}</StatusPill></article>) : <p className="gm-live-muted">{t("Groups created from a post will appear here and can be assigned to Business Staff.")}</p>}</section></div>}
@@ -217,5 +236,12 @@ function PortalWorkspace() {
       tone={tone}
       statusLabel={statusLabel}
 />}
+    <div className="gm-pagination-actions">{[
+      ...(business && ['posts','active-groups'].includes(section) ? [['posts','posts']] : []),
+      ...((business || employee) && ['create-post','locations','active-groups'].includes(section) ? [['locations','locations']] : []),
+      ...((business || employee) && ['create-post','active-groups','business-staff'].includes(section) ? [['groups','groups']] : []),
+      ...(business && section === 'business-staff' ? [['staff','staff']] : []),
+      ...(reviewing && section === 'businesses' ? [['applications','applications']] : []),
+    ].filter(([key]) => hasMore[key]).map(([key,label]) => <PillButton key={key} disabled={busy} onClick={() => loadMore(key)}>{t('Load more')} {t(label)}</PillButton>)}</div>
   </div></main></div></div>;
 }

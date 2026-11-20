@@ -12,6 +12,7 @@ import { Activity } from '../data/activities';
 import { MembersPanel } from './MembershipViews';
 import { ChatScreen } from './ChatScreen';
 import { createConversation } from '../services/chatService';
+import { isSocketConnected } from '../services/chatEvents';
 import { getActivity, listRequests, toActivity } from '../services/activityApi';
 import { getActivityPaymentInfo, ActivityPaymentInfo } from '../services/paymentService';
 import { VietQrPaymentModal } from '../components/VietQrPaymentModal';
@@ -43,7 +44,7 @@ export function GroupScreen({ activity, onBack, onStart, onLeft, initialTab = 'c
   const load = useCallback(() => getActivity(activity.id), [activity.id]);
   const remote = useRemote(load, null);
   const reload = remote.reload;
-  useEffect(() => { const timer = setInterval(() => void reload(), 10000); return () => clearInterval(timer); }, [reload]);
+  useEffect(() => { const timer = setInterval(() => { if (!isSocketConnected()) void reload(true); }, 30000); return () => clearInterval(timer); }, [reload]);
   const current = remote.data ? toActivity(remote.data) : activity;
   const isHost = current.hostId === getSession()?.user.id || Boolean(current.isBusinessManager);
   const isOfficial = current.organizerType === 'business';
@@ -81,7 +82,7 @@ export function GroupScreen({ activity, onBack, onStart, onLeft, initialTab = 'c
       </View>
     ))}
     <View style={styles.tabBar}>{tabs.filter(item => item.id !== 'manage' || isHost).map(item => <Pressable key={item.id} accessibilityRole="tab" accessibilityState={{ selected: activeTab === item.id }} accessibilityLabel={item.label} onPress={() => setTab(item.id)} style={[styles.tab, activeTab === item.id && styles.activeTab]}><Ionicons name={item.icon} size={19} color={activeTab === item.id ? colors.primary : colors.textMuted} /><Text style={[styles.tabText, activeTab === item.id && { color: colors.primary }]}>{item.label}{(item.id === 'members' || item.id === 'manage') && pendingRequests.data.length > 0 ? ` (${pendingRequests.data.length})` : ''}</Text></Pressable>)}</View>
-    {activeTab === 'chat' ? <><View style={styles.notice}><Ionicons name="information-circle-outline" size={18} color={colors.primary} /><View style={{ flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}><Text accessibilityLiveRegion="polite" style={styles.noticeTitle}>{noticeTitle}</Text>{noticeBody ? <Text style={styles.noticeBody}>· {noticeBody}</Text> : null}</View></View><ActivityChat activityId={activity.id} onBack={onBack} refreshKey={chatRefresh} /></> : <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+    {activeTab === 'chat' ? <><Pressable onPress={() => { if (current.backendStatus === 'completed') onStart(current); }} style={styles.notice}><Ionicons name="information-circle-outline" size={18} color={colors.primary} /><View style={{ flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}><Text accessibilityLiveRegion="polite" style={styles.noticeTitle}>{noticeTitle}</Text>{noticeBody ? <Text style={styles.noticeBody}>· {noticeBody}</Text> : null}</View></Pressable><ActivityChat activityId={activity.id} isHost={isHost} onBack={onBack} refreshKey={chatRefresh} /></> : <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
       {activeTab === 'plan' && <ActivityPlanPanel activityId={activity.id} onChanged={remote.setData} onManage={isHost ? () => setTab('manage') : undefined} onProgress={row => onStart(toActivity(row))} />}
       {activeTab === 'members' && <MembersPanel activity={current} onLeft={onLeft} onChanged={() => { void remote.reload(); void pendingRequests.reload(true); }} />}
       {activeTab === 'manage' && isHost && <ActivityManagementPanel activityId={activity.id} onPlan={() => setTab('plan')} onMembers={() => setTab('members')} onProgress={onStart} onDeleted={onLeft} onChanged={fresh => { remote.setData(fresh); void pendingRequests.reload(true); }} />}
@@ -105,11 +106,11 @@ export function GroupScreen({ activity, onBack, onStart, onLeft, initialTab = 'c
   </SafeAreaView>;
 }
 
-function ActivityChat({ activityId, onBack, refreshKey }: { activityId: string; onBack: () => void; refreshKey: number }) {
+function ActivityChat({ activityId, isHost, onBack, refreshKey }: { activityId: string; isHost: boolean; onBack: () => void; refreshKey: number }) {
   const load = useCallback(() => createConversation({ type: 'group', activityId }), [activityId]);
   const remote = useRemote(load, null);
   if (!remote.data || remote.error) return <View style={{ flex: 1, justifyContent: 'center' }}><RemoteState {...remote} onRetry={remote.reload} /></View>;
-  return <ChatScreen key={remote.data.id} embedded conversation={remote.data} onBack={onBack} refreshKey={refreshKey} />;
+  return <ChatScreen key={remote.data.id} embedded activityId={activityId} isHost={isHost} conversation={remote.data} onBack={onBack} refreshKey={refreshKey} />;
 }
 
 export function GroupChatEntry({ activityId, ...props }: Omit<Props, 'activity'> & { activityId: string }) {

@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { decideActivityInvitation, listActivityInvitations, ActivityInvitation } from '../services/activityApi';
 import { useFeedbackState } from '../services/feedback';
 import { useRemote } from '../services/useRemote';
+import { useLiveRefresh } from '../services/useLiveRefresh';
 import { colors } from '../theme';
 import { Text } from './LocalizedText';
 import { PreferencesSummary } from './ActivityChoices';
@@ -11,7 +12,7 @@ export function ActivityInvitations({ onAccepted }: { onAccepted?: (activityId: 
   const remote = useRemote(listActivityInvitations, []);
   const [busy, setBusy] = useState(false), [error, setError] = useFeedbackState('');
   const lock = useRef(false), reload = remote.reload;
-  useEffect(() => { const timer = setInterval(() => void reload(true), 10000); return () => clearInterval(timer); }, [reload]);
+  useLiveRefresh(reload);
   const decide = async (invitation: ActivityInvitation, accepted: boolean) => {
     if (lock.current) return;
     lock.current = true; setBusy(true); setError('');

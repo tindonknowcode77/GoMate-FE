@@ -4,7 +4,7 @@ import { canUserParticipate, isBasicProfileComplete, missingBasicProfileLabels }
 import { createConversation, getConversation } from '../services/chatService';
 import { FriendsScreen } from './FriendsScreen';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { BackHandler, Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomNav, MainTab } from '../components/BottomNav';
@@ -17,7 +17,8 @@ import { searchKey } from '../data/profileOptions';
 import { activityQuery } from '../services/filterService';
 import { Text } from '../components/LocalizedText';
 import { apiBaseUrl, getSession, logout } from '../services/api';
-import { getActivity, cancelRequest, joinActivity, listActivities, listMyRequests, toActivity } from '../services/activityApi';
+import { getActivity, cancelRequest, joinActivity, listActivityPage, listMyRequests, toActivity } from '../services/activityApi';
+import { usePagedRemote } from '../services/usePagedRemote';
 import { useRemote } from '../services/useRemote';
 import { useWebNavigation } from '../services/webNavigation';
 import { RemoteState } from '../components/RemoteState';
@@ -142,6 +143,15 @@ function MainAppContent({ onLogout }: { onLogout: () => void }) {
     return () => setProfileRedirectHandler();
   }, [setActionError, setRoute]);
   useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (navRef.current.route) { setRoute(null); return true; }
+      if (navRef.current.activeTab !== 'home') { setActiveTab('home'); return true; }
+      return false;
+    });
+    return () => sub.remove();
+  }, [setRoute]);
+  useEffect(() => {
     if (activeTab === 'create' && !route && userProfile.profile && !isBasicProfileComplete(userProfile.profile)) {
       const missing = missingBasicProfileLabels(userProfile.profile);
       promptProfileCompletion(
@@ -190,20 +200,13 @@ function MainAppContent({ onLogout }: { onLogout: () => void }) {
     } catch (reason) { setActionError(reason instanceof Error ? reason.message : 'Không lưu được yêu thích'); }
     finally { favoriteMutation.current = false; }
   };
-  const loadDiscovery = useCallback(async () => {
-    if ((filters.radiusEnabled || filters.sort === 'nearest') && !filters.coordinates) return [];
-    const [rows, requests] = await Promise.all([listActivities(activityQuery(filters)), listMyRequests()]);
-    return rows.map(row => toActivity(row, requests.find(request => request.activityId === row.id)?.status));
+  const loadDiscovery = useCallback(async (page: number) => {
+    if ((filters.radiusEnabled || filters.sort === 'nearest') && !filters.coordinates) return { items: [], hasMore: false, total: 0 };
+    const result = await listActivityPage(activityQuery(filters), page);
+    return { ...result, items: result.items.map(row => toActivity(row, row.requestStatus)) };
   }, [filters]);
-  const discovery = useRemote(loadDiscovery, []);
-  const refreshDiscovery = discovery.reload;
-  useEffect(() => {
-    if (route?.name !== 'discover') return;
-    void refreshDiscovery(true);
-    const timer = setInterval(() => void refreshDiscovery(true), 10000);
-    return () => clearInterval(timer);
-  }, [route?.name, refreshDiscovery]);
-  const activities = discovery.data;
+  const discovery = usePagedRemote(loadDiscovery, route?.name === 'discover' && !preferences.loading);
+  const activities = discovery.data.items;
   const mutation = useRef(false);
   const lastJoinApproved = useRef(false);
   const submitJoin = async (activity: Activity) => {
@@ -260,9 +263,9 @@ function MainAppContent({ onLogout }: { onLogout: () => void }) {
   if (userProfile.loading || userProfile.error) return <SafeAreaView style={styles.safeArea}><RemoteState loading={userProfile.loading} error={userProfile.error} onRetry={userProfile.reload} /></SafeAreaView>;
 
   if (route?.name === 'activityLink' || route?.name === 'chatLink') return <SafeAreaView style={styles.safeArea}><RemoteState loading error="" onRetry={() => {}} /></SafeAreaView>;
-  if (route?.name === 'discover' && (discovery.loading || discovery.error || preferences.loading || preferences.error)) return <SafeAreaView style={styles.safeArea}><ScreenHeader title="Khám phá" onBack={() => setRoute(null)} /><RemoteState loading={discovery.loading || preferences.loading} error={discovery.error || preferences.error} onRetry={() => { void preferences.reload(); void discovery.reload(); }} /></SafeAreaView>;
+  if (route?.name === 'discover' && ((!discovery.data.items.length && (discovery.loading || discovery.error)) || preferences.loading || preferences.error)) return <SafeAreaView style={styles.safeArea}><ScreenHeader title="Khám phá" onBack={() => setRoute(null)} /><RemoteState loading={discovery.loading || preferences.loading} error={discovery.error || preferences.error} onRetry={() => { void preferences.reload(); void discovery.reload(); }} /></SafeAreaView>;
   if (route?.name === 'searchActivities') return <ActivitySearchScreen onBack={() => setRoute({ name: 'discover' })} onOpen={activity => setRoute({ name: 'activityDetail', activity, source: 'discover' })} />;
-  if (route?.name === 'discover') return <MatchScreen onSearch={() => setRoute({ name: 'searchActivities' })} state={(filters.radiusEnabled || filters.sort === 'nearest') && !filters.coordinates ? 'location-required' : 'ready'} error={actionError} onMatched={submitJoin} favoriteIds={preferences.data.favoriteIds} onFavorite={toggleFavorite} locationLabel={filters.coordinates ? filters.radiusEnabled ? `Trong ${filters.distance} km` : 'Đã chọn vị trí' : undefined} onFeedback={(activity, outcome) => { void matchFeedback(activity.id, outcome).catch(() => {}); }} activityItems={filteredActivities} onBack={() => { setRoute(null); void discovery.reload(); }} onFilterPress={() => setRoute({ name: 'filter' })} />;
+  if (route?.name === 'discover') return <MatchScreen onLoadMore={discovery.data.hasMore ? discovery.loadMore : undefined} loadingMore={discovery.loading} onSearch={() => setRoute({ name: 'searchActivities' })} key={activityQuery(filters)} state={(filters.radiusEnabled || filters.sort === 'nearest') && !filters.coordinates ? 'location-required' : 'ready'} error={actionError || discovery.error} onMatched={submitJoin} favoriteIds={preferences.data.favoriteIds} onFavorite={toggleFavorite} locationLabel={filters.coordinates ? filters.radiusEnabled ? `Trong ${filters.distance} km` : 'Đã chọn vị trí' : undefined} onFeedback={(activity, outcome) => { void matchFeedback(activity.id, outcome).catch(() => {}); }} activityItems={filteredActivities} onBack={() => { setRoute(null); void discovery.reload(); }} onFilterPress={() => setRoute({ name: 'filter' })} />;
   if (route?.name === 'filter') return <FilterScreen key={preferences.loading ? 'loading' : 'ready'} initialFilters={filters} saving={filterSaving || preferences.loading} saveError={actionError || preferences.error} onApply={next => void applyFilters(next)} onClose={() => setRoute({ name: 'discover' })} />;
   if (route?.name === 'favorites') return <FavoriteActivitiesScreen onChanged={() => void preferences.reload()} onBack={() => setRoute(null)} onOpen={activity => setRoute({ name: 'activityDetail', activity, source: 'discover' })} />;
   if (route?.name === 'pending') return <PendingActivitiesScreen onBack={() => setRoute(null)} onOpen={(activity) => setRoute({ name: 'activityDetail', activity, source: 'pending' })} />;

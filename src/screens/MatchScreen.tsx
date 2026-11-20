@@ -13,6 +13,8 @@ import { Text } from '../components/LocalizedText';
 type SheetName = 'more' | 'report' | 'safety' | 'notInterested' | null;
 
 type MatchScreenProps = {
+  onLoadMore?: () => void;
+  loadingMore?: boolean;
   onSearch?: () => void;
   error?: string;
   locationLabel?: string; favoriteIds?: string[]; onFavorite?: (activity: Activity) => Promise<void>; onFeedback?: (activity: Activity, outcome: 'skip' | 'dislike') => void;
@@ -33,7 +35,7 @@ function isHorizontalGesture(dx: number, dy: number) {
   return Math.abs(dx) > HORIZONTAL_INTENT_DISTANCE && Math.abs(dx) > Math.abs(dy) * HORIZONTAL_INTENT_RATIO;
 }
 
-export function MatchScreen({ error, locationLabel, favoriteIds = [], onFavorite, onFeedback, activityItems = [], onFilterPress, onMatched, onBack, onSearch, state = 'ready' }: MatchScreenProps) {
+export function MatchScreen({ error, locationLabel, favoriteIds = [], onFavorite, onFeedback, activityItems = [], onFilterPress, onMatched, onBack, onSearch, onLoadMore, loadingMore, state = 'ready' }: MatchScreenProps) {
   const { width } = useWindowDimensions();
   const [cardHeight, setCardHeight] = useState(0);
   const [dismissedIds, setDismissedIds] = useState<string[]>([]);
@@ -149,7 +151,7 @@ export function MatchScreen({ error, locationLabel, favoriteIds = [], onFavorite
         <MatchBackground />
         <View style={styles.page}>
           <MatchHeader onSearch={onSearch} distance={locationLabel} onBack={onBack} onFilter={onFilterPress} />
-          <MatchState action={canUndo ? 'Quay lại hoạt động vừa bỏ qua' : 'Điều chỉnh bộ lọc'} icon="calendar-outline" message="Thử mở rộng bộ lọc để xem thêm hoạt động." onAction={canUndo ? undoSkip : onFilterPress} title="Không còn hoạt động phù hợp" />
+          <MatchState action={onLoadMore ? loadingMore ? 'Đang tải…' : 'Tải thêm hoạt động' : canUndo ? 'Quay lại hoạt động vừa bỏ qua' : 'Điều chỉnh bộ lọc'} icon="calendar-outline" message={error || (onLoadMore ? 'Còn hoạt động để khám phá.' : 'Thử mở rộng bộ lọc để xem thêm hoạt động.')} onAction={onLoadMore ? loadingMore ? undefined : onLoadMore : canUndo ? undoSkip : onFilterPress} title={onLoadMore ? 'Khám phá tiếp' : 'Không còn hoạt động phù hợp'} />
         </View>
         {requestToast && <RequestToast approved={requestApproved} />}
       </SafeAreaView>

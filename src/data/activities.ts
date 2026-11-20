@@ -14,7 +14,7 @@ export type Activity = {
   meetingPoint?: string;
   registrationDeadline?: string | null; startsAt?: string;
   endsAt?: string;
-  requestStatus?: 'pending' | 'approved' | 'rejected' | 'cancelled' | 'left' | 'removed' | 'closed';
+  requestStatus?: 'pending' | 'approved' | 'rejected' | 'cancelled' | 'cancelled_conflict' | 'left' | 'removed' | 'closed';
   backendStatus?: 'published' | 'in-progress' | 'completed' | 'expired' | 'cancelled';
   title: string;
   host: string;

@@ -1,5 +1,23 @@
 # Decision log
 
+## 2026-11-20 - Shared chat WebSocket and demand-driven data loading
+
+Use Socket.IO over a shared authenticated WebSocket for active conversation
+snapshots and user invalidations. REST retains durable writes and cursor history;
+reconnect drains all forward-cursor pages before marking messages read. Keep
+bounded REST fallback and 30-second server reconciliation. The local BE event bus
+is sufficient for one API process; strict cross-instance realtime needs a broker
+or change streams before horizontal scaling.
+
+Replace eager list exhaustion on discovery, inbox, notifications and Portal with
+explicit pagination and section-specific resource loads. Filter inbox results on
+BE before pagination. Coalesce identical in-flight GETs and slow background
+refreshes; foreground actions can request one fresh read after a pending GET.
+
+See `../GoMate-BE/docs/REALTIME_AND_PERFORMANCE.md` for deployment, measurement
+scope, authorization and remaining operational limits. Align Expo SDK 57 patch
+packages through `expo install --fix`; do not change native platform directories.
+
 ## 2026-11-19 - Member refunds and attendance appeal workflow
 
 Use the same one-confirmation, frozen-recipient QR and private bill workflow for

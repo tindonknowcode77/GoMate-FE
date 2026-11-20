@@ -10,6 +10,7 @@ import { colors } from '../theme';
 export function TripPlanEditor({ value, onChange, startDate, endDate, startTime = '09:00', endTime = '18:00', onBusyChange }: { value: PlanDraft; onChange: (patch: Partial<PlanDraft>) => void; startDate: string; endDate: string; startTime?: string; endTime?: string; onBusyChange?: (busy: boolean) => void }) {
   const [expanded, setExpanded] = useState(''), [error, setError] = useState(''), [busy, setBusy] = useState(false);
   const [showPlan, setShowPlan] = useState(() => Boolean(value.itinerary.length || value.planLink || value.planAttachment || value.planFile));
+  const [showAdvanced, setShowAdvanced] = useState(() => Boolean(value.planLink || value.planAttachment || value.planFile));
   const fileLock = useRef(false);
   const patch = (id: string, fields: Partial<ItineraryStep>) => onChange({ itinerary: value.itinerary.map(step => step.id === id ? { ...step, ...fields } : step) });
   const add = () => {
@@ -68,11 +69,28 @@ export function TripPlanEditor({ value, onChange, startDate, endDate, startTime 
       <Pressable accessibilityRole="button" disabled={value.itinerary.length >= 60} onPress={add} style={{ padding: 13, borderRadius: 12, backgroundColor: colors.primary }}><Text style={{ color: colors.white, fontWeight: '700' }}>+ Thêm mốc</Text></Pressable>
       {value.itinerary.length > 1 && <Pressable accessibilityRole="button" style={{ padding: 13 }} onPress={() => onChange({ itinerary: [...value.itinerary].sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time)) })}><Text style={{ color: colors.primary }}>Sắp theo thời gian</Text></Pressable>}
     </View>
-    <FormField label="Link Google Sheets / kế hoạch online" value={value.planLink} onChangeText={planLink => onChange({ planLink })} placeholder="https://docs.google.com/spreadsheets/..." />
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ expanded: showAdvanced }}
+      onPress={() => setShowAdvanced(prev => !prev)}
+      style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceMuted }}
+    >
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <Ionicons name="options-outline" size={18} color={colors.primary} />
+        <Text style={{ color: colors.text, fontWeight: '700', fontSize: 13 }}>Nâng cao (Đính kèm Link / Tệp kế hoạch)</Text>
+      </View>
+      <Ionicons name={showAdvanced ? 'chevron-up' : 'chevron-down'} size={18} color={colors.textMuted} />
+    </Pressable>
 
-    <Pressable accessibilityRole="button" disabled={busy} onPress={() => void chooseFile()} style={{ padding: 18, borderRadius: 16, borderStyle: 'dashed', borderWidth: 1, borderColor: colors.primaryLight, backgroundColor: colors.primarySoft, flexDirection: 'row', alignItems: 'center', gap: 12 }}><Ionicons name="document-attach-outline" size={26} color={colors.primary} /><Text style={{ color: colors.primary, fontWeight: '700' }}>{busy ? 'Đang đọc tệp...' : fileName ? 'Đổi tệp Excel' : 'Đính kèm tệp Excel'}</Text></Pressable>
-    <Text style={{ color: colors.textMuted, fontSize: 12 }}>Hỗ trợ tệp .xlsx, .xls (tối đa 3 MB)</Text>
-    {fileName ? <View style={{ flexDirection: 'row', gap: 16 }}><Text style={{ flex: 1 }}>{fileName}</Text><Pressable accessibilityRole="button" onPress={() => onChange({ planAttachment: null })}><Text style={{ color: colors.danger }}>Bỏ tệp Excel</Text></Pressable></View> : null}
+    {showAdvanced && <View style={{ gap: 12, padding: 12, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface }}>
+      <FormField label="Đường link kế hoạch (Google Docs, Notion, Maps...)" value={value.planLink} onChangeText={planLink => onChange({ planLink })} placeholder="https://..." />
+      <Pressable accessibilityRole="button" disabled={busy} onPress={() => void chooseFile()} style={{ padding: 16, borderRadius: 14, borderStyle: 'dashed', borderWidth: 1, borderColor: colors.primaryLight, backgroundColor: colors.primarySoft, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+        <Ionicons name="document-attach-outline" size={24} color={colors.primary} />
+        <Text style={{ color: colors.primary, fontWeight: '700', flex: 1 }}>{busy ? 'Đang đọc tệp...' : fileName ? 'Đổi tệp đính kèm' : 'Đính kèm tệp (PDF, Word, Excel, Ảnh)'}</Text>
+      </Pressable>
+      <Text style={{ color: colors.textMuted, fontSize: 12 }}>Chấp nhận PDF, Word (.doc/.docx), Excel (.xls/.xlsx) hoặc ảnh (.png/.jpg/.webp), tối đa 10 MB.</Text>
+      {fileName ? <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}><Ionicons name="attach" size={16} color={colors.primary} /><Text numberOfLines={1} style={{ flex: 1, fontSize: 13 }}>{fileName}</Text><Pressable accessibilityRole="button" onPress={() => onChange({ planAttachment: null })}><Text style={{ color: colors.danger, fontWeight: '600' }}>Bỏ tệp</Text></Pressable></View> : null}
+    </View>}
     {error ? <Text style={{ color: colors.danger }}>{error}</Text> : null}
     </View>}
   </View>;

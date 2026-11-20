@@ -9,6 +9,7 @@ import * as ImagePicker from 'expo-image-picker';
 
 import { DateRangeField, TimeField } from '../components/DateTimeField';
 import { CreateGroupFields } from '../components/CreateGroupFields';
+import { TripPlanEditor } from '../components/TripPlanEditor';
 import { canUserParticipate, emptyPreferences, isBasicProfileComplete, missingBasicProfileLabels } from '../components/ActivityChoices';
 import { LocationField } from '../components/LocationField';
 import { FormField } from '../components/FormField';
@@ -62,7 +63,7 @@ function draftFromActivity(activity?: ActivityDto, province?: string): ActivityD
 export function CreateActivityScreen({ onCreated, initialActivity, onCancel, onRequireProfile }: { onCreated: (activity?: ActivityDto) => void; initialActivity?: ActivityDto; onCancel?: () => void; onRequireProfile?: () => void }) {
   const { profile } = useProfile();
   const defaultRegion = profileRegions.includes(normalizeRegion(profile?.location || '')) ? normalizeRegion(profile?.location || '') : 'TP. Hồ Chí Minh';
-  const fileBusy = false;
+  const [fileBusy, setFileBusy] = useState(false);
   const publishing = useRef(false);
   const scroll = useRef<ScrollView>(null);
   const [busy, setBusy] = useState(false);
@@ -162,7 +163,26 @@ export function CreateActivityScreen({ onCreated, initialActivity, onCancel, onR
       {initialActivity && <View><Text style={styles.noteText}>{draft.replacePhotos ? 'Ảnh hiện tại sẽ được xóa khi lưu.' : 'Ảnh hiện tại được giữ lại. Chọn ảnh mới để thay thế bộ ảnh.'}</Text><Pressable onPress={() => setField('replacePhotos', !draft.replacePhotos)}><Text style={styles.editText}>{draft.replacePhotos ? 'Giữ lại ảnh hiện tại' : 'Xóa bộ ảnh hiện tại'}</Text></Pressable></View>}
       {step === 1 && <BasicStep customCategory={customCategory} draft={draft} onCustomCategory={() => { setCustomCategory(true); setField('category', ''); }} onPickPhoto={pickPhoto} onPresetCategory={(category) => { setCustomCategory(false); setField('category', category); }} onRemovePhoto={(index) => setField('photos', draft.photos.filter((_, itemIndex) => itemIndex !== index))} setField={setField} />}
       {step === 2 && <WhenWhereStep draft={draft} setField={setField} onSuggestionsLayout={() => scroll.current?.scrollToEnd({ animated: true })} />}
-      {step === 3 && <View style={{ gap: 18 }}><GroupStep draft={draft} setField={setField} editing={Boolean(initialActivity)} existingMembers={initialActivity ? initialActivity.memberCount - (initialActivity.reservedSeats ?? 0) : 1} onCompanionChange={(index, patch) => { draftRevision.current++; setDraftNotice(''); setDraft(current => ({ ...current, companions: Array.from({ length: current.reservedSeats ?? 0 }, (_, at) => ({ name: '', note: '', ...current.companions?.[at], ...(at === index ? patch : {}) })) })); }} /><View style={styles.card}><FormField label="Yêu cầu tham gia" multiline value={draft.requirements} onChangeText={value => setField('requirements', value)} placeholder="Mỗi yêu cầu một dòng" /></View></View>}
+      {step === 3 && <View style={{ gap: 18 }}>
+        <GroupStep draft={draft} setField={setField} editing={Boolean(initialActivity)} existingMembers={initialActivity ? initialActivity.memberCount - (initialActivity.reservedSeats ?? 0) : 1} onCompanionChange={(index, patch) => { draftRevision.current++; setDraftNotice(''); setDraft(current => ({ ...current, companions: Array.from({ length: current.reservedSeats ?? 0 }, (_, at) => ({ name: '', note: '', ...current.companions?.[at], ...(at === index ? patch : {}) })) })); }} />
+        <View style={styles.card}>
+          <TripPlanEditor
+            value={{ itinerary: draft.itinerary ?? [], planLink: draft.planLink ?? '', planAttachment: draft.planAttachment, planFile: draft.planFile }}
+            onChange={patch => {
+              if (patch.itinerary !== undefined) setField('itinerary', patch.itinerary);
+              if (patch.planLink !== undefined) setField('planLink', patch.planLink);
+              if (patch.planAttachment !== undefined) setField('planAttachment', patch.planAttachment);
+            }}
+            startDate={draft.date}
+            endDate={draft.endDate || draft.date}
+            startTime={draft.startTime}
+            endTime={draft.endTime}
+            onBusyChange={setFileBusy}
+          />
+          <Text style={styles.optional}>Không bắt buộc lúc tạo — bạn cũng có thể thêm hoặc chỉnh sửa kế hoạch sau trong nhóm chat.</Text>
+        </View>
+        <View style={styles.card}><FormField label="Yêu cầu tham gia" multiline value={draft.requirements} onChangeText={value => setField('requirements', value)} placeholder="Mỗi yêu cầu một dòng" /></View>
+      </View>}
       {step === 4 && <ActivityDraftPreview draft={draft} initialActivity={initialActivity} host={{ id: profile?.id || '', name: profile?.name || '' }} />}
 
     </View></ScrollView>

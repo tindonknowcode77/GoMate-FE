@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { Text } from './LocalizedText';
 import { RemoteState } from './RemoteState';
 import { MemberProfileModal } from './MemberProfileModal';
+import { UserAvatar } from './UserAvatar';
 import { decideRequest, listRequests } from '../services/activityApi';
 import { useRemote } from '../services/useRemote';
+import { useLiveRefresh } from '../services/useLiveRefresh';
 import { colors } from '../theme';
 
 export function JoinRequestsPanel({ activityId, enabled, full, onChanged }: { activityId: string; enabled: boolean; full: boolean; onChanged: () => void }) {
@@ -13,7 +15,7 @@ export function JoinRequestsPanel({ activityId, enabled, full, onChanged }: { ac
   const reload = remote.reload;
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [profile, setProfile] = useState<string | null>(null);
   const lock = useRef(false);
-  useEffect(() => { const timer = setInterval(() => void reload(true), 10000); return () => clearInterval(timer); }, [reload]);
+  useLiveRefresh(reload);
   const decide = async (id: string, status: 'approved' | 'rejected') => {
     if (lock.current) return;
     lock.current = true; setBusy(true); setError('');
@@ -26,7 +28,13 @@ export function JoinRequestsPanel({ activityId, enabled, full, onChanged }: { ac
     <RemoteState {...remote} empty={!remote.data.length} emptyMessage="Chưa có yêu cầu mới" onRetry={reload} />
     {error ? <Text accessibilityRole="alert" style={{ color: colors.danger }}>{error}</Text> : null}
     {remote.data.map(request => <View key={request.id} style={{ padding: 12, backgroundColor: colors.surface, borderRadius: 14, gap: 8 }}>
-      <Pressable accessibilityRole="button" accessibilityLabel={`Xem hồ sơ ${request.name}`} onPress={() => setProfile(request.userId)} style={{ minHeight: 44, justifyContent: 'center' }}><Text style={{ fontWeight: '600', color: colors.text }}>{request.name}</Text></Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel={`Xem hồ sơ ${request.name}`} onPress={() => setProfile(request.userId)} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44 }}>
+        <UserAvatar name={request.name} size={40} />
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontWeight: '700', color: colors.text }}>{request.name}</Text>
+          <Text style={{ fontSize: 12, color: colors.textMuted }}>Chạm để xem hồ sơ</Text>
+        </View>
+      </Pressable>
       <View style={{ flexDirection: 'row', gap: 12 }}>
         <Pressable accessibilityRole="button" disabled={busy || !enabled || full} onPress={() => void decide(request.id, 'approved')} style={{ minHeight: 44, paddingHorizontal: 18, justifyContent: 'center', backgroundColor: colors.primarySoft, borderRadius: 12, opacity: busy || !enabled || full ? 0.45 : 1 }}><Text style={{ color: colors.primary }}>Duyệt</Text></Pressable>
         <Pressable accessibilityRole="button" disabled={busy || !enabled} onPress={() => void decide(request.id, 'rejected')} style={{ minHeight: 44, paddingHorizontal: 18, justifyContent: 'center' }}><Text style={{ color: colors.textSecondary }}>Từ chối</Text></Pressable>

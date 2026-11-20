@@ -1,7 +1,8 @@
 import { downloadChatFile, uploadChatFile } from '../services/chatContent';
 import { useEffect, useRef, useState } from 'react';
 import { getSession } from '../services/api';
-import { createConversation, chatHistory, sendChatMessage, markChatRead } from '../services/chatService';
+import { createConversation, chatHistory, catchUpChat, sendChatMessage, markChatRead } from '../services/chatService';
+import { watchConversation } from '../services/chatEvents';
 import { PillButton, Icon } from './GoMatePortal';
 
 const merge = (previous, items) => [...new Map([...previous,...items].map(item=>[item.id,item])).values()].sort((a,b)=>a.id.localeCompare(b.id));
@@ -14,17 +15,33 @@ export default function BusinessGroupChat({ group }) {
   useEffect(()=>{if(shouldStick.current&&scroller.current)scroller.current.scrollTop=scroller.current.scrollHeight;},[messages]);
   const userId = getSession()?.user.id;
   useEffect(()=>{
-    let alive = true, timer, polling = false, firstPage = true, revoked = false;
+    let alive = true, timer, polling = false, firstPage = true, revoked = false, stop, connected = false, newest = '', lastRead = '', queued = false, currentId;
     setConversation(null); setMessages([]); setError(''); setDraft(''); setLoading(true); setCursor(null); setAttachment(null); attempt.current=null;
     const refresh = async(id) => {
-      if(polling || document.visibilityState==='hidden') return;
+      if(document.visibilityState==='hidden') return;
+      if(polling) { queued=true; return; }
       polling=true;
-      try { const page=await chatHistory(id); if(!alive)return; setMessages(current=>merge(current,page.items)); if(firstPage){setCursor(page.nextCursor);firstPage=false;}setError(''); const last=page.items[0]; if(last && document.hasFocus()) await markChatRead(id,last.id); }
+      try {
+        let items;
+        if(firstPage) { const page=await chatHistory(id);items=page.items;if(alive)setCursor(page.nextCursor); }
+        else items=newest ? await catchUpChat(id,newest,()=>alive) : (await chatHistory(id)).items;
+        if(!alive)return;
+        setMessages(current=>merge(current,items));firstPage=false;setError('');
+        newest=items.reduce((value,item)=>item.id>value?item.id:value,newest);
+        if(newest && newest!==lastRead && document.hasFocus()) {await markChatRead(id,newest);lastRead=newest;}
+      }
       catch(reason) { if(alive){setError(reason.message);if([401,403,404].includes(reason.status)){revoked=true;setMessages([]);setConversation(null);clearInterval(timer);}} }
-      finally {polling=false;}
+      finally {polling=false;if(alive&&queued&&!revoked){queued=false;void refresh(id);}}
     };
-    void createConversation({type:'group',activityId:group.id}).then(async value=>{if(!alive)return;setConversation(value);await refresh(value.id);if(alive&&!revoked)timer=setInterval(()=>void refresh(value.id),3000);}).catch(reason=>{if(alive)setError(reason.message);}).finally(()=>{if(alive)setLoading(false);});
-    return()=>{alive=false;clearInterval(timer);};
+    const resume=()=>{if(currentId&&!revoked)void refresh(currentId);};
+    document.addEventListener('visibilitychange',resume);window.addEventListener('focus',resume);
+    void createConversation({type:'group',activityId:group.id}).then(async value=>{
+      if(!alive)return;currentId=value.id;setConversation(value);
+      stop=watchConversation(value.id,snapshot=>{if(alive&&(!snapshot||snapshot.lastMessage?.id!==newest))void refresh(value.id);},value=>{connected=value;});
+      await refresh(value.id);
+      if(alive&&!revoked)timer=setInterval(()=>{if(!connected)void refresh(value.id);},10000);
+    }).catch(reason=>{if(alive)setError(reason.message);}).finally(()=>{if(alive)setLoading(false);});
+    return()=>{alive=false;clearInterval(timer);stop?.();document.removeEventListener('visibilitychange',resume);window.removeEventListener('focus',resume);};
   },[group.id]);
   const send = async event => {
     event.preventDefault(); if(sendLock.current || !conversation || !draft.trim()&&!attachment)return;
