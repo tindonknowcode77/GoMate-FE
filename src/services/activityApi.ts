@@ -90,6 +90,8 @@ export const bulkMarkAttendance = async (id: string, body: { markAll?: Attendanc
 export type AttendanceQrToken = { token: string; activityId: string; issuedAt: string; expiresAt: string; ttlSeconds: number };
 export const createAttendanceQrToken = async (id: string) => (await post<{ qr: AttendanceQrToken }>(`${idPath(id)}/attendance/qr-token`, {})).qr;
 export const qrCheckInAttendance = (id: string, token: string) => post<{ attendance: Attendance; alreadyCheckedIn: boolean }>(`${idPath(id)}/attendance/qr-checkin`, { token });
+export const gpsCheckInAttendance = (id: string, point: { latitude: number; longitude: number }) =>
+  post<{ attendance: Attendance; alreadyCheckedIn: boolean; distanceMeters: number }>(`${idPath(id)}/attendance/gps-checkin`, point);
 export type ActivityMemory = { id: string; activityId: string; uploaderId: string; uploaderName: string; uploaderAvatarUrl?: string | null; imageUrl: string; caption: string; createdAt: string };
 export const listActivityMemories = async (id: string) => (await api<{ items: ActivityMemory[]; total: number }>(`${idPath(id)}/memories`)).items;
 export const uploadActivityMemory = async (id: string, imageBase64: string, caption = '') => (await post<{ memory: ActivityMemory }>(`${idPath(id)}/memories`, { imageBase64, caption })).memory;

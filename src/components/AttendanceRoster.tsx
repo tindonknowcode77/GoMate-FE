@@ -3,7 +3,8 @@ import { ActivityIndicator, Image, Modal, Pressable, StyleSheet, TextInput, View
 import { Ionicons } from '@expo/vector-icons';
 import { Text } from './LocalizedText';
 import { UserAvatar } from './UserAvatar';
-import { Attendance, AttendanceQrToken, createAttendanceQrToken, qrCheckInAttendance } from '../services/activityApi';
+import { Attendance, AttendanceQrToken, createAttendanceQrToken, gpsCheckInAttendance, qrCheckInAttendance } from '../services/activityApi';
+import { currentCoordinates } from '../services/locationService';
 import { colors } from '../theme';
 
 export const attendanceLabels: Record<Attendance['status'], string> = { unmarked: 'Chưa điểm danh', present: 'Có mặt', absent: 'Vắng', late: 'Đến muộn' };
@@ -42,8 +43,30 @@ export function AttendanceRoster({
   const [scanCode, setScanCode] = useState('');
   const [scanMsg, setScanMsg] = useState('');
   const [scanBusy, setScanBusy] = useState(false);
+  const [gpsBusy, setGpsBusy] = useState(false);
+  const [gpsMsg, setGpsMsg] = useState('');
 
   const present = people.filter(person => ['present', 'late'].includes(person.status)).length;
+
+  const checkInByGps = async () => {
+    if (!activityId || gpsBusy) return;
+    setGpsBusy(true);
+    setGpsMsg('');
+    try {
+      const coords = await currentCoordinates();
+      const res = await gpsCheckInAttendance(activityId, coords);
+      setGpsMsg(
+        res.alreadyCheckedIn
+          ? `Bạn đã được điểm danh trước đó rồi (cách địa điểm ${res.distanceMeters}m).`
+          : `Điểm danh GPS thành công! Bạn cách điểm tập trung ${res.distanceMeters}m.`
+      );
+      onCheckedIn?.();
+    } catch (reason) {
+      setGpsMsg(reason instanceof Error ? reason.message : 'Chưa điểm danh được bằng GPS.');
+    } finally {
+      setGpsBusy(false);
+    }
+  };
 
   const generateQr = async () => {
     if (!activityId) return;
@@ -59,8 +82,13 @@ export function AttendanceRoster({
   };
 
   useEffect(() => {
-    if (qrModal && activityId && !qrData) void generateQr();
-  }, [qrModal, activityId]);
+    if (qrModal && activityId && !qrData) {
+      const timer = setTimeout(() => {
+        void generateQr();
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [qrModal, activityId, qrData]);
 
   const submitQrCode = async () => {
     if (!activityId || !scanCode.trim() || scanBusy) return;
@@ -84,7 +112,7 @@ export function AttendanceRoster({
           <View style={styles.heroIcon}><Ionicons name="people" size={26} color={colors.primary} /></View>
           <View style={{ flex: 1, gap: 4 }}>
             <Text style={styles.title}>Điểm danh ({present}/{people.length})</Text>
-            <Text style={styles.caption}>Tích "Điểm danh tất cả" rồi chọn người vắng để thao tác nhanh nhất.</Text>
+            <Text style={styles.caption}>Tích &quot;Điểm danh tất cả&quot; rồi chọn người vắng để thao tác nhanh nhất.</Text>
           </View>
         </View>
         <View style={styles.progressTrack}>
@@ -128,10 +156,23 @@ export function AttendanceRoster({
         )}
 
         {!editable && activityId && (
-          <Pressable accessibilityRole="button" onPress={() => { setScanCode(''); setScanMsg(''); setScanModal(true); }} style={styles.qrBtn}>
-            <Ionicons name="scan-outline" size={18} color={colors.primary} />
-            <Text style={styles.qrBtnText}>Điểm danh bằng mã QR của Host</Text>
-          </Pressable>
+          <View style={{ gap: 8 }}>
+            <View style={styles.quickRow}>
+              <Pressable accessibilityRole="button" disabled={gpsBusy} onPress={() => void checkInByGps()} style={[styles.markAllBtn, gpsBusy && { opacity: 0.5 }]}>
+                <Ionicons name="locate" size={18} color={colors.white} />
+                <Text style={styles.markAllText}>{gpsBusy ? 'Đang định vị GPS...' : 'Điểm danh bằng GPS'}</Text>
+              </Pressable>
+              <Pressable accessibilityRole="button" onPress={() => { setScanCode(''); setScanMsg(''); setScanModal(true); }} style={styles.qrBtn}>
+                <Ionicons name="scan-outline" size={18} color={colors.primary} />
+                <Text style={styles.qrBtnText}>Điểm danh bằng mã QR</Text>
+              </Pressable>
+            </View>
+            {gpsMsg ? (
+              <Text style={{ color: gpsMsg.includes('thành công') || gpsMsg.includes('trước đó') ? colors.successText : colors.danger, fontSize: 12, fontWeight: '600' }}>
+                {gpsMsg}
+              </Text>
+            ) : null}
+          </View>
         )}
       </View>
 

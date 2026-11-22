@@ -3,7 +3,8 @@ import { portalActionError } from './portalActionError';
 import { usePortalText } from './usePortalText';
 import { useEffect, useState } from 'react';
 import { ActivityMap } from '../components/ActivityMap';
-import { placePredictions, placeDetails, placeRegionFields, newPlacesSession } from '../services/mapsService';
+import { placePredictions, placeDetails, placeRegionFields, newPlacesSession, reversePlace } from '../services/mapsService';
+import { currentCoordinates } from '../services/locationService';
 import { Icon, PillButton } from './GoMatePortal';
 import FormExcelTools from './FormExcelTools';
 
@@ -32,8 +33,37 @@ function Field({ label, children }) {
 export default function LocationLibrary({ locations, onSave, onDelete }) {
   const t = usePortalText();
   const [form, setForm] = useState(emptyLocation);
+  const [locating, setLocating] = useState(false);
   const notify = usePortalNotice();
   const mapAPI = useMapAPI();
+
+  const useCurrentGps = async () => {
+    if (locating) return;
+    setLocating(true);
+    try {
+      const gps = await currentCoordinates();
+      mapAPI.pin(gps);
+      setForm(current => ({ ...current, latitude: gps.latitude, longitude: gps.longitude }));
+      try {
+        const place = await reversePlace(gps);
+        const region = placeRegionFields(place, '');
+        setForm(current => ({
+          ...current,
+          address: current.address || place.address || '',
+          city: region.province || current.city || 'Ho Chi Minh City',
+          latitude: gps.latitude,
+          longitude: gps.longitude,
+        }));
+      } catch {
+        // Coordinates are already set even if reverse geocoding is disabled
+      }
+      notify('Đã lấy tọa độ GPS hiện tại thành công.');
+    } catch (reason) {
+      notify(reason instanceof Error ? reason.message : 'Chưa lấy được vị trí GPS.', 'error');
+    } finally {
+      setLocating(false);
+    }
+  };
 
   const patch = key => event => setForm(value => ({ ...value, [key]: event.target.value }));
   const selectPlace = async prediction => {
@@ -75,7 +105,12 @@ export default function LocationLibrary({ locations, onSave, onDelete }) {
             }} />
             <Field label={t("Location name")}><input className={fieldStyle} value={form.name} required maxLength={120} onChange={patch('name')} placeholder={t("e.g. Luma Social Club - District 1")} /></Field>
             <Field label={t("Search address")}>
-              <div className="gm-map-search"><Icon name="search" size={16} /><input value={mapAPI.query} onChange={event => mapAPI.search(event.target.value)} placeholder={t("Search a place or address")} autoComplete="off" /></div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <div className="gm-map-search" style={{ flex: 1 }}><Icon name="search" size={16} /><input value={mapAPI.query} onChange={event => mapAPI.search(event.target.value)} placeholder={t("Search a place or address")} autoComplete="off" /></div>
+                <PillButton variant="secondary" type="button" disabled={locating} onClick={() => void useCurrentGps()}>
+                  {locating ? t('Đang lấy GPS...') : t('Dùng GPS hiện tại')}
+                </PillButton>
+              </div>
               {mapAPI.results.length > 0 && <div className="gm-map-results" role="listbox">{mapAPI.results.map(place => <button key={place.id} type="button" role="option" onClick={() => selectPlace(place)}><strong>{place.title || place.name}</strong><span>{place.subtitle || place.address} {t(" · ")}{t(place.city)}</span></button>)}</div>}
             </Field>
             <Field label={t("Detailed address")}><textarea aria-label={t("Địa chỉ chi tiết")} className={fieldStyle + ' gm-textarea'} value={form.address} required maxLength={300} onChange={patch('address')} placeholder={t("Street, ward, district, city")} /></Field>
