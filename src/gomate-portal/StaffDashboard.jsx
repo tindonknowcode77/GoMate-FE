@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Icon } from './GoMatePortal';
 import { portalApi } from './portalApi';
 
 export const staffSections = {
@@ -10,7 +11,7 @@ export const staffSections = {
   feed: ['Bài đã xuất bản', 'Theo dõi trực quan các bài viết đang hiển thị trên bảng tin công khai.', '◈'],
 };
 
-export function StaffDashboard({ me, onSelect }) {
+export function StaffDashboard({ onSelect }) {
   const [data, setData] = useState(null),
     [error, setError] = useState(''),
     [loading, setLoading] = useState(true),
@@ -79,31 +80,15 @@ export function StaffDashboard({ me, onSelect }) {
 
   return (
     <div className="staff-dashboard">
-      <section className="staff-welcome-banner">
-        <div className="staff-welcome-content">
-          <span className="staff-welcome-eyebrow">BÀN TRỰC ĐIỀU HÀNH & KIỂM DUYỆT</span>
-          <h2>Xin chào, {me.name} 👋</h2>
-          <p>
-            Cùng đảm bảo không gian trải nghiệm an toàn, chuẩn mực và hỗ trợ người dùng GoMate tận tâm.
-          </p>
-
-        </div>
-
-      </section>
-
       <div className="staff-section-heading">
         <div>
           <h2>Hàng đợi xử lý ưu tiên</h2>
-          <p>
-            {updated
-              ? `Cập nhật lúc ${updated.toLocaleTimeString('vi-VN')} · Nhấp vào thẻ để mở nhanh nghiệp vụ`
-              : 'Dữ liệu thời gian thực từ máy chủ'}
-          </p>
+          {updated && <p>Cập nhật lúc {updated.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })}</p>}
         </div>
         <div className="portal-actions">
           <button
             type="button"
-            className="gm-btn gm-btn--ghost"
+            className="gm-btn gm-btn--secondary"
             disabled={loading}
             onClick={() => {
               setData(null);
@@ -113,7 +98,8 @@ export function StaffDashboard({ me, onSelect }) {
               setRetry(v => v + 1);
             }}
           >
-            {loading ? 'Đang tải…' : '🔄 Làm mới số liệu'}
+            <Icon name="activity" size={14} />
+            {loading ? 'Đang tải…' : 'Làm mới'}
           </button>
         </div>
       </div>
@@ -175,7 +161,7 @@ export function StaffDashboard({ me, onSelect }) {
             <h3>Kiểm duyệt bài đăng</h3>
             <p>Xét duyệt nội dung thông báo & ưu đãi từ các đối tác doanh nghiệp đã xác minh.</p>
           </div>
-          <span className="staff-workflow-arrow" aria-hidden="true">→</span>
+          <span className="staff-workflow-arrow" aria-hidden="true"><Icon name="arrow" size={16} /></span>
         </button>
 
         <button
@@ -188,7 +174,7 @@ export function StaffDashboard({ me, onSelect }) {
             <h3>Xử lý phản ánh vi phạm</h3>
             <p>Tiếp nhận tố cáo người dùng, vi phạm tiêu chuẩn và ẩn các hoạt động độc hại.</p>
           </div>
-          <span className="staff-workflow-arrow" aria-hidden="true">→</span>
+          <span className="staff-workflow-arrow" aria-hidden="true"><Icon name="arrow" size={16} /></span>
         </button>
 
         <button
@@ -201,7 +187,7 @@ export function StaffDashboard({ me, onSelect }) {
             <h3>Trung tâm hỗ trợ khách hàng</h3>
             <p>Trao đổi, giải đáp câu hỏi và cập nhật trạng thái yêu cầu hỗ trợ.</p>
           </div>
-          <span className="staff-workflow-arrow" aria-hidden="true">→</span>
+          <span className="staff-workflow-arrow" aria-hidden="true"><Icon name="arrow" size={16} /></span>
         </button>
 
         <button
@@ -214,7 +200,7 @@ export function StaffDashboard({ me, onSelect }) {
             <h3>Bảng tin công khai trực tiếp</h3>
             <p>Theo dõi các bài viết đang được cộng đồng người dùng nhìn thấy trong thực tế.</p>
           </div>
-          <span className="staff-workflow-arrow" aria-hidden="true">→</span>
+          <span className="staff-workflow-arrow" aria-hidden="true"><Icon name="arrow" size={16} /></span>
         </button>
       </div>
 

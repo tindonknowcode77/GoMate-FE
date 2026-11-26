@@ -16,7 +16,11 @@ const local = (iso: string) => new Date(new Date(iso).getTime() + 7 * 3600000).t
 const displayed = (iso: string) => { const [year, month, day] = local(iso).slice(0, 10).split('-'); return day + '/' + month + '/' + year; };
 export function ActivityPlanPanel({ activityId, onChanged, onManage, onProgress }: { activityId: string; onChanged?: (activity: ActivityDto) => void; onManage?: () => void; onProgress?: (activity: ActivityDto) => void }) {
   const loader = useCallback(() => getActivity(activityId), [activityId]);
-  const remote = useRemote(loader, null);
+  const remote = useRemote(loader, null, true, {
+    cacheKey: `activity:${activityId}`,
+    staleTimeMs: 20000,
+    tags: ['activities', `activity:${activityId}`],
+  });
   const [draft, setDraft] = useState<PlanDraft | null>(null), [editingVersion, setEditingVersion] = useState(0), [busy, setBusy] = useState(false), [fileBusy, setFileBusy] = useState(false), [error, setError] = useFeedbackState('');
   const lock = useRef(false);
   const row = remote.data;
@@ -32,7 +36,7 @@ export function ActivityPlanPanel({ activityId, onChanged, onManage, onProgress 
     catch (reason) { setError(reason instanceof Error ? reason.message : 'Không lưu được kế hoạch'); }
     finally { lock.current = false; setBusy(false); }
   };
-  if (remote.loading || remote.error || !row) return <RemoteState {...remote} onRetry={remote.reload} />;
+  if (!row) return <RemoteState {...remote} onRetry={remote.reload} />;
   return <View style={{ gap: 16 }}><Text style={{ fontSize: 23, fontWeight: '800', color: colors.text }}>{row.organizerType === 'business' ? 'Chương trình sự kiện' : 'Kế hoạch chuyến đi'}</Text><BusinessIdentity activity={toActivity(row)} />
     {onProgress && (row.status === 'in-progress' || row.status === 'completed') && <Pressable accessibilityRole="button" onPress={() => onProgress(row)} style={{ minHeight: 44, padding: 12, borderRadius: 12, backgroundColor: colors.primarySoft, justifyContent: 'center' }}><Text style={{ color: colors.primary, fontWeight: '700' }}>{row.status === 'completed' ? 'Xem tổng kết' : 'Xem diễn biến'}</Text></Pressable>}
     {onManage && row.status === 'published' && <Pressable accessibilityRole="button" onPress={onManage} style={{ minHeight: 44, padding: 12, borderRadius: 12, backgroundColor: colors.primarySoft, justifyContent: 'center' }}><Text style={{ color: colors.primary, fontWeight: '700' }}>{row.scheduleConfirmedAt ? 'Lịch đã chốt · Sang Quản lý để bắt đầu →' : 'Sang Quản lý để chốt lịch & bắt đầu →'}</Text></Pressable>}

@@ -111,7 +111,7 @@ export function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
                   <FormField keyboardType="email-address" label="Email" onChangeText={setEmail} value={email} />
                   <FormField label="Password" onChangeText={setLoginPassword} secureTextEntry value={loginPassword} />
                 </View>
-                <Pressable onPress={() => setStage('forgot')} style={styles.forgotLink}><Text style={styles.linkText}>Forgot password?</Text></Pressable>
+                <Pressable onPress={() => setStage('forgot')} style={styles.forgotLink}><Text style={styles.linkText}>Quên mật khẩu?</Text></Pressable>
                 <PrimaryButton disabled={busy} label={busy ? "Đang đăng nhập..." : "Log in"} onPress={handleLogin} />
                 <Text style={styles.orText}>or</Text>
                 <View style={styles.socialButtons}>
@@ -129,7 +129,7 @@ export function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
                 <FormField label="Full name" onChangeText={setName} value={name} />
                 <FormField keyboardType="email-address" label="Email" onChangeText={setEmail} value={email} />
                 <FormField label="Password" onChangeText={setSignupPassword} placeholder="Create a password" secureTextEntry value={signupPassword} />
-                <Text style={styles.requirementText}>Từ 6 ký tự; không bắt buộc chữ hoa, số hoặc ký tự đặc biệt.</Text>
+                <Text style={styles.requirementText}>Tối thiểu 6 ký tự</Text>
               </View>
               <Pressable style={styles.consent}>
                 <View style={styles.checkbox}><Ionicons color={colors.white} name="checkmark" size={14} /></View>

@@ -36,7 +36,6 @@ function ConversationMessages({ businessId, conversation, t, onBack }: { busines
   }, [businessId, conversation.id, query, before, key]);
   return <section className="gm-business-messages">
     <header className="gm-business-history-heading"><button type="button" className="gm-btn gm-btn--secondary" onClick={onBack}>{t('Back to conversations')}</button><h4>{conversation.title || t('Conversation')}</h4></header>
-    <p className="gm-live-muted">{t('Read-only review. Participant read status is unchanged.')}</p>
     <label className="gm-field"><span>{t('Search message content')}</span><input className="gm-simple-input" value={query} maxLength={120} onChange={event => { setQuery(event.target.value); setBefore(undefined); }} /></label>
     {loading ? <p role="status">{t('Loading messages')}</p> : state.error ? <p role="alert">{state.error} <button type="button" className="gm-btn gm-btn--secondary" onClick={() => setRetry(value => value + 1)}>{t('Retry')}</button></p> : <>
       {!state.data?.items.length && <p>{t('No messages found')}</p>}
@@ -64,7 +63,6 @@ function ResourceHistory({ businessId, resource, t }: { businessId: string; reso
   if (conversation) return <ConversationMessages key={`${businessId}:${conversation.id}`} businessId={businessId} conversation={conversation} t={t} onBack={() => setConversation(null)} />;
   return <div className="gm-business-history-list">
     <div className="gm-business-history-tools"><label className="gm-field"><span>{t(resource === 'conversations' ? 'Search conversations' : 'Search history')}</span><input className="gm-simple-input" value={query} maxLength={120} onChange={event => { setQuery(event.target.value); setPage(1); }} /></label><button type="button" className="gm-btn gm-btn--secondary" disabled={loading} onClick={() => setRetry(value => value + 1)}>{t('Refresh')}</button></div>
-    {resource === 'conversations' && <p className="gm-live-muted">{t('Business activity groups and direct chats of the business account. Admin access is logged.')}</p>}
     {loading ? <p role="status">{t('Loading history')}</p> : state.error ? <p role="alert">{state.error} <button type="button" className="gm-btn gm-btn--secondary" onClick={() => setRetry(value => value + 1)}>{t('Retry')}</button></p> : <>
       {!state.data?.items.length && <p>{t('No history found')}</p>}
       {state.data?.items.map(item => <article className="gm-business-history-card" key={item.id}><header><h4>{item.title || t('Conversation')}</h4><span className="gm-business-history-status">{resource === 'conversations' ? t(item.type === 'group' ? 'Activity group' : 'Direct conversation') : t(statusKeys[item.status || ''] || 'Updated')}</span></header><small>{date(item.createdAt)}</small>

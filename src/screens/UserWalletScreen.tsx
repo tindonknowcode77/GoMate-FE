@@ -7,33 +7,59 @@ import { VietQrPaymentModal } from '../components/VietQrPaymentModal';
 import { BankPicker } from '../components/BankPicker';
 import { findBank } from '../constants/banks';
 import { confirmParticipation, getPaymentHistory, refundPayment, saveRefundBank, type BankAccount, type Payment, type PaymentHistoryResponse } from '../services/paymentService';
+import { getCached, setCached } from '../services/remoteCache';
 import { colors, layout } from '../theme';
 
 const money = (value = 0) => value.toLocaleString('vi-VN') + ' đ';
 const refundLabels: Record<string, string> = { pending: 'Chờ duyệt hoàn tiền', approved: 'Đã duyệt, chờ chuyển tiền', completed: 'Đã ghi nhận chuyển tiền hoàn', rejected: 'Yêu cầu bị từ chối' };
 const emptyBank: BankAccount = { bankId: 'BIDV', accountNo: '', accountName: '' };
 
+type WalletCache = { items: Payment[]; summary?: PaymentHistoryResponse['summary']; bank: BankAccount | null; hasMore: boolean; page: number };
+
 export function UserWalletScreen({ onBack }: { onBack: () => void }) {
-  const [items, setItems] = useState<Payment[]>([]), [summary, setSummary] = useState<PaymentHistoryResponse['summary']>();
-  const [bank, setBank] = useState<BankAccount | null>(null), [bankForm, setBankForm] = useState<BankAccount>(emptyBank), [editingBank, setEditingBank] = useState(false);
-  const [loading, setLoading] = useState(true), [busy, setBusy] = useState(false), [hasMore, setHasMore] = useState(false);
+  const initialCache = getCached<WalletCache>('wallet');
+  const [items, setItems] = useState<Payment[]>(() => initialCache?.value.items ?? []), [summary, setSummary] = useState<PaymentHistoryResponse['summary']>(() => initialCache?.value.summary);
+  const [bank, setBank] = useState<BankAccount | null>(() => initialCache?.value.bank ?? null);
+  const [bankForm, setBankForm] = useState<BankAccount>(() => {
+    const b = initialCache?.value.bank;
+    return b ? { bankId: b.bankId, accountNo: b.accountNo, accountName: b.accountName, ...(b.branch ? { branch: b.branch } : {}) } : emptyBank;
+  }), [editingBank, setEditingBank] = useState(false);
+  const [loading, setLoading] = useState(() => !initialCache), [busy, setBusy] = useState(false), [hasMore, setHasMore] = useState(() => initialCache?.value.hasMore ?? false);
   const [filter, setFilter] = useState<'all' | 'refunds' | 'paid'>('all');
   const [feedback, setFeedback] = useState<{ error: boolean; message: string } | null>(null);
   const [target, setTarget] = useState<{ payment: Payment; kind: 'refund' | 'disputed' } | null>(null), [reason, setReason] = useState('');
   const [qrTarget, setQrTarget] = useState<Payment | null>(null);
-  const page = useRef(0), generation = useRef(0), lock = useRef(false);
-  const load = useCallback(async (reset = true) => {
-    const request = ++generation.current, next = reset ? 1 : page.current + 1; setLoading(true);
+  const page = useRef(initialCache?.value.page ?? 0), generation = useRef(0), lock = useRef(false);
+  const load = useCallback(async (reset = true, background = false) => {
+    const request = ++generation.current, next = reset ? 1 : page.current + 1;
+    if (!background) setLoading(true);
     try {
       const response = await getPaymentHistory(next, 20);
       if (request !== generation.current) return;
-      setItems(current => reset ? response.items : [...current, ...response.items.filter(item => !current.some(existing => existing.id === item.id))]);
+      let mergedItems: Payment[] = [];
+      setItems(current => {
+        mergedItems = reset ? response.items : [...current, ...response.items.filter(item => !current.some(existing => existing.id === item.id))];
+        setCached<WalletCache>('wallet', {
+          items: mergedItems,
+          summary: response.summary,
+          bank: response.bankAccount || null,
+          hasMore: Boolean(response.hasMore),
+          page: next,
+        }, { staleTimeMs: 20000, tags: ['wallet', 'payment-info'] });
+        return mergedItems;
+      });
       setSummary(response.summary); setHasMore(Boolean(response.hasMore)); page.current = next;
       setBank(response.bankAccount || null); if (response.bankAccount) { const { bankId, accountNo, accountName, branch } = response.bankAccount; setBankForm({ bankId, accountNo, accountName, ...(branch ? { branch } : {}) }); }
-    } catch (error) { if (request === generation.current) setFeedback({ error: true, message: error instanceof Error ? error.message : 'Chưa tải được ví. Hãy thử lại.' }); }
+    } catch (error) { if (request === generation.current && !background) setFeedback({ error: true, message: error instanceof Error ? error.message : 'Chưa tải được ví. Hãy thử lại.' }); }
     finally { if (request === generation.current) setLoading(false); }
   }, []);
-  useEffect(() => { let active = true; queueMicrotask(() => { if (active) void load(); }); return () => { active = false; }; }, [load]);
+  useEffect(() => {
+    let active = true;
+    const cached = getCached<WalletCache>('wallet');
+    if (cached?.fresh) return;
+    queueMicrotask(() => { if (active) void load(true, Boolean(cached)); });
+    return () => { active = false; };
+  }, [load]);
   const run = async (action: () => Promise<unknown>, message: string) => {
     if (lock.current) return; lock.current = true; setBusy(true); setFeedback(null);
     try { await action(); setTarget(null); setEditingBank(false); setFeedback({ error: false, message }); await load(); }

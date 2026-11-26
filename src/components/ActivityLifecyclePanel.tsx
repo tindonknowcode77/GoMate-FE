@@ -20,6 +20,14 @@ type Props = {
 };
 const stages = ['Lên kế hoạch', 'Đã chốt lịch', 'Đang diễn ra', 'Đã kết thúc'];
 
+function formatScheduleDateTime(iso: string) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return { time: '', date: '' };
+  const time = date.toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', hour12: false });
+  const day = date.toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' });
+  return { time, date: day };
+}
+
 export function ActivityLifecyclePanel({ activity, compact = false, showTimeline = true, showActions = true, onChanged, onProgress, onPlan }: Props) {
   const [confirmation, setConfirmation] = useState<{ action: 'schedule' | 'start'; version: number } | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -69,22 +77,59 @@ export function ActivityLifecyclePanel({ activity, compact = false, showTimeline
         <Text style={[styles.stepLabel, index === phase && styles.currentLabel]}>{skipped ? 'Không chốt lịch' : label}</Text>
       </View>; })}
     </View>}
-    {showActions && <>
+    {showActions && (() => {
+      const schedule = formatScheduleDateTime(activity.startsAt);
+      return <>
       {!compact && <Text style={styles.title}>{isHost ? 'Bước tiếp theo của host' : stages[phase]}</Text>}
 
-      {!compact && !running && !completed && <View style={styles.appointment}><Text style={styles.appointmentTitle}>{activity.scheduleConfirmedAt ? 'Lịch đã chốt' : 'Lịch hẹn dự kiến'}</Text><Text style={styles.description}>{new Date(activity.startsAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}</Text><Text style={styles.description}>{activity.meetingPoint || activity.location}</Text></View>}
+      {!compact && !running && !completed && (
+        <View style={styles.appointment}>
+          <View style={styles.appointmentHeader}>
+            <View style={[styles.appointmentBadge, activity.scheduleConfirmedAt && styles.appointmentBadgeConfirmed]}>
+              <Ionicons name={activity.scheduleConfirmedAt ? 'checkmark-circle' : 'time-outline'} size={13} color={activity.scheduleConfirmedAt ? colors.successText : colors.primary} />
+              <Text style={[styles.appointmentBadgeText, activity.scheduleConfirmedAt && { color: colors.successText }]}>
+                {activity.scheduleConfirmedAt ? 'Lịch đã chốt' : 'Lịch hẹn dự kiến'}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.appointmentRow}>
+            <View style={styles.appointmentIcon}><Ionicons name="calendar-outline" size={16} color={colors.primary} /></View>
+            <View style={styles.appointmentInfo}>
+              <Text style={styles.appointmentPrimary}>{schedule.time}{schedule.date ? ` · ${schedule.date}` : ''}</Text>
+            </View>
+          </View>
+          <View style={styles.appointmentRow}>
+            <View style={styles.appointmentIcon}><Ionicons name="location-outline" size={16} color={colors.primary} /></View>
+            <View style={styles.appointmentInfo}>
+              <Text style={styles.appointmentAddress}>{activity.meetingPoint || activity.location}</Text>
+            </View>
+          </View>
+        </View>
+      )}
       <View style={styles.actions}>
         <Pressable accessibilityRole="button" accessibilityLabel={translate(actionLabel)} accessibilityState={{ disabled: actionDisabled }} disabled={actionDisabled} onPress={primaryAction} style={[styles.primary, actionDisabled && { opacity: 0.5 }]}><Ionicons name={completed ? 'ribbon-outline' : running ? 'checkbox-outline' : isHost && !scheduleFirst ? 'play-circle-outline' : 'calendar-outline'} size={19} color={colors.white} /><Text style={styles.primaryText}>{actionLabel}</Text></Pressable>
         {!running && !completed && isHost && onPlan && <Pressable accessibilityRole="button" onPress={onPlan} style={styles.secondary}><Text style={styles.link}>Xem kế hoạch</Text></Pressable>}
       </View>
-      {blockedReason && !/tiền cọc/i.test(blockedReason) ? <Text accessibilityRole="alert" style={styles.description}>{blockedReason}</Text> : null}
-    </>}
+    </>;
+    })()}
     <Modal visible={dialogOpen} transparent animationType="fade" onRequestClose={() => { if (!busy) setDialogOpen(false); }}>
       <View style={styles.overlay}><View accessibilityViewIsModal style={styles.dialog}>
         <Ionicons name={confirmation?.action === 'schedule' ? 'calendar-outline' : 'play-circle-outline'} size={30} color={colors.primary} />
         <Text style={styles.title}>{confirmation?.action === 'schedule' ? 'Chốt lịch đi?' : 'Bắt đầu hoạt động?'}</Text>
         <Text style={styles.description}>{confirmation?.action === 'schedule' ? 'Xác nhận thời gian và địa điểm này cho cả nhóm.' : 'Nhóm sẽ ngừng nhận thành viên mới và chuyển sang trạng thái đang diễn ra.'}</Text>
-        <Text style={styles.appointmentTitle}>{new Date(activity.startsAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}</Text><Text style={styles.description}>{activity.meetingPoint || activity.location}</Text>
+        {(() => {
+          const schedule = formatScheduleDateTime(activity.startsAt);
+          return <View style={styles.appointment}>
+            <View style={styles.appointmentRow}>
+              <View style={styles.appointmentIcon}><Ionicons name="calendar-outline" size={16} color={colors.primary} /></View>
+              <View style={styles.appointmentInfo}><Text style={styles.appointmentPrimary}>{schedule.time}{schedule.date ? ` · ${schedule.date}` : ''}</Text></View>
+            </View>
+            <View style={styles.appointmentRow}>
+              <View style={styles.appointmentIcon}><Ionicons name="location-outline" size={16} color={colors.primary} /></View>
+              <View style={styles.appointmentInfo}><Text style={styles.appointmentAddress}>{activity.meetingPoint || activity.location}</Text></View>
+            </View>
+          </View>;
+        })()}
         {error ? <Text accessibilityRole="alert" style={{ color: colors.danger }}>{error}</Text> : null}
         <GradientButton disabled={busy} label={busy ? 'Đang xử lý...' : 'Xác nhận'} onPress={() => void confirm()} />
         <Pressable accessibilityRole="button" disabled={busy} onPress={() => setDialogOpen(false)} style={styles.secondary}><Text style={styles.link}>Để sau</Text></Pressable>
@@ -103,8 +148,17 @@ const styles = StyleSheet.create({
   doneDot: { backgroundColor: colors.primary, borderColor: colors.primary }, currentDot: { borderWidth: 2, borderColor: colors.primary },
   number: { color: colors.textMuted, fontSize: 11, fontWeight: '800' }, stepLabel: { color: colors.textMuted, fontSize: 10, lineHeight: 15, textAlign: 'center' }, currentLabel: { color: colors.primary, fontWeight: '800' },
   title: { fontSize: 19, lineHeight: 26, fontWeight: '800', color: colors.text }, description: { fontSize: 12, lineHeight: 19, color: colors.textSecondary },
-  appointment: { gap: 6, padding: 12, backgroundColor: colors.primarySoft, borderRadius: 12 }, appointmentTitle: { fontSize: 13, fontWeight: '700', color: colors.text },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }, primary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: colors.primary, borderRadius: 12, paddingHorizontal: 14, minHeight: 44, flexGrow: 1 },
-  primaryText: { color: colors.white, fontWeight: '700', fontSize: 13 }, secondary: { minHeight: 44, paddingHorizontal: 10, justifyContent: 'center', alignItems: 'center' }, link: { color: colors.primary, fontSize: 12, fontWeight: '600' },
+  appointment: { gap: 10, padding: 14, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border, borderRadius: 16 },
+  appointmentHeader: { flexDirection: 'row', alignItems: 'center' },
+  appointmentBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: colors.primarySoft, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
+  appointmentBadgeConfirmed: { backgroundColor: colors.successSoft },
+  appointmentBadgeText: { fontSize: 11.5, fontWeight: '700', color: colors.primary },
+  appointmentRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  appointmentIcon: { width: 32, height: 32, borderRadius: 10, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  appointmentInfo: { flex: 1, justifyContent: 'center', minHeight: 32 },
+  appointmentPrimary: { fontSize: 14, fontWeight: '700', color: colors.text, lineHeight: 20 },
+  appointmentAddress: { fontSize: 13, color: colors.textSecondary, lineHeight: 19 },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' }, primary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: colors.primary, borderRadius: 14, paddingHorizontal: 16, minHeight: 46, flexGrow: 1 },
+  primaryText: { color: colors.white, fontWeight: '700', fontSize: 13.5 }, secondary: { minHeight: 46, paddingHorizontal: 14, justifyContent: 'center', alignItems: 'center', borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface }, link: { color: colors.primary, fontSize: 13, fontWeight: '700' },
   overlay: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#19152B66', padding: 24 }, dialog: { width: '100%', maxWidth: 430, padding: 24, gap: 16, borderRadius: 26, backgroundColor: colors.surface },
 });

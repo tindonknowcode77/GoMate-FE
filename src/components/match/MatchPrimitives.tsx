@@ -16,9 +16,11 @@ export function MatchHeader({ distance = 'Chưa có vị trí', onBack, onFilter
   return (
     <View>
       <View style={styles.header}>
-        <Pressable accessibilityLabel="Quay lại" onPress={onBack} style={styles.headerButton}><Ionicons color={colors.text} name="chevron-back" size={24} /></Pressable>
+        <View style={{ width: 88, flexDirection: 'row', alignItems: 'center' }}>
+          <Pressable accessibilityLabel="Quay lại" onPress={onBack} style={styles.headerButton}><Ionicons color={colors.text} name="chevron-back" size={24} /></Pressable>
+        </View>
         <Text style={styles.headerTitle}>Match</Text>
-        <View style={{ flexDirection: 'row', gap: 8 }}>
+        <View style={{ width: 88, flexDirection: 'row', justifyContent: 'flex-end', gap: 8 }}>
           {onSearch && <Pressable accessibilityRole="button" accessibilityLabel="Tìm kiếm hoạt động" onPress={onSearch} style={styles.headerButton}><Ionicons color={colors.primary} name="search-outline" size={22} /></Pressable>}
           <Pressable accessibilityLabel="Mở bộ lọc" onPress={onFilter} style={styles.headerButton}><Ionicons color={colors.primary} name="options-outline" size={23} /></Pressable>
         </View>
@@ -34,6 +36,7 @@ export function MatchHeader({ distance = 'Chưa có vị trí', onBack, onFilter
 export function ActivityMatchCard({ preview = false, favorite = false, onFavorite, activity, canUndo, onMore, onUndo }: { preview?: boolean; favorite?: boolean; onFavorite?: () => void; activity: Activity; canUndo: boolean; onMore: () => void; onUndo: () => void }) {
   const { language } = useLanguage();
   const [showHost, setShowHost] = useState(false);
+  const [mapActivityId, setMapActivityId] = useState<string | null>(null);
   return (
     <View style={[styles.cardShadow, activity.organizerType === 'business' && { borderWidth: 2, borderColor: '#44A58E', borderRadius: 24 }]}>
       <View style={styles.card}>
@@ -87,7 +90,7 @@ export function ActivityMatchCard({ preview = false, favorite = false, onFavorit
               </View>
             </DetailSection>
           )}
-          {activity.coordinates && <DetailSection title="Bản đồ địa điểm"><RouteMap point={activity.coordinates} /></DetailSection>}
+          {activity.coordinates && <DetailSection title="Bản đồ địa điểm">{mapActivityId === activity.id ? <RouteMap point={activity.coordinates} /> : <Pressable accessibilityRole="button" onPress={() => setMapActivityId(activity.id)} style={{ padding: 12, borderRadius: 14, backgroundColor: colors.primarySoft }}><Text style={{ color: colors.primary }}>Xem bản đồ địa điểm</Text></Pressable>}</DetailSection>}
           {(activity.images?.length ?? 0) > 1 && <DetailSection title="Ảnh hoạt động"><View style={[styles.photoRow, { flexWrap: 'wrap' }]}>{activity.images!.map((source, index) => <ImageBackground accessibilityLabel={`Ảnh hoạt động ${index + 1}`} imageStyle={styles.photoImage} key={index} resizeMode="cover" source={source} style={[styles.photo, { flex: undefined, flexGrow: 0, flexShrink: 0, flexBasis: '31%', width: '31%' }]} />)}</View></DetailSection>}
         </View>
       </View>

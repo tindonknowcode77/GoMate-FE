@@ -59,7 +59,6 @@ export default function PortalAuth({ onAuthenticated, initialError }) {
       </form>
       {verifying && <button className="gm-auth-text-button" disabled={busy} onClick={() => void run(async () => { await post('/auth/resend-verification', { email: email.trim() }); setNotice('Nếu tài khoản cần xác minh, mã sẽ được gửi đến email. Vui lòng chờ 60 giây trước khi gửi lại.'); }, 'gửi lại mã xác minh')}>{t('Gửi lại mã xác minh')}</button>}
       <div className="gm-partner-signup"><p>{t(stage === 'login' ? 'Doanh nghiệp chưa có tài khoản?' : 'Đã có tài khoản GoMate?')}</p><PillButton variant="secondary" disabled={busy} onClick={() => changeStage(stage === 'login' ? 'register' : 'login')}>{t(stage === 'login' ? 'Đăng ký tài khoản doanh nghiệp' : 'Quay lại đăng nhập')}</PillButton></div>
-      {registering && <p className="gm-live-muted gm-partner-note">{t('Tài khoản chỉ có quyền doanh nghiệp sau khi hồ sơ được GoMate phê duyệt.')}</p>}
       <footer className="gm-partner-footer"><a href="/demo"><Icon name="play" />{t('Khám phá bản demo')}</a><div className="gm-partner-app"><span><Icon name="download" />{t('Tải ứng dụng GoMate')}</span><small>{t('Chưa có bản tải về. Bạn có thể sử dụng bản web.')}</small><a href="/">{t('Mở app GoMate trên web')}<Icon name="external" size={15} /></a></div></footer>
     </div>
   </AuthShell></div>;

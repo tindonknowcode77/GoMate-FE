@@ -7,7 +7,11 @@ import { useRemote } from '../services/useRemote';
 import { colors } from '../theme';
 export function FriendRequestButton({ userId }: { userId: string }) {
   const loader = useCallback(() => getFriendship(userId), [userId]);
-  const remote = useRemote(loader, { status: 'none' });
+  const remote = useRemote(loader, { status: 'none' }, true, {
+    cacheKey: `friendship:${userId}`,
+    staleTimeMs: 30000,
+    tags: ['friendship', 'friends'],
+  });
   const [error, setError] = useState(''), [busy, setBusy] = useState(false);
   const lock = useRef(false);
   if (userId === getSession()?.user.id) return null;

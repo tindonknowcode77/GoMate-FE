@@ -210,7 +210,7 @@ export default function AdminStats({ onNavigate, onAddAdministrator, t, formatDa
             </div><time dateTime={bucket.start}>{bucket.label}</time>
           </div>)}
         </div>
-        <p className="gm-admin-growth-note" aria-live="polite">{loading ? t('Loading statistics') : t('Statistics are grouped by Vietnam time')}</p>
+        {loading && <p className="gm-admin-growth-note" aria-live="polite">{t('Loading statistics')}</p>}
       </section>
 
       <section className="gm-admin-dashboard-panel gm-admin-category-panel">

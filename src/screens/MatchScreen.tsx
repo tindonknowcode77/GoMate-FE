@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Animated, PanResponder, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Animated, PanResponder, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -13,6 +13,9 @@ import { Text } from '../components/LocalizedText';
 type SheetName = 'more' | 'report' | 'safety' | 'notInterested' | null;
 
 type MatchScreenProps = {
+  locating?: boolean;
+  locationError?: string;
+  onRetry?: () => void;
   onLoadMore?: () => void;
   loadingMore?: boolean;
   onSearch?: () => void;
@@ -35,7 +38,7 @@ function isHorizontalGesture(dx: number, dy: number) {
   return Math.abs(dx) > HORIZONTAL_INTENT_DISTANCE && Math.abs(dx) > Math.abs(dy) * HORIZONTAL_INTENT_RATIO;
 }
 
-export function MatchScreen({ error, locationLabel, favoriteIds = [], onFavorite, onFeedback, activityItems = [], onFilterPress, onMatched, onBack, onSearch, onLoadMore, loadingMore, state = 'ready' }: MatchScreenProps) {
+export function MatchScreen({ error, locationLabel, favoriteIds = [], onFavorite, onFeedback, activityItems = [], onFilterPress, onMatched, onBack, onSearch, onLoadMore, loadingMore, onRetry, locating, locationError, state = 'ready' }: MatchScreenProps) {
   const { width } = useWindowDimensions();
   const [cardHeight, setCardHeight] = useState(0);
   const [dismissedIds, setDismissedIds] = useState<string[]>([]);
@@ -131,8 +134,8 @@ export function MatchScreen({ error, locationLabel, favoriteIds = [], onFavorite
 
   if (state !== 'ready') {
     const states = {
-      loading: { icon: 'calendar-outline' as const, title: 'Đang tìm hoạt động phù hợp', message: '', action: undefined },
-      'location-required': { icon: 'location-outline' as const, title: 'Chọn vị trí tìm kiếm', message: 'Chọn vị trí để xem các hoạt động gần bạn.', action: 'Chọn vị trí' },
+      loading: { icon: locating ? 'location-outline' as const : 'calendar-outline' as const, title: locating ? 'Đang lấy vị trí GPS của bạn' : 'Đang tìm hoạt động phù hợp', message: locating ? 'Cho phép truy cập vị trí để tìm hoạt động quanh bạn.' : '', action: undefined },
+      'location-required': { icon: 'location-outline' as const, title: 'Chọn vị trí tìm kiếm', message: locationError || 'Chọn vị trí để xem các hoạt động gần bạn.', action: 'Chọn vị trí' },
       'network-error': { icon: 'cloud-offline-outline' as const, title: 'Không thể kết nối', message: 'Kiểm tra kết nối mạng và thử lại.', action: 'Thử lại' },
       'activity-unavailable': { icon: 'calendar-outline' as const, title: 'Hoạt động không còn khả dụng', message: 'Hoạt động đã đủ chỗ hoặc đã đóng.', action: 'Xem tiếp' },
     };
@@ -140,7 +143,7 @@ export function MatchScreen({ error, locationLabel, favoriteIds = [], onFavorite
     return (
       <SafeAreaView style={styles.safeArea}>
         <MatchBackground />
-        <View style={styles.page}><MatchHeader onSearch={onSearch} distance={locationLabel} onBack={onBack} onFilter={onFilterPress} /><MatchState action={currentState.action} icon={currentState.icon} message={currentState.message} onAction={currentState.action ? onFilterPress : undefined} title={currentState.title} /></View>
+        <View style={styles.page}><MatchHeader onSearch={onSearch} distance={locationLabel} onBack={onBack} onFilter={onFilterPress} /><MatchState action={currentState.action} icon={currentState.icon} message={state === 'network-error' ? error || currentState.message : currentState.message} onAction={state === 'network-error' ? onRetry : currentState.action ? onFilterPress : undefined} title={currentState.title} /></View>
       </SafeAreaView>
     );
   }
@@ -151,7 +154,7 @@ export function MatchScreen({ error, locationLabel, favoriteIds = [], onFavorite
         <MatchBackground />
         <View style={styles.page}>
           <MatchHeader onSearch={onSearch} distance={locationLabel} onBack={onBack} onFilter={onFilterPress} />
-          <MatchState action={onLoadMore ? loadingMore ? 'Đang tải…' : 'Tải thêm hoạt động' : canUndo ? 'Quay lại hoạt động vừa bỏ qua' : 'Điều chỉnh bộ lọc'} icon="calendar-outline" message={error || (onLoadMore ? 'Còn hoạt động để khám phá.' : 'Thử mở rộng bộ lọc để xem thêm hoạt động.')} onAction={onLoadMore ? loadingMore ? undefined : onLoadMore : canUndo ? undoSkip : onFilterPress} title={onLoadMore ? 'Khám phá tiếp' : 'Không còn hoạt động phù hợp'} />
+          <MatchState action={onLoadMore ? loadingMore ? 'Đang tải…' : 'Tải thêm hoạt động' : canUndo ? 'Quay lại hoạt động vừa bỏ qua' : 'Điều chỉnh bộ lọc'} icon="calendar-outline" message={error || locationError || (onLoadMore ? 'Còn hoạt động để khám phá.' : 'Thử mở rộng bộ lọc để xem thêm hoạt động.')} onAction={onLoadMore ? loadingMore ? undefined : onLoadMore : canUndo ? undoSkip : onFilterPress} title={onLoadMore ? 'Khám phá tiếp' : 'Không còn hoạt động phù hợp'} />
         </View>
         {requestToast && <RequestToast approved={requestApproved} />}
       </SafeAreaView>
@@ -164,6 +167,7 @@ export function MatchScreen({ error, locationLabel, favoriteIds = [], onFavorite
       <View style={styles.page}>
         <MatchHeader onSearch={onSearch} distance={locationLabel} onBack={onBack} onFilter={onFilterPress} />
         {error ? <Text style={{ color: colors.danger, padding: 14 }}>{error}</Text> : null}
+        {locationError && <View style={{ padding: 12, gap: 6 }}><Text style={{ color: colors.textSecondary }}>{locationError}</Text><Pressable accessibilityRole="button" onPress={onFilterPress}><Text style={{ color: colors.primary }}>Chọn vị trí trong bộ lọc</Text></Pressable></View>}
         <View {...panResponder.panHandlers} style={styles.deck}>
           <ScrollView contentContainerStyle={styles.scrollContent} directionalLockEnabled scrollEnabled={!isSwiping} showsVerticalScrollIndicator={false}>
             <Animated.View style={{ transform: [...position.getTranslateTransform(), { rotate }] }}>

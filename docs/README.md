@@ -4,6 +4,7 @@ This directory is the shared project memory for the web and mobile apps.
 
 ## Files
 
+- `ANDROID_EMULATOR.md`: simulated GPS setup and Match loading behavior.
 - `BACKEND_GAPS.md`: comparison of the mobile UI with the local backend,
   missing features, integration mismatches and proposed implementation order.
 

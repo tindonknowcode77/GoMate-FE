@@ -1,5 +1,242 @@
 # Development log
 
+## 2026-11-26 - Avoid Android launcher hanging on emulator console detection
+
+### Summary
+
+- Diagnosed live Metro responding on 8081 while Expo's `adb emu avd name` calls
+  hung/failed against emulator console ports 5554/5556. Reset the debug bridge
+  after finding 196 ADB processes; both devices recovered their ADB transports.
+- Root `dev:android` now starts Metro separately and opens Expo Go using device
+  serials, port reverse and Android intents. Each ADB operation has a seven-second
+  limit. One unavailable emulator cannot prevent launching the other.
+- Add `android:open` for reconnecting to existing Metro without restarting it.
+  Keep duplicate port checks and launcher shutdown cleanup; no dependency patches.
+
+### Files changed
+
+- Workspace `scripts/android-local.cjs`, `scripts/android-local.test.cjs`,
+  `package.json`, `README.md`; `docs/ANDROID_EMULATOR.md`, this log.
+
+### Verification
+
+- `npm run test:dev`: all 8 launcher/process tests passed.
+- `node --check scripts/android-local.cjs`: passed.
+- Live `npm run dev:android`: Metro reaches its ready prompt, responds with
+  `packager-status:running`, and reports Expo Go opened on emulator-5554 and
+  emulator-5556. The old launcher reproduced console connection failures.
+- FE app source/dependencies unchanged; preceding TypeScript and Android/iOS
+  export checks remain applicable. Existing lint/Expo Doctor issues unchanged.
+
+### Remaining work
+
+- The emulator console/Android Studio issue itself can recur; the launcher avoids
+  depending on that console. Expo Go must already be installed on the device.
+
+## 2026-11-26 - Immediate chat bubbles and shorter request chains
+
+### Summary
+
+- Clear the composer and render outgoing text/files/GPS immediately. Allow the
+  next message while earlier sends run; show sending/failed state on each bubble.
+- Reconcile history, socket echoes and HTTP acknowledgements by conversation,
+  sender and clientMessageId. Retry failed bubbles with the original identifier
+  and content; lost acknowledgements cannot duplicate confirmed messages.
+- Load chat history and metadata concurrently, display authorized history without
+  waiting for metadata, and send read receipts without blocking the screen.
+- Request minimal read acknowledgements from BE; keep the app visible during a
+  profile refresh when a profile is already loaded. Companion BE changes reduce
+  authentication and activity-query round trips without caching access decisions.
+
+### Files changed
+
+- `src/screens/{ChatScreen,MainApp}.tsx`.
+- `src/services/{chatOutbox,chatService}.ts`.
+- `tests/{chat-outbox,chat-screen}.test.cjs`, `docs/DECISIONS.md`, this log.
+
+### Verification
+
+- TypeScript and 33 FE unit/regression tests passed, including slow metadata,
+  pending read receipts, immediate composer clearing, double taps, socket/HTTP
+  races, preserved next drafts, explicit retry and revoked access.
+- Android and iOS Expo exports passed. Changed chat files pass targeted ESLint.
+- Companion BE: 50 tests passed across chat/content, realtime, auth/password
+  revocation, activities/radius, profiles, portal authority and mobile APIs.
+  Command monitoring verifies one DB command per auth check and five commands
+  for a direct-chat minimal read receipt, with no summary aggregation.
+- Full lint retains the existing 3 AttendanceRoster errors and 9 warnings.
+  Expo Doctor remains 20/21 with the existing five SDK 57 patch mismatches.
+
+### Remaining work
+
+- Outgoing state is in memory for the mounted chat, not a durable offline queue.
+  Failed messages should be retried before leaving that screen. Network outages
+  can still fail requests; no device-specific timeout was reproduced in tests.
+
+## 2026-11-26 - Radius slider and event-location discovery within selected regions
+
+### Summary
+
+- Replace the radius dropdown and separate enable switch with the SDK-compatible
+  native slider (1–49 km, then 50 km+). The maximum removes the distance cap while
+  retaining province/district/ward. Legacy disabled or >50 km settings map to 50+.
+- Use the searching user's refreshed GPS as origin and each activity's event pin
+  as destination. Filter settings expose GPS refresh instead of an arbitrary map
+  origin; Reset retains the acquired GPS point. A finite radius requires GPS.
+- Send region filters to BE before pagination. Remove FE location-text filtering
+  after paging. Keep numeric distance precision instead of parsing rounded text.
+- At 50+, allow region-only discovery, including events without a pin. Calculate
+  straight-line distance for pinned cards from GPS; nearest sort still needs pins.
+- Ignore obsolete load-more results after changing radius/region and guard double
+  taps, preventing previous-query cards from entering the new result set.
+
+### Files changed
+
+- `src/screens/{FilterScreen,MainApp}.tsx`, `src/data/activities.ts`.
+- `src/services/{filterService,geoDistance,activityApi,usePagedRemote}.ts`.
+- `package.json`, `package-lock.json`: `@react-native-community/slider` 5.2.0,
+  installed using `expo install` for SDK 57.
+- `tests/radius-filter.test.cjs`, `tests/remote-reliability.test.cjs`.
+- Companion BE region query/geo tests; `docs/DECISIONS.md`, this log.
+- `docs/ANDROID_EMULATOR.md`: updated GPS-only Match origin and slider behavior.
+
+### Verification
+
+- `node --test tests/*.test.cjs`: 47 passed, including slider interaction/apply,
+  50+ region preservation, distance boundaries, GPS-to-event labels and stale
+  load-more response rejection.
+- Companion BE focused activity/radius/preferences tests: 16 passed, including
+  near/far host inversions, 0.99/1.01 km boundary, 50+ same-province results,
+  structured region precedence and region filters before totals/pagination.
+- Android Emulator visual/interaction check: opened the new filter and dragged
+  the native slider from 50 km+ to 10 km successfully. No filters were saved.
+  Restored Metro port-8081 ADB forwarding after the emulator transport reset.
+- `npm run typecheck`, `npm run build:mobile`: passed, Android/iOS exported.
+- Targeted ESLint: zero errors; only MainApp's existing 3 warnings. Removed the
+  newly reported unnecessary pagination callback dependency and rechecked it.
+- `npm run lint`: blocked by existing 3 AttendanceRoster errors.
+- `npx expo-doctor`: 20/21 passed; five existing SDK patch mismatches remain.
+
+### Remaining work
+
+- BE must include the new region query parameters along with this FE. Finite
+  radius excludes activities without an event pin because distance is unknown.
+
+## 2026-11-26 - Automatic Match GPS and safe feedback/read recovery
+
+### Summary
+
+- Move feedback notifications out of React state updaters into a post-commit
+  effect. Updater/effect replays cannot dispatch duplicate modals; repeated user
+  errors, functional setters, profile completion actions and unmount guards work.
+- Automatically request foreground GPS on Match entry, showing a GPS loading
+  state before discovery. Share an in-flight fix across navigation and StrictMode
+  replays. Manual filter coordinates take precedence; GPS failures remain inline
+  with a manual-location option, and unrestricted discovery can still proceed.
+- Retry a GET once after a transport failure, within the existing timeout and
+  with cancellation/session guards. Do not replay writes or HTTP errors. Retry
+  failed startup preferences once on Match entry instead of keeping a dormant
+  startup error until the user presses Retry. Wait for preferences/GPS before
+  issuing the discovery query.
+
+### Files changed
+
+- `src/services/{feedback,api,useMatchLocation}.ts`.
+- `src/screens/{MainApp,MatchScreen}.tsx`.
+- `tests/match-entry.test.cjs`, `tests/remote-reliability.test.cjs`.
+- `docs/ANDROID_EMULATOR.md`, `docs/DECISIONS.md`, this log.
+
+### Verification
+
+- `node --test tests/*.test.cjs`: 41 passed; updater/effect replay, automatic GPS,
+  navigation, permission failure, retry recovery, no write/HTTP retries,
+  cancellation, session changes and timeout coverage included.
+- Focused feedback/GPS/network tests after final timeout handling: 11 passed.
+- TypeScript and ESLint on changed files: passed (MainApp's 3 existing warnings).
+- `npm run build:mobile`: Android and iOS Hermes bundles exported successfully.
+- `npm run lint`: existing 3 AttendanceRoster errors and 9 warnings remain.
+- `npx expo-doctor`: 20/21 passed; five existing SDK patch mismatches remain.
+
+### Remaining work
+
+- Reload the running Expo app completely (`r`) because the feedback hook's state
+  shape changed. Full native UI flows and the user's transient network failure
+  were not reproduced end to end; transport recovery is verified with injected
+  first-request failures, rather than asserting a device/network root cause.
+
+## 2026-11-26 - Fix Android Emulator API connection
+
+### Summary
+
+- Diagnosed the local API URL pointing to `localhost:3000` inside Android while
+  the actual API listens on the PC's `127.0.0.1:3000`. Metro was reachable through
+  an existing 8081 ADB reverse, explaining why the app opened but API calls failed.
+- Map loopback API/Metro hosts to `10.0.2.2` in Android development. Preserve
+  explicit LAN/cloud URLs, web, iOS and production configuration. Handle relative
+  web `/api` settings in native development.
+- Add workspace `dev:api` and `dev:android` commands to separate the API and Metro
+  from web exports; document that restarting `dev:all` replaces the API process.
+- Added temporary port-3000 ADB reverses on the two connected emulators for the
+  running localhost bundle. Future reloaded bundles use the PC alias directly.
+
+### Files changed
+
+- `src/services/apiUrl.ts`, `tests/api-url.test.cjs`.
+- Parent workspace `package.json`, `README.md`.
+- `docs/ANDROID_EMULATOR.md`, `docs/DECISIONS.md`, this log.
+
+### Verification
+
+- `node --test tests/*.test.cjs`: 34 passed, including loopback, relative API,
+  LAN/cloud and platform/production URL regressions.
+- `npm run typecheck`, ESLint on `src/services/apiUrl.ts`: passed.
+- PC `/api/health` and emulator-5554/5556 requests through `10.0.2.2:3000`:
+  HTTP 200, service healthy. Emulator localhost before forwarding: refused.
+- `npm run lint`: existing 3 AttendanceRoster errors and 9 warnings remain.
+- `npx expo-doctor`: 20/21 passed; five existing SDK patch mismatches remain.
+
+### Remaining work
+
+- Reload Expo to use the corrected URL; native-only work should use the separate
+  API and Android commands. Full UI flows were not automated in this task.
+
+## 2026-11-26 - Repair emulator location acquisition and Match loading
+
+### Summary
+
+- Check foreground permission and enabled location services; reuse only an OS
+  fix within 60 seconds/200 metres. Request High accuracy on Android to include
+  GPS, bound fresh acquisition to 12 seconds, and explain emulator Set location
+  when no fix arrives instead of suggesting going outdoors.
+- Pause discovery requests off screen while retaining loaded cards. Hide data
+  from previous queries, discard superseded reads, and refresh on return.
+- Render the Match header/filter immediately during loading and route Retry to
+  the failed request. Remove the redundant discovery request on Back; fix the
+  load-more busy indicator. Mount activity map WebViews only on request.
+
+### Files changed
+
+- `src/services/{locationService,useRemote,usePagedRemote}.ts`.
+- `src/screens/{MainApp,MatchScreen}.tsx`, `src/components/match/MatchPrimitives.tsx`.
+- `tests/location-service.test.cjs`, `tests/remote-reliability.test.cjs`.
+- `docs/ANDROID_EMULATOR.md`, `docs/README.md`, this log.
+
+### Verification
+
+- `node --test tests/*.test.cjs`: 32 passed, including GPS failure/timeout/cache
+  and discovery pause/resume, filter changes and stale response regressions.
+- `npm run typecheck`, `npm run build:mobile`: passed; Android and iOS Hermes
+  bundles exported successfully.
+- ESLint on modified location/hooks/Match screen/card files: passed.
+- `npm run lint`: existing 3 AttendanceRoster errors and 9 warnings remain.
+- `npx expo-doctor`: 20/21 passed; five existing SDK patch mismatches remain.
+
+### Remaining work
+
+- ADB briefly listed emulator-5554, then it disconnected. Native GPS interaction
+  and before/after device timings could not be measured; reconnect the emulator,
+  send a simulated location and reload the app to confirm on-device behavior.
+
 ## 2026-11-20 - Reduce request amplification and repair realtime/history logic
 
 ### Summary

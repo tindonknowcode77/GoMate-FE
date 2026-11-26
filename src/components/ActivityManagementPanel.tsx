@@ -17,6 +17,8 @@ import {
   sendPortalOffer, toActivity, updatePortalOffer,
 } from '../services/activityApi';
 import { getSession } from '../services/api';
+import { getCached, setCached } from '../services/remoteCache';
+import { useLiveRefresh } from '../services/useLiveRefresh';
 import { useRemote } from '../services/useRemote';
 import { CreateActivityScreen } from '../screens/CreateActivityScreen';
 import { colors } from '../theme';
@@ -32,7 +34,11 @@ const attendanceOptions: [Attendance['status'], string][] = [
 
 export function ActivityManagementPanel({ activityId, onPlan, onOpenGroup, onMembers, onProgress, onDeleted, onChanged }: Props) {
   const load = useCallback(async () => {
-    const activity = await getActivity(activityId);
+    const cachedActivity = getCached<ActivityDto>(`activity:${activityId}`);
+    const activity = cachedActivity?.fresh ? cachedActivity.value : await getActivity(activityId);
+    if (!cachedActivity?.fresh) {
+      setCached(`activity:${activityId}`, activity, { staleTimeMs: 20000, tags: ['activities', `activity:${activityId}`] });
+    }
     if (activity.hostId !== getSession()?.user.id && !activity.isBusinessManager) throw new Error('Chỉ host hoặc nhân sự được phân công có quyền quản lý hoạt động.');
     const [portalGroup, attendance] = await Promise.all([
       activity.organizerType === 'business' ? getPortalGroup(activityId).catch(() => null) : Promise.resolve(null),
@@ -40,7 +46,12 @@ export function ActivityManagementPanel({ activityId, onPlan, onOpenGroup, onMem
     ]);
     return { activity, portalGroup, attendance };
   }, [activityId]);
-  const remote = useRemote(load, null);
+  const remote = useRemote(load, null, true, {
+    cacheKey: `manage-panel:${activityId}`,
+    staleTimeMs: 15000,
+    tags: [`manage:${activityId}`, `activity:${activityId}`, 'manage'],
+  });
+  useLiveRefresh(remote.reload);
   const [editing, setEditing] = useState(false), [error, setError] = useFeedbackState(''), [busy, setBusy] = useState(false);
   const [offerTitle, setOfferTitle] = useState(''), [offerBody, setOfferBody] = useState(''), [editingOfferId, setEditingOfferId] = useState(''), [offerNotice, setOfferNotice] = useState('');
   const [now, setNow] = useState(Date.now);
@@ -56,7 +67,11 @@ export function ActivityManagementPanel({ activityId, onPlan, onOpenGroup, onMem
     try { await action(); } catch (reason) { setError(reason instanceof Error ? reason.message : 'Không lưu được thay đổi.'); }
     finally { locked.current = false; setBusy(false); }
   };
-  const refresh = async () => { await remote.reload(); const fresh = await getActivity(activityId); onChanged?.(fresh); };
+  const refresh = async () => {
+    await remote.reload(true, true);
+    const fresh = getCached<ActivityDto>(`activity:${activityId}`)?.value ?? await getActivity(activityId);
+    onChanged?.(fresh);
+  };
   const editable = row?.status === 'published' && new Date(row.startsAt).getTime() > now;
   const activeRun = ['published', 'in-progress'].includes(row?.status || '');
   const confirm = () => void run(async () => {
@@ -194,7 +209,7 @@ export function ActivityManagementPanel({ activityId, onPlan, onOpenGroup, onMem
         {onMembers && <ManagementRow icon="people-outline" title="Quản lý thành viên" detail="" onPress={() => onMembers(toActivity(row))} />}
         {editable && row.organizerType !== 'business' && <ManagementRow icon="create-outline" title="Chỉnh sửa hoạt động" detail="" disabled={busy} onPress={() => setEditing(true)} />}
       </View>
-      {row.organizerType !== 'business' && !row.isBusinessManager && <View style={styles.card}><ManagementRow icon="trash-outline" title={row.memberCount > 1 ? 'Hủy hoạt động' : 'Xóa hoạt động'} detail="" destructive disabled={busy} onPress={() => setConfirmation('delete')} /></View>}
+      {row.organizerType !== 'business' && !row.isBusinessManager && row.status === 'published' && <View style={styles.card}><ManagementRow icon="trash-outline" title={row.memberCount > 1 ? 'Hủy hoạt động' : 'Xóa hoạt động'} detail="" destructive disabled={busy} onPress={() => setConfirmation('delete')} /></View>}
     </>}
     {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
     <Modal visible={Boolean(confirmation)} transparent animationType="fade" onRequestClose={() => { if (!busy) setConfirmation(null); }}><View style={styles.overlay}><View style={styles.dialog}><Ionicons name={confirmation === 'delete' ? 'trash-outline' : 'calendar-outline'} size={30} color={confirmation === 'delete' ? colors.danger : colors.primary} /><Text style={styles.title}>{dialog?.[0]}</Text><Text style={styles.body}>{dialog?.[1]}</Text>{error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}<GradientButton disabled={busy} label={busy ? 'Đang xử lý...' : 'Xác nhận'} onPress={confirm} /><Pressable accessibilityRole="button" disabled={busy} onPress={() => { setConfirmation(null); setError(''); }} style={styles.cancel}><Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Để sau</Text></Pressable></View></View></Modal>

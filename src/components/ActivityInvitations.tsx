@@ -9,7 +9,11 @@ import { Text } from './LocalizedText';
 import { PreferencesSummary } from './ActivityChoices';
 
 export function ActivityInvitations({ onAccepted }: { onAccepted?: (activityId: string) => Promise<void> }) {
-  const remote = useRemote(listActivityInvitations, []);
+  const remote = useRemote(listActivityInvitations, [], true, {
+    cacheKey: 'activity-invitations',
+    staleTimeMs: 20000,
+    tags: ['invitations', 'notifications'],
+  });
   const [busy, setBusy] = useState(false), [error, setError] = useFeedbackState('');
   const lock = useRef(false), reload = remote.reload;
   useLiveRefresh(reload);

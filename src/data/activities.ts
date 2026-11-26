@@ -22,6 +22,7 @@ export type Activity = {
   time: string;
   members: string;
   distance: string;
+  distanceKm?: number | null;
   category: string;
   tags: string[];
   description: string;

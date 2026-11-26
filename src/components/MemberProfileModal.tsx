@@ -13,7 +13,11 @@ import { colors } from '../theme';
 
 export function MemberProfileModal({ userId, onClose }: { userId: string; onClose: () => void }) {
   const loader = useCallback(() => getPublicProfile(userId), [userId]);
-  const remote = useRemote<PublicProfile | null>(loader, null);
+  const remote = useRemote<PublicProfile | null>(loader, null, true, {
+    cacheKey: `public-profile:${userId}`,
+    staleTimeMs: 60000,
+    tags: [`public-profile:${userId}`],
+  });
   const profile = remote.data;
 
   return (
@@ -34,8 +38,8 @@ export function MemberProfileModal({ userId, onClose }: { userId: string; onClos
             </Pressable>
           </View>
           <ScrollView contentContainerStyle={styles.body}>
-            <RemoteState {...remote} onRetry={remote.reload} />
-            {profile && !remote.loading && !remote.error && (
+            <RemoteState loading={remote.loading && !profile} error={profile ? '' : remote.error} onRetry={remote.reload} />
+            {profile && (
               <>
                 {profile.coverUrl ? (
                   <Image source={{ uri: imageUrl(profile.coverUrl) }} style={styles.cover} />

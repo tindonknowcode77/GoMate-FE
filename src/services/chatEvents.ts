@@ -1,10 +1,11 @@
 import { io } from 'socket.io-client';
 import { apiBaseUrl, expireSession, getSession, subscribeSession } from './api';
+import { markCacheStale } from './remoteCache';
 import type { Conversation } from './chatService';
 
 // One WebSocket per signed-in app, shared by chat, inbox and unread badges.
 const socket = io(apiBaseUrl.replace(/\/api\/?$/, ''), {
-  autoConnect: false, transports: ['websocket'],
+  autoConnect: false, transports: ['websocket', 'polling'],
   auth: callback => callback({ token: getSession()?.accessToken }),
   reconnectionDelay: 1000, reconnectionDelayMax: 15000,
 });
@@ -16,9 +17,21 @@ subscribeSession(() => {
   activeToken = token; socket.disconnect(); if (consumers && token) socket.connect();
 });
 socket.on('session.revoked', expireSession);
+// Only mark inbox/notification caches stale on user.updated so reading a message
+// does not wipe unrelated cached screens like Members, Plan, or Match.
+socket.on('user.updated', () => {
+  if (typeof markCacheStale === 'function') {
+    markCacheStale(['conversations', 'unread-messages', 'unread-notifications', 'notifications']);
+  }
+});
 function retain() {
   consumers++;
-  if (getSession() && !socket.connected) socket.connect();
+  const token = getSession()?.accessToken;
+  if (token && token !== activeToken) {
+    activeToken = token;
+    if (socket.connected) socket.disconnect();
+  }
+  if (token && !socket.connected) socket.connect();
   return () => { if (--consumers === 0) socket.disconnect(); };
 }
 

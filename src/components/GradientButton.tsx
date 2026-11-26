@@ -1,7 +1,7 @@
-import { Text } from './LocalizedText';
-import { Pressable, StyleSheet, View, ViewStyle } from 'react-native';
 import { ReactNode } from 'react';
-
+import { Pressable, StyleSheet, View, ViewStyle } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { Text } from './LocalizedText';
 import { colors, control, radii, typography } from '../theme';
 
 type GradientButtonProps = {
@@ -23,7 +23,7 @@ export function GradientButton({ disabled = false, label, onPress, style, traili
     >
       <View style={styles.gradient}>
         <Text style={styles.label}>{label}</Text>
-        {trailing === undefined ? <Text style={styles.arrow}>→</Text> : trailing}
+        {trailing === undefined ? <Ionicons name="arrow-forward" size={18} color={colors.white} /> : trailing}
       </View>
     </Pressable>
   );
@@ -42,18 +42,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     borderRadius: radii.button,
     flexDirection: 'row',
+    gap: 8,
     height: control.buttonHeight,
     justifyContent: 'center',
   },
   label: {
     color: colors.white,
     ...typography.heading,
-  },
-  arrow: {
-    color: colors.white,
-    fontSize: 23,
-    fontWeight: '300',
-    marginLeft: 12,
-    marginTop: -2,
   },
 });

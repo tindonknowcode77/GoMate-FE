@@ -14,7 +14,11 @@ async function loadFavoriteActivities() {
   return rows.map(row => toActivity(row, requests.find(request => request.activityId === row.id)?.status));
 }
 export function FavoriteActivitiesScreen({ onBack, onOpen, onChanged }: { onChanged: () => void; onBack: () => void; onOpen: (activity: Activity) => void }) {
-  const remote = useRemote(loadFavoriteActivities, []);
+  const remote = useRemote(loadFavoriteActivities, [], true, {
+    cacheKey: 'favorites',
+    staleTimeMs: 20000,
+    tags: ['favorites', 'activities', 'my-requests'],
+  });
   const lock = useRef(false);
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
   const remove = async (id: string) => {
@@ -25,7 +29,7 @@ export function FavoriteActivitiesScreen({ onBack, onOpen, onChanged }: { onChan
     finally { lock.current = false; setBusy(false); }
   };
   return <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}><ScreenHeader title="Hoạt động yêu thích" onBack={onBack} />
-    {remote.loading || remote.error ? <RemoteState {...remote} onRetry={remote.reload} /> : <ScrollView contentContainerStyle={{ padding: 18, gap: 14, width: '100%', maxWidth: layout.maxWidth, alignSelf: 'center' }}>
+    {(remote.loading && !remote.data.length) || (remote.error && !remote.data.length) ? <RemoteState {...remote} onRetry={remote.reload} /> : <ScrollView contentContainerStyle={{ padding: 18, gap: 14, width: '100%', maxWidth: layout.maxWidth, alignSelf: 'center' }}>
       {error ? <Text style={{ color: colors.danger }}>{error}</Text> : null}
       {!remote.data.length && <Text>Bạn chưa lưu hoạt động nào. Nhấn trái tim trên thẻ Match để lưu.</Text>}
       {remote.data.map(activity => { return <View key={activity.id} style={{ gap: 10 }}><Pressable accessibilityRole="button" onPress={() => onOpen(activity)} style={{ backgroundColor: colors.surface, borderRadius: 18, overflow: 'hidden' }}>

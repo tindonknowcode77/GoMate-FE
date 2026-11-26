@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Text } from '../components/LocalizedText';
 import { RemoteState } from '../components/RemoteState';
@@ -26,7 +26,11 @@ export function MessagesScreen({ onOpenChat, onFriends }: { onOpenChat: (convers
   const [search, setSearch] = useState('');
   useEffect(() => { const timer = setTimeout(() => setSearch(query.trim()), 300); return () => clearTimeout(timer); }, [query]);
   const loadPage = useCallback((page: number) => listConversationPage(page, { q: search, type: filter === 'group' || filter === 'direct' ? filter : undefined, unread: filter === 'unread' }), [search, filter]);
-  const remote = usePagedRemote(loadPage);
+  const remote = usePagedRemote(loadPage, true, {
+    cacheKey: `messages:${filter}:${search}`,
+    staleTimeMs: 15000,
+    tags: ['conversations'],
+  });
   const reload = remote.reload;
   useLiveRefresh(reload);
   const rows = remote.data.items;
@@ -36,6 +40,7 @@ export function MessagesScreen({ onOpenChat, onFriends }: { onOpenChat: (convers
     <View style={styles.filters}>{([['all', 'Tất cả'], ['unread', 'Chưa đọc'], ['group', 'Nhóm'], ['direct', 'Cá nhân']] as const).map(([key, label]) => <Pressable key={key} accessibilityRole="button" accessibilityState={{ selected: filter === key }} onPress={() => setFilter(key)} style={[styles.filter, filter === key && styles.selectedFilter]}><Text style={[styles.filterText, filter === key && { color: colors.white }]}>{label}</Text></Pressable>)}</View>
     {remote.error ? <RemoteState {...remote} loading={false} onRetry={remote.reload} /> : null}
     <ScrollView contentContainerStyle={styles.list} refreshControl={<RefreshControl refreshing={remote.loading} onRefresh={remote.reload} />} keyboardShouldPersistTaps="handled">
+      {remote.loading && !rows.length && <View style={styles.empty}><ActivityIndicator color={colors.primary} size="large" /></View>}
       {!remote.loading && !remote.error && !rows.length && <View style={styles.empty}><View style={styles.emptyIcon}><Ionicons name="chatbubbles-outline" size={35} color={colors.primary} /></View><Text style={styles.emptyTitle}>{query ? 'Chưa tìm thấy cuộc trò chuyện' : filter === 'unread' ? 'Bạn đã đọc hết tin nhắn' : 'Bắt đầu một cuộc trò chuyện'}</Text><Text style={styles.emptyText}>{query ? 'Thử tìm bằng tên bạn bè, nhóm hoặc nội dung tin nhắn.' : 'Mở nhóm hoạt động để cùng lên kế hoạch, hoặc nhắn cho bạn bè.'}</Text><Pressable accessibilityRole="button" onPress={onFriends} style={styles.friendButton}><Text style={{ color: colors.primary, fontWeight: '700' }}>Tìm bạn bè</Text></Pressable></View>}
       {rows.map(conversation => {
         const preview = conversation.lastMessage;

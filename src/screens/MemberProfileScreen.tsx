@@ -12,7 +12,11 @@ import { getPublicProfile, imageUrl } from '../services/profileService';
 import { useRemote } from '../services/useRemote';
 import { colors, layout } from '../theme';
 export function MemberProfileScreen({ person, onBack }: { person: PersonProfile; onBack: () => void; mode?: 'member' | 'own-preview'; onEdit?: () => void }) {
-  const load = useCallback(() => getPublicProfile(person.id), [person.id]), remote = useRemote(load, null), profile = remote.data;
+  const load = useCallback(() => getPublicProfile(person.id), [person.id]), remote = useRemote(load, null, true, {
+    cacheKey: `public-profile:${person.id}`,
+    staleTimeMs: 60000,
+    tags: [`public-profile:${person.id}`],
+  }), profile = remote.data;
   return <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}><ScreenHeader title="Hồ sơ thành viên" onBack={onBack} /><ScrollView contentContainerStyle={{ maxWidth: Math.min(layout.maxWidth, 800), width: '100%', alignSelf: 'center', padding: 18, gap: 16 }}><RemoteState {...remote} onRetry={remote.reload} />{profile && !remote.error && <>
     {profile.coverUrl && <Image source={{ uri: imageUrl(profile.coverUrl) }} style={{ width: '100%', height: 180, borderRadius: 22 }} />}
     <View style={{ backgroundColor: colors.surface, padding: 20, borderRadius: 22, gap: 13 }}>

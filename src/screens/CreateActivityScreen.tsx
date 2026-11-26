@@ -179,7 +179,6 @@ export function CreateActivityScreen({ onCreated, initialActivity, onCancel, onR
             endTime={draft.endTime}
             onBusyChange={setFileBusy}
           />
-          <Text style={styles.optional}>Không bắt buộc lúc tạo — bạn cũng có thể thêm hoặc chỉnh sửa kế hoạch sau trong nhóm chat.</Text>
         </View>
         <View style={styles.card}><FormField label="Yêu cầu tham gia" multiline value={draft.requirements} onChangeText={value => setField('requirements', value)} placeholder="Mỗi yêu cầu một dòng" /></View>
       </View>}

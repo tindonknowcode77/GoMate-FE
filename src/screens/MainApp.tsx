@@ -13,13 +13,14 @@ import { PersonProfile } from '../data/people';
 import { ProfileProvider, useProfile } from '../services/ProfileContext';
 import { getMatchPreferences, matchFeedback, saveMatchFilters, setFavorite } from '../services/matchService';
 import { FavoriteActivitiesScreen } from './FavoriteActivitiesScreen';
-import { searchKey } from '../data/profileOptions';
-import { activityQuery } from '../services/filterService';
+import { activityQuery, normalizeSearchRadius, radiusLabel, requiresSearchPoint, withinSearchRadius } from '../services/filterService';
 import { Text } from '../components/LocalizedText';
 import { apiBaseUrl, getSession, logout } from '../services/api';
 import { getActivity, cancelRequest, joinActivity, listActivityPage, listMyRequests, toActivity } from '../services/activityApi';
 import { usePagedRemote } from '../services/usePagedRemote';
+import { useMatchLocation } from '../services/useMatchLocation';
 import { useRemote } from '../services/useRemote';
+import { setCached } from '../services/remoteCache';
 import { useWebNavigation } from '../services/webNavigation';
 import { RemoteState } from '../components/RemoteState';
 import { ScreenHeader } from '../components/ScreenHeader';
@@ -108,13 +109,6 @@ const restoreNavigation = (value: Navigation): Navigation => value.route && 'act
 
 const dayTokens: Record<string, string> = { 'Thứ Hai': 'T2', 'Thứ Ba': 'T3', 'Thứ Tư': 'T4', 'Thứ Năm': 'T5', 'Thứ Sáu': 'T6', 'Thứ Bảy': 'T7', 'Chủ Nhật': 'CN' };
 
-function activityMatchesLocation(activity: Activity, province: string, district: string) {
-  if (province === 'Tất cả') return true;
-  const provinceAliases: Record<string, string[]> = { 'TP. Hồ Chí Minh': ['TP.HCM', 'Thủ Đức'], 'Hà Nội': ['Hà Nội'], 'Đà Nẵng': ['Đà Nẵng'], 'Lâm Đồng': ['Lâm Đồng', 'Đà Lạt', 'Bảo Lộc'] };
-  const provinceMatch = [province, ...(provinceAliases[province] ?? [])].some((token) => activity.location.includes(token));
-  return provinceMatch && (!district || district === 'Tất cả' || searchKey(activity.location).includes(searchKey(district.replace(/^(Quận|Huyện|Thị xã|Thành phố)\s+/i, ''))));
-}
-
 function activityMatchesTime(activity: Activity, availableDays: string[], timePeriods: string[]) {
   const localDate = activity.startsAt ? new Date(new Date(activity.startsAt).getTime() + 7 * 3600000) : undefined;
   const day = localDate ? ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'][localDate.getUTCDay()] : Object.entries(dayTokens).find(([label]) => activity.time.includes(label))?.[1];
@@ -134,9 +128,13 @@ function MainAppContent({ onLogout }: { onLogout: () => void }) {
 
   const [navigation, navigate] = useWebNavigation(initialNavigation, encodeNavigation, decodeNavigation, getSession()?.user.id || 'guest', restoreNavigation);
   const { activeTab, route } = navigation;
+  const [visitedMainTabs, setVisitedMainTabs] = useState<MainTab[]>(() => [navigation.activeTab]);
+  const recordTab = useCallback((tab: MainTab) => {
+    setVisitedMainTabs(prev => (prev.includes(tab) ? prev : [...prev, tab]));
+  }, []);
   const navRef = useRef(navigation);
   useEffect(() => { navRef.current = navigation; }, [navigation]);
-  const setActiveTab = (tab: MainTab) => { setActionError(''); const next = { activeTab: tab, route: null }; navRef.current = next; navigate(next); };
+  const setActiveTab = (tab: MainTab) => { setActionError(''); recordTab(tab); const next = { activeTab: tab, route: null }; navRef.current = next; navigate(next); };
   const setRoute = useCallback((next: FullScreenRoute, replace = false) => { setActionError(''); const state = { ...navRef.current, route: next }; navRef.current = state; navigate(state, replace); }, [navigate, setActionError]);
   useEffect(() => {
     setProfileRedirectHandler(() => { setActionError(''); setRoute({ name: 'editProfile' }); });
@@ -171,15 +169,29 @@ function MainAppContent({ onLogout }: { onLogout: () => void }) {
     let alive = true;
     void Promise.all([getActivity(route.id), listMyRequests()]).then(([row, requests]) => {
       if (!alive) return;
+      setCached(`activity:${row.id}`, row, { staleTimeMs: 20000, tags: ['activities', `activity:${row.id}`] });
       const activity = toActivity(row, requests.find(request => request.activityId === row.id)?.status);
       const target = ['progress', 'summary', 'rating'].includes(route.target) ? row.status === 'published' ? 'group' : row.status === 'completed' ? route.target === 'rating' ? 'rating' : 'summary' : 'progress' : route.target;
       setRoute(target === 'activityDetail' ? { name: 'activityDetail', activity, source: 'home' } : target === 'group' ? { name: 'group', activity, source: 'myActivities' } : { name: target, activity }, true);
     }).catch(reason => { if (alive) { setActionError(reason instanceof Error ? reason.message : 'Không tải được hoạt động'); setRoute(null, true); } });
     return () => { alive = false; };
   }, [route, setRoute, setActionError]);
-  const preferences = useRemote(getMatchPreferences, { filters: null, favoriteIds: [] });
+  const preferences = useRemote(getMatchPreferences, { filters: null, favoriteIds: [] }, true, {
+    cacheKey: 'match-preferences',
+    staleTimeMs: 30000,
+    tags: ['match-preferences', 'favorites'],
+  });
   const [sessionFilters, setFilters] = useState<ActivityFilters | null>(null);
-  const filters = useMemo(() => sessionFilters ?? { ...defaultActivityFilters, province: 'Tất cả', ...preferences.data.filters, minBudget: 0, maxBudget: 2000000, coordinates: null }, [sessionFilters, preferences.data.filters]);
+  const matchLocation = useMatchLocation(route?.name === 'discover' && !userProfile.loading);
+  const filters = useMemo(() => normalizeSearchRadius({ ...(sessionFilters ?? { ...defaultActivityFilters, province: 'Tất cả', ...preferences.data.filters, minBudget: 0, maxBudget: 2000000 }), coordinates: matchLocation.coordinates ?? sessionFilters?.coordinates }), [sessionFilters, preferences.data.filters, matchLocation.coordinates]);
+  const preferencesRetried = useRef(false);
+  const preferencesReload = preferences.reload;
+  useEffect(() => {
+    if (route?.name !== 'discover') { preferencesRetried.current = false; return; }
+    if (!preferences.error || preferences.loading || preferencesRetried.current) return;
+    const timer = setTimeout(() => { preferencesRetried.current = true; void preferencesReload(); }, 0);
+    return () => clearTimeout(timer);
+  }, [route?.name, preferences.error, preferences.loading, preferencesReload]);
   const [filterSaving, setFilterSaving] = useState(false);
   const applyFilters = async (next: ActivityFilters) => {
     if (mutation.current) return;
@@ -200,12 +212,17 @@ function MainAppContent({ onLogout }: { onLogout: () => void }) {
     } catch (reason) { setActionError(reason instanceof Error ? reason.message : 'Không lưu được yêu thích'); }
     finally { favoriteMutation.current = false; }
   };
+  const discoveryQuery = useMemo(() => activityQuery(filters), [filters]);
   const loadDiscovery = useCallback(async (page: number) => {
-    if ((filters.radiusEnabled || filters.sort === 'nearest') && !filters.coordinates) return { items: [], hasMore: false, total: 0 };
-    const result = await listActivityPage(activityQuery(filters), page);
-    return { ...result, items: result.items.map(row => toActivity(row, row.requestStatus)) };
-  }, [filters]);
-  const discovery = usePagedRemote(loadDiscovery, route?.name === 'discover' && !preferences.loading);
+    if (requiresSearchPoint(filters) && !filters.coordinates) return { items: [], hasMore: false, total: 0 };
+    const result = await listActivityPage(discoveryQuery, page);
+    return { ...result, items: result.items.map(row => toActivity(row, row.requestStatus, filters.coordinates)) };
+  }, [filters, discoveryQuery]);
+  const discovery = usePagedRemote(loadDiscovery, route?.name === 'discover' && !preferences.loading && !preferences.error && !matchLocation.loading, {
+    cacheKey: `discovery:${discoveryQuery}`,
+    staleTimeMs: 30000,
+    tags: ['discovery', 'activities'],
+  });
   const activities = discovery.data.items;
   const mutation = useRef(false);
   const lastJoinApproved = useRef(false);
@@ -240,7 +257,7 @@ function MainAppContent({ onLogout }: { onLogout: () => void }) {
       catch (reason) { setActionError(reason instanceof Error ? reason.message : 'Không hủy được yêu cầu. Vui lòng thử lại.'); }
       finally { mutation.current = false; }
     } else if (await submitJoin(activity)) { setRoute(lastJoinApproved.current ? { name: 'group', activity: { ...activity, requestStatus: 'approved' }, source: 'myActivities' } : route?.name === 'activityDetail' ? { ...route, activity: { ...route.activity, requestStatus: 'pending' } } : { name: 'pending' }); }
-    void discovery.reload();
+    void discovery.reload(true, true);
   };
   const handleLogout = async () => { try { await logout(); } catch { /* Local session is cleared even when offline. */ } onLogout(); };
   const filteredActivities = useMemo(() => {
@@ -248,9 +265,7 @@ function MainAppContent({ onLogout }: { onLogout: () => void }) {
     return activities.filter(item => !['pending', 'approved'].includes(item.requestStatus ?? '')).filter((activity) => {
       const estimatedCost = Number(activity.estimatedCost.replace(/\D/g, ''));
       const capacity = Number(activity.members.split('/')[1] ?? 0);
-      return (!filters.radiusEnabled || (Number.isFinite(Number.parseFloat(activity.distance)) && Number.parseFloat(activity.distance) <= filters.distance))
-        && activityMatchesLocation(activity, filters.province, filters.district)
-        && (!filters.ward || searchKey(activity.location).includes(searchKey(filters.ward)))
+      return withinSearchRadius(activity, filters)
         && (filters.categories.length === 0 || filters.categories.includes(activity.category))
         && activityMatchesTime(activity, filters.availableDays, filters.timePeriods)
         && estimatedCost >= filters.minBudget
@@ -260,14 +275,13 @@ function MainAppContent({ onLogout }: { onLogout: () => void }) {
     });
   }, [filters, activities]);
 
-  if (userProfile.loading || userProfile.error) return <SafeAreaView style={styles.safeArea}><RemoteState loading={userProfile.loading} error={userProfile.error} onRetry={userProfile.reload} /></SafeAreaView>;
+  if (!userProfile.profile && (userProfile.loading || userProfile.error)) return <SafeAreaView style={styles.safeArea}><RemoteState loading={userProfile.loading} error={userProfile.error} onRetry={userProfile.reload} /></SafeAreaView>;
 
   if (route?.name === 'activityLink' || route?.name === 'chatLink') return <SafeAreaView style={styles.safeArea}><RemoteState loading error="" onRetry={() => {}} /></SafeAreaView>;
-  if (route?.name === 'discover' && ((!discovery.data.items.length && (discovery.loading || discovery.error)) || preferences.loading || preferences.error)) return <SafeAreaView style={styles.safeArea}><ScreenHeader title="Khám phá" onBack={() => setRoute(null)} /><RemoteState loading={discovery.loading || preferences.loading} error={discovery.error || preferences.error} onRetry={() => { void preferences.reload(); void discovery.reload(); }} /></SafeAreaView>;
   if (route?.name === 'searchActivities') return <ActivitySearchScreen onBack={() => setRoute({ name: 'discover' })} onOpen={activity => setRoute({ name: 'activityDetail', activity, source: 'discover' })} />;
-  if (route?.name === 'discover') return <MatchScreen onLoadMore={discovery.data.hasMore ? discovery.loadMore : undefined} loadingMore={discovery.loading} onSearch={() => setRoute({ name: 'searchActivities' })} key={activityQuery(filters)} state={(filters.radiusEnabled || filters.sort === 'nearest') && !filters.coordinates ? 'location-required' : 'ready'} error={actionError || discovery.error} onMatched={submitJoin} favoriteIds={preferences.data.favoriteIds} onFavorite={toggleFavorite} locationLabel={filters.coordinates ? filters.radiusEnabled ? `Trong ${filters.distance} km` : 'Đã chọn vị trí' : undefined} onFeedback={(activity, outcome) => { void matchFeedback(activity.id, outcome).catch(() => {}); }} activityItems={filteredActivities} onBack={() => { setRoute(null); void discovery.reload(); }} onFilterPress={() => setRoute({ name: 'filter' })} />;
+  if (route?.name === 'discover') return <MatchScreen locating={matchLocation.loading} locationError={matchLocation.error} onRetry={() => { if (preferences.error) void preferences.reload(); else void discovery.reload(); }} onLoadMore={discovery.data.hasMore ? discovery.loadMore : undefined} loadingMore={discovery.loadingMore} onSearch={() => setRoute({ name: 'searchActivities' })} key={activityQuery(filters)} state={matchLocation.loading ? 'loading' : requiresSearchPoint(filters) && !filters.coordinates ? 'location-required' : !activities.length && (preferences.loading || discovery.loading) ? 'loading' : preferences.error || (!activities.length && discovery.error) ? 'network-error' : 'ready'} error={actionError || preferences.error || discovery.error} onMatched={submitJoin} favoriteIds={preferences.data.favoriteIds} onFavorite={toggleFavorite} locationLabel={matchLocation.loading ? 'Đang lấy GPS…' : filters.coordinates ? filters.radiusEnabled ? `Trong ${radiusLabel(filters.distance)}` : `${radiusLabel(filters.distance)} · ${filters.province}` : undefined} onFeedback={(activity, outcome) => { void matchFeedback(activity.id, outcome).catch(() => {}); }} activityItems={filteredActivities} onBack={() => setRoute(null)} onFilterPress={() => setRoute({ name: 'filter' })} />;
   if (route?.name === 'filter') return <FilterScreen key={preferences.loading ? 'loading' : 'ready'} initialFilters={filters} saving={filterSaving || preferences.loading} saveError={actionError || preferences.error} onApply={next => void applyFilters(next)} onClose={() => setRoute({ name: 'discover' })} />;
-  if (route?.name === 'favorites') return <FavoriteActivitiesScreen onChanged={() => void preferences.reload()} onBack={() => setRoute(null)} onOpen={activity => setRoute({ name: 'activityDetail', activity, source: 'discover' })} />;
+  if (route?.name === 'favorites') return <FavoriteActivitiesScreen onChanged={() => void preferences.reload(true, true)} onBack={() => setRoute(null)} onOpen={activity => setRoute({ name: 'activityDetail', activity, source: 'discover' })} />;
   if (route?.name === 'pending') return <PendingActivitiesScreen onBack={() => setRoute(null)} onOpen={(activity) => setRoute({ name: 'activityDetail', activity, source: 'pending' })} />;
   if (route?.name === 'manage') return <ManageActivitiesScreen onProgress={(activity) => setRoute({ name: activity.backendStatus === 'completed' ? 'summary' : 'progress', activity })} onBack={() => setRoute(null)} onOpenGroup={(activity) => setRoute({ name: 'group', activity, source: 'myActivities' })} onOpenMembers={(activity) => setRoute({ name: 'hostMembers', activity, source: { name: 'manage' } })} />;
   if (route?.name === 'activityDetail') {
@@ -290,7 +304,7 @@ function MainAppContent({ onLogout }: { onLogout: () => void }) {
   if (route?.name === 'notifications') return <NotificationsScreen onBack={() => setRoute(null)} onOpen={async notice => {
     if (notice.type === 'payment') { setRoute({ name: 'wallet' }); return; }
     if (notice.type === 'attendance') { setRoute({ name: 'attendance', id: notice.activityId }); return; }
-    if (notice.activityId) { const [row, requests] = await Promise.all([getActivity(notice.activityId), listMyRequests()]); const member = requests.some(request => request.activityId === row.id && request.status === 'approved'); setRoute(row.hostId === getSession()?.user.id || Boolean(row.isBusinessManager) || member ? { name: 'group', activity: toActivity(row), source: 'myActivities', initialTab: notice.type === 'join-request' || /yêu cầu tham gia/i.test(notice.title) ? 'members' : Boolean(row.isBusinessManager) && /phân công|nhân sự/i.test(notice.title) ? 'manage' : 'chat' } : { name: 'activityDetail', activity: toActivity(row, requests.find(request => request.activityId === row.id)?.status), source: 'home' }); return; }
+    if (notice.activityId) { const [row, requests] = await Promise.all([getActivity(notice.activityId), listMyRequests()]); setCached(`activity:${row.id}`, row, { staleTimeMs: 20000, tags: ['activities', `activity:${row.id}`] }); const member = requests.some(request => request.activityId === row.id && request.status === 'approved'); setRoute(row.hostId === getSession()?.user.id || Boolean(row.isBusinessManager) || member ? { name: 'group', activity: toActivity(row), source: 'myActivities', initialTab: notice.type === 'join-request' || /yêu cầu tham gia/i.test(notice.title) ? 'members' : Boolean(row.isBusinessManager) && /phân công|nhân sự/i.test(notice.title) ? 'manage' : 'chat' } : { name: 'activityDetail', activity: toActivity(row, requests.find(request => request.activityId === row.id)?.status), source: 'home' }); return; }
     if (notice.type.startsWith('business-')) { if (userProfile.profile?.isStaff) { setRoute({ name: 'manage' }); return; } if (Platform.OS === 'web') window.location.assign('/portal'); else await Linking.openURL(apiBaseUrl.replace(/\/api\/?$/, '') + '/portal'); return; }
     if (notice.type === 'activity-invitation') { setRoute({ name: 'friends' }); return; }
     if (notice.conversationId) { setRoute({ name: 'chat', conversation: await getConversation(notice.conversationId) }); return; }
@@ -303,7 +317,7 @@ function MainAppContent({ onLogout }: { onLogout: () => void }) {
     return <EditProfileScreen onBack={() => setRoute(returnRoute)} onSaved={() => setRoute(returnRoute)} />;
   }
   if (route?.name === 'settings') return <SettingsScreen page={route.section || 'root'} onNavigate={section => setRoute({ name: 'settings', section })} onBack={() => setRoute(null)} onLogout={handleLogout} />;
-  if (route?.name === 'friends') return <FriendsScreen onBack={() => setRoute(null)} onInvitationAccepted={async activityId => { const row = await getActivity(activityId); setRoute({ name: 'group', activity: toActivity(row, 'approved'), source: 'myActivities', initialTab: 'chat' }); }} onChat={async userId => { const conversation = await createConversation({ type: 'direct', userId }); setRoute({ name: 'chat', conversation, returnTo: 'friends' }); }} />;
+  if (route?.name === 'friends') return <FriendsScreen onBack={() => setRoute(null)} onInvitationAccepted={async activityId => { const row = await getActivity(activityId); setCached(`activity:${row.id}`, row, { staleTimeMs: 20000, tags: ['activities', `activity:${row.id}`] }); setRoute({ name: 'group', activity: toActivity(row, 'approved'), source: 'myActivities', initialTab: 'chat' }); }} onChat={async userId => { const conversation = await createConversation({ type: 'direct', userId }); setRoute({ name: 'chat', conversation, returnTo: 'friends' }); }} />;
   if (route?.name === 'chat') {
     const current = route;
     const back = () => setRoute(current.returnTo === 'friends' ? { name: 'friends' } : current.returnTo === 'discover' ? { name: 'discover' } : null);
@@ -319,11 +333,27 @@ function MainAppContent({ onLogout }: { onLogout: () => void }) {
     <SafeAreaView edges={['top', 'bottom', 'left', 'right']} style={styles.safeArea}>
       {userProfile.profile && !userProfile.profile.emailVerified && <Pressable accessibilityRole="button" onPress={() => setRoute({ name: 'verification' })} style={{ padding: 12, backgroundColor: colors.primarySoft }}><Text style={{ color: colors.primary }}>Xác minh email để tham gia hoạt động</Text></Pressable>}
       <View style={styles.content}>
-        {activeTab === 'home' && <HomeScreen onProfilePress={() => setActiveTab('profile')} onMatchPress={() => { setActiveTab('match'); setRoute({ name: 'discover' }); }} onMyActivitiesPress={() => setRoute({ name: 'myActivities' })} onNotificationsPress={() => setRoute({ name: 'notifications' })} onOpenActivity={(activity) => setRoute({ name: 'activityDetail', activity, source: 'home' })} onOpenGroup={(activity) => setRoute({ name: 'group', activity, source: 'home' })} onPendingPress={() => setRoute({ name: 'pending' })} />}
-        {activeTab === 'match' && <MatchHubScreen onProfile={() => setActiveTab('profile')} onFavorites={() => setRoute({ name: 'favorites' })} onDiscover={() => setRoute({ name: 'discover' })} onManage={() => setRoute({ name: 'manage' })} onNotifications={() => setRoute({ name: 'notifications' })} onPending={() => setRoute({ name: 'pending' })} onPreviewProfile={() => setRoute({ name: 'ownProfilePreview' })} />}
-        {activeTab === 'create' && <CreateActivityScreen onRequireProfile={() => setRoute({ name: 'editProfile' })} onCreated={() => { void discovery.reload(); setRoute({ name: 'manage' }); }} />}
-        {activeTab === 'messages' && <MessagesScreen onFriends={() => setRoute({ name: 'friends' })} onOpenChat={(conversation) => setRoute({ name: 'chat', conversation })} />}
-        {activeTab === 'profile' && <UserProfileScreen onAttendance={() => setRoute({ name: 'attendance' })} onWallet={() => setRoute({ name: 'wallet' })} onFriends={() => setRoute({ name: 'friends' })} onPreview={() => setRoute({ name: 'ownProfilePreview' })} onVerification={() => setRoute({ name: 'verification' })} onReviews={() => setRoute({ name: 'myReviews' })} onEdit={() => setRoute({ name: 'editProfile' })} onMyActivities={() => setRoute({ name: 'myActivities' })} onNotifications={() => setRoute({ name: 'notifications' })} onSettings={() => setRoute({ name: 'settings' })} />}
+        {(visitedMainTabs.includes('home') || activeTab === 'home') && (
+          <View style={activeTab === 'home' ? styles.tabVisible : styles.tabHidden}>
+            <HomeScreen onProfilePress={() => setActiveTab('profile')} onMatchPress={() => { setActiveTab('match'); setRoute({ name: 'discover' }); }} onMyActivitiesPress={() => setRoute({ name: 'myActivities' })} onNotificationsPress={() => setRoute({ name: 'notifications' })} onOpenActivity={(activity) => setRoute({ name: 'activityDetail', activity, source: 'home' })} onOpenGroup={(activity) => setRoute({ name: 'group', activity, source: 'home' })} onPendingPress={() => setRoute({ name: 'pending' })} />
+          </View>
+        )}
+        {(visitedMainTabs.includes('match') || activeTab === 'match') && (
+          <View style={activeTab === 'match' ? styles.tabVisible : styles.tabHidden}>
+            <MatchHubScreen onProfile={() => setActiveTab('profile')} onFavorites={() => setRoute({ name: 'favorites' })} onDiscover={() => setRoute({ name: 'discover' })} onManage={() => setRoute({ name: 'manage' })} onNotifications={() => setRoute({ name: 'notifications' })} onPending={() => setRoute({ name: 'pending' })} onPreviewProfile={() => setRoute({ name: 'ownProfilePreview' })} />
+          </View>
+        )}
+        {activeTab === 'create' && <CreateActivityScreen onRequireProfile={() => setRoute({ name: 'editProfile' })} onCreated={() => { void discovery.reload(true, true); setRoute({ name: 'manage' }); }} />}
+        {(visitedMainTabs.includes('messages') || activeTab === 'messages') && (
+          <View style={activeTab === 'messages' ? styles.tabVisible : styles.tabHidden}>
+            <MessagesScreen onFriends={() => setRoute({ name: 'friends' })} onOpenChat={(conversation) => setRoute({ name: 'chat', conversation })} />
+          </View>
+        )}
+        {(visitedMainTabs.includes('profile') || activeTab === 'profile') && (
+          <View style={activeTab === 'profile' ? styles.tabVisible : styles.tabHidden}>
+            <UserProfileScreen onAttendance={() => setRoute({ name: 'attendance' })} onWallet={() => setRoute({ name: 'wallet' })} onFriends={() => setRoute({ name: 'friends' })} onPreview={() => setRoute({ name: 'ownProfilePreview' })} onVerification={() => setRoute({ name: 'verification' })} onReviews={() => setRoute({ name: 'myReviews' })} onEdit={() => setRoute({ name: 'editProfile' })} onMyActivities={() => setRoute({ name: 'myActivities' })} onNotifications={() => setRoute({ name: 'notifications' })} onSettings={() => setRoute({ name: 'settings' })} />
+          </View>
+        )}
       </View>
       <BottomNav activeTab={activeTab} onChange={(tab) => {
         if (tab === 'create' && !userProfile.profile?.isStaff && userProfile.profile && !isBasicProfileComplete(userProfile.profile)) {
@@ -331,7 +361,9 @@ function MainAppContent({ onLogout }: { onLogout: () => void }) {
           return;
         }
         setActionError('');
-        const next: Navigation = { activeTab: tab === 'create' && userProfile.profile?.isStaff ? 'match' : tab, route: tab === 'match' && !userProfile.profile?.isStaff ? { name: 'discover' } : tab === 'create' && userProfile.profile?.isStaff ? { name: 'manage' } : null };
+        const targetTab: MainTab = tab === 'create' && userProfile.profile?.isStaff ? 'match' : tab;
+        recordTab(targetTab);
+        const next: Navigation = { activeTab: targetTab, route: tab === 'match' && !userProfile.profile?.isStaff ? { name: 'discover' } : tab === 'create' && userProfile.profile?.isStaff ? { name: 'manage' } : null };
         navRef.current = next;
         navigate(next);
       }} />
@@ -340,4 +372,4 @@ function MainAppContent({ onLogout }: { onLogout: () => void }) {
   );
 }
 
-const styles = StyleSheet.create({ safeArea: { backgroundColor: colors.background, flex: 1 }, content: { flex: 1 } });
+const styles = StyleSheet.create({ safeArea: { backgroundColor: colors.background, flex: 1 }, content: { flex: 1 }, tabVisible: { flex: 1 }, tabHidden: { display: 'none' } });

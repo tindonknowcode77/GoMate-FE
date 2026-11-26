@@ -14,6 +14,47 @@ function load(name, requireModule, extras = {}) {
 }
 const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
 
+function apiWithFetch(fetch) {
+  return load('api.ts', name => {
+    if (name === 'react-native') return { Platform: { OS: 'android' } };
+    if (name === 'expo-constants') return { default: {} };
+    if (name === './apiUrl') return { resolveApiBaseUrl: () => 'http://api.test/api' };
+    return { setItemAsync: async () => {}, deleteItemAsync: async () => {} };
+  }, { __DEV__: true, process: { env: {} }, fetch });
+}
+
+test('a transient GET transport failure retries once without a manual retry or duplicate reads', async () => {
+  let calls = 0;
+  const api = apiWithFetch(async () => {
+    if (++calls === 1) throw new TypeError('Network request failed');
+    return { ok: true, status: 200, json: async () => ({ recovered: true }) };
+  });
+  const first = api.api('/activities');
+  assert.equal(first, api.api('/activities'));
+  assert.equal((await first).recovered, true); assert.equal(calls, 2);
+});
+
+test('HTTP failures and writes are never retried; persistent transport failures stop after two reads', async () => {
+  let calls = 0;
+  const transport = apiWithFetch(async () => { calls++; throw new TypeError('Offline'); });
+  await assert.rejects(transport.api('/write', { method: 'POST', body: '{}' })); assert.equal(calls, 1);
+  calls = 0; await assert.rejects(transport.api('/read')); assert.equal(calls, 2);
+  calls = 0;
+  const http = apiWithFetch(async () => { calls++; return { ok: false, status: 403, json: async () => ({ error: 'Forbidden' }) }; });
+  await assert.rejects(http.api('/private'), error => error.status === 403); assert.equal(calls, 1);
+});
+
+test('GET retry respects cancellation, session changes and the original timeout budget', async () => {
+  for (const reason of ['abort', 'session', 'timeout']) {
+    let calls = 0; const controller = new AbortController();
+    const api = apiWithFetch(async () => { calls++; throw new TypeError('Connection reset'); });
+    const request = api.api('/read', { signal: controller.signal, timeoutMs: reason === 'timeout' ? 15 : 1000 });
+    if (reason === 'abort') controller.abort();
+    if (reason === 'session') api.setSession({ accessToken: 'new', user: { id: 'another-user' } });
+    await assert.rejects(request, error => reason !== 'timeout' || /quá thời gian/.test(error.message)); assert.equal(calls, 1, reason);
+  }
+});
+
 test('simultaneous GETs share the network request; mutations and sessions separate subsequent reads', async () => {
   const jobs = [], calls = [];
   const api = load('api.ts', name => {
@@ -77,4 +118,62 @@ test('chat reconnect drains every after-cursor page, including more than 50 miss
   assert.equal(rows.length, 224); assert.equal(rows[0].id, '2'); assert.equal(rows.at(-1).id, '225');
   assert.equal(calls.length, 3);
   assert.equal((await catchUpChat('conversation', '1', () => false)).length, 0);
+});
+
+test('discovery pauses off screen, retains cards on return and hides data for previous filters', async () => {
+  const slots = []; let cursor = 0; let effects = [];
+  const hooks = {
+    useState(initial) { const index = cursor++; if (!(index in slots)) slots[index] = typeof initial === 'function' ? initial() : initial; return [slots[index], value => { slots[index] = typeof value === 'function' ? value(slots[index]) : value; }]; },
+    useRef(initial) { const index = cursor++; slots[index] ??= { current: initial }; return slots[index]; },
+    useCallback(callback, deps) { const index = cursor++; if (!slots[index] || deps.some((value, i) => value !== slots[index].deps[i])) slots[index] = { callback, deps }; return slots[index].callback; },
+    useEffect(effect, deps) {
+      const index = cursor++;
+      if (!slots[index] || deps.some((value, i) => value !== slots[index].deps[i])) {
+        effects.push(() => { slots[index]?.cleanup?.(); slots[index] = { deps, cleanup: effect() }; });
+      }
+    },
+  };
+  const remote = load('useRemote.ts', () => hooks);
+  const { usePagedRemote } = load('usePagedRemote.ts', name => name === 'react' ? hooks : remote);
+  let calls = 0;
+  const page = id => ({ items: [{ id }], total: 1, hasMore: false });
+  const first = async () => { calls++; return page('old'); };
+  const render = (loader, enabled) => {
+    cursor = 0; effects = [];
+    const value = usePagedRemote(loader, enabled);
+    effects.forEach(effect => effect());
+    return value;
+  };
+  const tick = () => new Promise(resolve => setTimeout(resolve, 10));
+  render(first, false); await tick(); assert.equal(calls, 0);
+  render(first, true); await tick(); assert.equal(calls, 1);
+  assert.equal(render(first, true).data.items[0].id, 'old');
+  render(first, false); await tick(); assert.equal(calls, 1);
+  assert.equal(render(first, false).data.items[0].id, 'old');
+  assert.equal(render(first, true).data.items[0].id, 'old');
+  await tick(); assert.equal(calls, 2);
+  const pending = deferred(); const second = () => pending.promise;
+  assert.equal(render(second, true).data.items.length, 0);
+  await tick(); pending.resolve(page('new')); await tick();
+  assert.equal(render(second, true).data.items[0].id, 'new');
+  // An obsolete response must not overwrite a new filter result after navigation.
+  const late = deferred(); const third = () => late.promise;
+  render(third, true); await tick();
+  render(second, true); await tick(); late.resolve(page('obsolete')); await tick();
+  assert.equal(render(second, true).data.items[0].id, 'new');
+  const oldMore = deferred();
+  let moreCalls = 0;
+  const wideRadius = async pageNumber => {
+    if (pageNumber === 1) return { ...page('wide-radius'), hasMore: true, total: 2 };
+    moreCalls++; return oldMore.promise;
+  };
+  render(wideRadius, true); await tick();
+  const wideRemote = render(wideRadius, true);
+  const more = wideRemote.loadMore(); void wideRemote.loadMore();
+  assert.equal(moreCalls, 1, 'double taps share a load-more guard');
+  render(second, true); await tick();
+  oldMore.resolve(page('outside-new-radius')); await more;
+  assert.equal(render(second, true).data.items.length, 1);
+  assert.equal(render(second, true).data.items[0].id, 'new', 'old page must not leak into a changed radius/region');
+  render(second, false);
 });

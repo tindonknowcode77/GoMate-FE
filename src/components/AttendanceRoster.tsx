@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, Modal, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Image, Modal, Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Text } from './LocalizedText';
 import { UserAvatar } from './UserAvatar';
-import { Attendance, AttendanceQrToken, createAttendanceQrToken, qrCheckInAttendance } from '../services/activityApi';
+import { QrScannerModal } from './QrScannerModal';
+import { Attendance, AttendanceQrToken, createAttendanceQrToken } from '../services/activityApi';
+import { qrImageUrl } from '../services/qrCode';
 import { colors } from '../theme';
 
 export const attendanceLabels: Record<Attendance['status'], string> = { unmarked: 'Chưa điểm danh', present: 'Có mặt', absent: 'Vắng', late: 'Đến muộn' };
@@ -13,6 +15,15 @@ const tones = {
   late: { fg: colors.warningText, bg: colors.warningSoft, icon: 'time' },
   absent: { fg: colors.matchText, bg: colors.matchSoft, icon: 'close-circle' },
 } as const;
+
+const QR_WINDOW_SECONDS = 120;
+
+function formatCountdown(seconds: number) {
+  const safe = Math.max(0, seconds);
+  const mins = Math.floor(safe / 60);
+  const secs = safe % 60;
+  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+}
 
 export function AttendanceRoster({
   activityId,
@@ -38,44 +49,51 @@ export function AttendanceRoster({
   const [qrData, setQrData] = useState<AttendanceQrToken | null>(null);
   const [qrLoading, setQrLoading] = useState(false);
   const [qrError, setQrError] = useState('');
+  const [remainingSeconds, setRemainingSeconds] = useState(QR_WINDOW_SECONDS);
   const [scanModal, setScanModal] = useState(false);
-  const [scanCode, setScanCode] = useState('');
-  const [scanMsg, setScanMsg] = useState('');
-  const [scanBusy, setScanBusy] = useState(false);
+  const qrFetchingRef = useRef(false);
 
-  const present = people.filter(person => ['present', 'late'].includes(person.status)).length;
+  // Host always self-checks in automatically when the activity starts; only members need attendance marking.
+  const attendees = people.filter(person => person.userId !== hostId);
+  const present = attendees.filter(person => ['present', 'late'].includes(person.status)).length;
 
-  const generateQr = async () => {
-    if (!activityId) return;
+  const generateQr = useCallback(async () => {
+    if (!activityId || qrFetchingRef.current) return;
+    qrFetchingRef.current = true;
     setQrLoading(true);
     setQrError('');
     try {
-      setQrData(await createAttendanceQrToken(activityId));
+      const next = await createAttendanceQrToken(activityId);
+      setQrData(next);
+      const ttl = Math.max(1, Math.round((new Date(next.expiresAt).getTime() - Date.now()) / 1000));
+      setRemainingSeconds(Math.min(QR_WINDOW_SECONDS, ttl));
     } catch (reason) {
       setQrError(reason instanceof Error ? reason.message : 'Không tạo được mã QR điểm danh.');
     } finally {
+      qrFetchingRef.current = false;
       setQrLoading(false);
     }
-  };
+  }, [activityId]);
 
   useEffect(() => {
-    if (qrModal && activityId && !qrData) void generateQr();
-  }, [qrModal, activityId]);
+    if (!qrModal || !activityId) return;
+    const timer = setTimeout(() => { void generateQr(); }, 0);
+    return () => clearTimeout(timer);
+  }, [qrModal, activityId, generateQr]);
 
-  const submitQrCode = async () => {
-    if (!activityId || !scanCode.trim() || scanBusy) return;
-    setScanBusy(true);
-    setScanMsg('');
-    try {
-      const res = await qrCheckInAttendance(activityId, scanCode.trim());
-      setScanMsg(res.alreadyCheckedIn ? 'Bạn đã điểm danh trước đó rồi.' : 'Điểm danh bằng mã QR thành công!');
-      onCheckedIn?.();
-    } catch (reason) {
-      setScanMsg(reason instanceof Error ? reason.message : 'Mã QR không hợp lệ hoặc đã hết hạn.');
-    } finally {
-      setScanBusy(false);
-    }
-  };
+  useEffect(() => {
+    if (!qrModal || !qrData) return;
+    const interval = setInterval(() => {
+      const left = Math.max(0, Math.ceil((new Date(qrData.expiresAt).getTime() - Date.now()) / 1000));
+      setRemainingSeconds(left);
+      if (left <= 0 && !qrFetchingRef.current) {
+        void generateQr();
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [qrModal, qrData, generateQr]);
+
+  const progressRatio = Math.max(0, Math.min(1, remainingSeconds / QR_WINDOW_SECONDS));
 
   return (
     <View style={{ gap: 14 }}>
@@ -83,18 +101,17 @@ export function AttendanceRoster({
         <View style={styles.heroHeading}>
           <View style={styles.heroIcon}><Ionicons name="people" size={26} color={colors.primary} /></View>
           <View style={{ flex: 1, gap: 4 }}>
-            <Text style={styles.title}>Điểm danh ({present}/{people.length})</Text>
-            <Text style={styles.caption}>Tích "Điểm danh tất cả" rồi chọn người vắng để thao tác nhanh nhất.</Text>
+            <Text style={styles.title}>Điểm danh ({present}/{attendees.length})</Text>
           </View>
         </View>
         <View style={styles.progressTrack}>
-          <View style={[styles.progress, { width: `${people.length ? (present / people.length) * 100 : 0}%` }]} />
+          <View style={[styles.progress, { width: `${attendees.length ? (present / attendees.length) * 100 : 100}%` }]} />
         </View>
         <View style={styles.stats}>
           {(['present', 'late', 'absent', 'unmarked'] as const).map(status => (
             <View key={status} style={styles.stat}>
               <Text style={[styles.statNumber, { color: tones[status].fg }]}>
-                {people.filter(person => person.status === status).length}
+                {attendees.filter(person => person.status === status).length}
               </Text>
               <Text style={styles.statLabel}>{attendanceLabels[status]}</Text>
             </View>
@@ -117,20 +134,20 @@ export function AttendanceRoster({
             {activityId && (
               <Pressable
                 accessibilityRole="button"
-                onPress={() => { setQrData(null); setQrModal(true); }}
+                onPress={() => { setQrData(null); setRemainingSeconds(QR_WINDOW_SECONDS); setQrModal(true); }}
                 style={styles.qrBtn}
               >
                 <Ionicons name="qr-code-outline" size={18} color={colors.primary} />
-                <Text style={styles.qrBtnText}>Mã QR nhóm</Text>
+                <Text style={styles.qrBtnText}>Mã QR điểm danh</Text>
               </Pressable>
             )}
           </View>
         )}
 
         {!editable && activityId && (
-          <Pressable accessibilityRole="button" onPress={() => { setScanCode(''); setScanMsg(''); setScanModal(true); }} style={styles.qrBtn}>
+          <Pressable accessibilityRole="button" onPress={() => setScanModal(true)} style={styles.qrBtn}>
             <Ionicons name="scan-outline" size={18} color={colors.primary} />
-            <Text style={styles.qrBtnText}>Điểm danh bằng mã QR của Host</Text>
+            <Text style={styles.qrBtnText}>Quét mã QR điểm danh</Text>
           </Pressable>
         )}
       </View>
@@ -152,7 +169,7 @@ export function AttendanceRoster({
         ))}
       </View>
 
-      {people.filter(person => filter === 'all' || person.status === filter).map(person => {
+      {attendees.filter(person => filter === 'all' || person.status === filter).map(person => {
         const tone = tones[person.status];
         return (
           <View key={person.userId} style={styles.person}>
@@ -160,7 +177,7 @@ export function AttendanceRoster({
               <UserAvatar name={person.name} size={42} borderColor={tone.fg} />
               <View style={{ flex: 1, gap: 3 }}>
                 <Text style={styles.name}>{person.name}</Text>
-                <Text style={styles.caption}>{person.userId === hostId ? 'Người tổ chức' : 'Thành viên'}</Text>
+                <Text style={styles.caption}>Thành viên</Text>
               </View>
               <View style={[styles.status, { backgroundColor: tone.bg }]}>
                 <Ionicons name={tone.icon} size={15} color={tone.fg} />
@@ -196,7 +213,7 @@ export function AttendanceRoster({
         );
       })}
 
-      {!people.some(person => filter === 'all' || person.status === filter) && (
+      {!attendees.some(person => filter === 'all' || person.status === filter) && (
         <View style={styles.empty}>
           <Ionicons name="checkmark-done-circle-outline" size={30} color={colors.primary} />
           <Text style={styles.caption}>Không có thành viên trong mục này.</Text>
@@ -205,51 +222,66 @@ export function AttendanceRoster({
 
       <Modal transparent animationType="fade" visible={qrModal} onRequestClose={() => setQrModal(false)}>
         <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
+          <View style={styles.qrModalCard}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Mã QR Điểm Danh</Text>
-              <Pressable onPress={() => setQrModal(false)} style={styles.modalClose}><Ionicons name="close" size={20} color={colors.text} /></Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel="Đóng mã QR" onPress={() => setQrModal(false)} style={styles.modalClose}>
+                <Ionicons name="close" size={20} color={colors.text} />
+              </Pressable>
             </View>
-            <Text style={styles.caption}>Thành viên quét hoặc nhập mã bên dưới để tự điểm danh. Mã tự động hết hạn sau 2 phút để chống điểm danh hộ.</Text>
-            {qrLoading ? <ActivityIndicator color={colors.primary} style={{ marginVertical: 20 }} /> : qrError ? <Text style={{ color: colors.danger }}>{qrError}</Text> : qrData ? (
-              <View style={{ alignItems: 'center', gap: 12 }}>
-                <Image
-                  source={{ uri: `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(qrData.token)}` }}
-                  style={{ width: 210, height: 210, borderRadius: 12, backgroundColor: colors.surfaceMuted }}
-                />
-                <Text selectable style={styles.qrCodeText}>{qrData.token}</Text>
-                <Text style={styles.caption}>Hết hạn lúc: {new Date(qrData.expiresAt).toLocaleTimeString('vi-VN')}</Text>
+
+            <View style={styles.qrStage}>
+              {qrLoading && !qrData ? (
+                <View style={styles.qrPlaceholder}>
+                  <ActivityIndicator color={colors.primary} size="large" />
+                </View>
+              ) : qrError ? (
+                <View style={styles.qrPlaceholder}>
+                  <Ionicons name="alert-circle-outline" size={34} color={colors.danger} />
+                  <Text style={{ color: colors.danger, textAlign: 'center', fontSize: 13 }}>{qrError}</Text>
+                  <Pressable onPress={() => void generateQr()} style={styles.qrBtn}>
+                    <Text style={styles.qrBtnText}>Thử lại</Text>
+                  </Pressable>
+                </View>
+              ) : qrData ? (
+                <View style={styles.qrFrame}>
+                  <Image
+                    source={{ uri: qrImageUrl(qrData.token, 260) }}
+                    style={styles.qrImage}
+                    resizeMode="contain"
+                  />
+                  {qrLoading && (
+                    <View style={styles.qrRefreshingOverlay}>
+                      <ActivityIndicator color={colors.primary} />
+                    </View>
+                  )}
+                </View>
+              ) : null}
+            </View>
+
+            {qrData && !qrError && (
+              <View style={styles.timerBlock}>
+                <View style={styles.timerPill}>
+                  <Ionicons name="time-outline" size={16} color={remainingSeconds <= 15 ? colors.danger : colors.primary} />
+                  <Text style={[styles.timerText, remainingSeconds <= 15 && { color: colors.danger }]}>
+                    {formatCountdown(remainingSeconds)}
+                  </Text>
+                </View>
+                <View style={styles.timerTrack}>
+                  <View style={[styles.timerFill, { width: `${progressRatio * 100}%`, backgroundColor: remainingSeconds <= 15 ? colors.danger : colors.primary }]} />
+                </View>
               </View>
-            ) : null}
-            <Pressable onPress={() => void generateQr()} style={styles.qrBtn}>
-              <Ionicons name="refresh" size={16} color={colors.primary} />
-              <Text style={styles.qrBtnText}>Tạo mã QR mới</Text>
-            </Pressable>
+            )}
           </View>
         </View>
       </Modal>
 
-      <Modal transparent animationType="fade" visible={scanModal} onRequestClose={() => setScanModal(false)}>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Điểm danh bằng mã QR</Text>
-              <Pressable onPress={() => setScanModal(false)} style={styles.modalClose}><Ionicons name="close" size={20} color={colors.text} /></Pressable>
-            </View>
-            <TextInput
-              value={scanCode}
-              onChangeText={setScanCode}
-              placeholder="Dán mã QR từ Host (GMQR1....)"
-              placeholderTextColor={colors.textMuted}
-              style={styles.qrInput}
-            />
-            {scanMsg ? <Text style={{ color: scanMsg.includes('thành công') ? colors.successText : colors.danger, fontSize: 13 }}>{scanMsg}</Text> : null}
-            <Pressable disabled={scanBusy || !scanCode.trim()} onPress={() => void submitQrCode()} style={[styles.markAllBtn, (scanBusy || !scanCode.trim()) && { opacity: 0.5 }]}>
-              <Text style={styles.markAllText}>{scanBusy ? 'Đang xác nhận...' : 'Xác nhận điểm danh'}</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
+      <QrScannerModal
+        visible={scanModal}
+        expectedActivityId={activityId}
+        onClose={() => setScanModal(false)}
+        onCheckedIn={() => onCheckedIn?.()}
+      />
     </View>
   );
 }
@@ -282,11 +314,19 @@ const styles = StyleSheet.create({
   choices: { flexDirection: 'row', gap: 6 },
   choice: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: colors.border, minHeight: 56 },
   empty: { alignItems: 'center', gap: 10, padding: 26 },
-  modalBackdrop: { flex: 1, backgroundColor: 'rgba(15,23,42,0.5)', justifyContent: 'center', padding: 20 },
-  modalCard: { backgroundColor: colors.surface, borderRadius: 22, padding: 20, gap: 14, maxWidth: 420, width: '100%', alignSelf: 'center' },
-  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  modalTitle: { fontSize: 17, fontWeight: '800', color: colors.text },
-  modalClose: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.surfaceMuted, alignItems: 'center', justifyContent: 'center' },
-  qrCodeText: { fontSize: 11, color: colors.textMuted, backgroundColor: colors.surfaceMuted, padding: 8, borderRadius: 8, width: '100%', textAlign: 'center' },
-  qrInput: { borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 12, color: colors.text, backgroundColor: colors.background, fontSize: 13 },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(15,23,42,0.58)', justifyContent: 'center', padding: 22 },
+  qrModalCard: { backgroundColor: colors.surface, borderRadius: 28, padding: 22, gap: 18, maxWidth: 360, width: '100%', alignSelf: 'center', alignItems: 'center' },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' },
+  modalTitle: { fontSize: 18, fontWeight: '800', color: colors.text },
+  modalClose: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.surfaceMuted, alignItems: 'center', justifyContent: 'center' },
+  qrStage: { alignItems: 'center', justifyContent: 'center', width: '100%' },
+  qrFrame: { padding: 14, borderRadius: 22, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: colors.border, position: 'relative' },
+  qrImage: { width: 228, height: 228, borderRadius: 10 },
+  qrRefreshingOverlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(255,255,255,0.72)', borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  qrPlaceholder: { width: 240, height: 240, borderRadius: 22, backgroundColor: colors.surfaceMuted, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 18 },
+  timerBlock: { width: '100%', alignItems: 'center', gap: 10 },
+  timerPill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 999, backgroundColor: colors.primarySoft },
+  timerText: { fontSize: 17, fontWeight: '800', color: colors.primary, fontVariant: ['tabular-nums'] },
+  timerTrack: { width: '78%', height: 6, borderRadius: 999, backgroundColor: colors.surfaceMuted, overflow: 'hidden' },
+  timerFill: { height: '100%', borderRadius: 999 },
 });

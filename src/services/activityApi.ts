@@ -2,6 +2,8 @@ import { Activity } from '../data/activities';
 import { api, post } from './api';
 import type { ParticipantPreferences } from '../components/ActivityChoices';
 import { imageUrl } from './profileService';
+import { distanceBetweenKm } from './geoDistance';
+import type { Coordinates } from './locationService';
 
 export type RequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled' | 'cancelled_conflict' | 'left' | 'removed' | 'closed';
 export type ActivityDto = {
@@ -36,17 +38,19 @@ export async function allPages<T>(path: string): Promise<T[]> {
   throw new Error('Danh sách quá lớn. Vui lòng thu hẹp tìm kiếm.');
 }
 
-export function toActivity(row: ActivityDto, requestStatus?: RequestStatus): Activity {
+export function toActivity(row: ActivityDto, requestStatus?: RequestStatus, searchPoint?: Coordinates | null): Activity {
+  const coordinates = row.coordinates ? { longitude: row.coordinates.coordinates[0], latitude: row.coordinates.coordinates[1] } : null;
+  const distanceKm = row.distanceKm ?? (searchPoint && coordinates ? distanceBetweenKm(searchPoint, coordinates) : null);
   return {
     isBusinessManager: row.isBusinessManager,
     business: row.business,
     memberAvatars: row.memberAvatars, version: row.version, hostAvatarUrl: row.hostAvatarUrl, companions: row.companions, reservedSeats: row.reservedSeats ?? 0, costNote: row.costNote || '', itinerary: row.itinerary || [], planLink: row.planLink || '', planFile: row.planFile,
-    organizerType: row.organizerType ?? 'personal', coordinates: row.coordinates ? { longitude: row.coordinates.coordinates[0], latitude: row.coordinates.coordinates[1] } : null,
+    organizerType: row.organizerType ?? 'personal', coordinates,
     id: row.id, hostId: row.hostId, title: row.title, host: row.hostName, location: row.location,
     registrationDeadline: row.registrationDeadline, startsAt: row.startsAt, endsAt: row.endsAt, requestStatus, backendStatus: row.status ?? 'published',
     minParticipants: row.minParticipants ?? 2, participantPreferences: row.participantPreferences, meetingPoint: row.meetingPoint,
     time: new Date(row.startsAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }),
-    members: `${row.memberCount}/${row.maxParticipants}`, distance: row.distanceKm == null ? 'Chưa có vị trí' : `${row.distanceKm.toFixed(1)} km`,
+    members: `${row.memberCount}/${row.maxParticipants}`, distanceKm, distance: distanceKm == null ? 'Chưa có vị trí' : `${distanceKm.toFixed(1)} km`,
     category: row.category, tags: row.tags ?? [], description: row.description,
     estimatedCost: `${row.estimatedCost.toLocaleString('vi-VN')}đ/người`, requirements: row.requirements ?? [], plan: row.plan ?? [],
     hostRating: row.hostRating ?? null, hostCompletedActivities: row.hostCompletedActivities ?? 0,

@@ -12,12 +12,14 @@ import { Activity } from '../data/activities';
 import { MembersPanel } from './MembershipViews';
 import { ChatScreen } from './ChatScreen';
 import { createConversation } from '../services/chatService';
-import { isSocketConnected } from '../services/chatEvents';
-import { getActivity, listRequests, toActivity } from '../services/activityApi';
-import { getActivityPaymentInfo, ActivityPaymentInfo } from '../services/paymentService';
+import { evictCachedGroupConversation, getCachedGroupConversation, setCachedGroupConversation } from '../services/chatCache';
+import { getActivity, listMembers, listRequests, toActivity } from '../services/activityApi';
+import { getCached, setCached } from '../services/remoteCache';
+import { getActivityPaymentInfo } from '../services/paymentService';
 import { VietQrPaymentModal } from '../components/VietQrPaymentModal';
 import { getSession } from '../services/api';
 import { useRemote } from '../services/useRemote';
+import { useLiveRefresh } from '../services/useLiveRefresh';
 import { colors, layout } from '../theme';
 
 type GroupTab = 'chat' | 'plan' | 'members' | 'manage';
@@ -30,31 +32,68 @@ const tabs = [
 ] as const;
 
 export function GroupScreen({ activity, onBack, onStart, onLeft, initialTab = 'chat' }: Props) {
-  const [tab, setTab] = useState<GroupTab>(initialTab);
+  const [tab, setTabState] = useState<GroupTab>(initialTab);
+  const [visitedTabs, setVisitedTabs] = useState<GroupTab[]>(() => [initialTab]);
+  const setTab = useCallback((next: GroupTab) => {
+    setTabState(next);
+    setVisitedTabs(prev => (prev.includes(next) ? prev : [...prev, next]));
+  }, []);
   const [businessCollapsed, setBusinessCollapsed] = useState(false);
   const [sharedConversationId, setSharedConversationId] = useState(''), [chatRefresh, setChatRefresh] = useState(0), [headerError, setHeaderError] = useState('');
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [paymentInfo, setPaymentInfo] = useState<ActivityPaymentInfo | null>(null);
-  const loadPayment = useCallback(() => {
-    if (activity.organizerType === 'business' || activity.business?.depositAmount) {
-      void getActivityPaymentInfo(activity.id).then(setPaymentInfo).catch(() => { });
-    }
-  }, [activity.id, activity.organizerType, activity.business?.depositAmount]);
-  useEffect(() => { loadPayment(); }, [loadPayment]);
+  const needsPaymentInfo = activity.organizerType === 'business' || Boolean(activity.business?.depositAmount);
+  const loadPaymentInfo = useCallback(() => getActivityPaymentInfo(activity.id), [activity.id]);
+  const paymentRemote = useRemote(loadPaymentInfo, null, needsPaymentInfo, {
+    cacheKey: `payment-info:${activity.id}`,
+    staleTimeMs: 30000,
+    tags: ['payment-info', 'wallet', `activity:${activity.id}`],
+  });
+  const paymentInfo = paymentRemote.data;
   const load = useCallback(() => getActivity(activity.id), [activity.id]);
-  const remote = useRemote(load, null);
+  const remote = useRemote(load, null, true, {
+    cacheKey: `activity:${activity.id}`,
+    staleTimeMs: 20000,
+    tags: ['activities', `activity:${activity.id}`],
+  });
   const reload = remote.reload;
-  useEffect(() => { const timer = setInterval(() => { if (!isSocketConnected()) void reload(true); }, 30000); return () => clearInterval(timer); }, [reload]);
+  useLiveRefresh(reload);
+  // Warm the Members tab cache silently on group open so even the very first tap on "Thành viên" is instant.
+  useEffect(() => {
+    const key = `members:${activity.id}`;
+    if (getCached(key)?.fresh) return;
+    let alive = true;
+    void Promise.all([listMembers(activity.id), remote.data ? Promise.resolve(remote.data) : getActivity(activity.id)])
+      .then(([members, latest]) => {
+        if (!alive) return;
+        setCached(key, { members, latest }, { staleTimeMs: 30000, tags: [`members:${activity.id}`, `activity:${activity.id}`] });
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [activity.id, remote.data]);
   const current = remote.data ? toActivity(remote.data) : activity;
   const isHost = current.hostId === getSession()?.user.id || Boolean(current.isBusinessManager);
   const isOfficial = current.organizerType === 'business';
-  const loadPending = useCallback(() => isHost ? listRequests(activity.id) : Promise.resolve([]), [activity.id, isHost]);
-  const pendingRequests = useRemote(loadPending, []);
+  const loadPending = useCallback(() => listRequests(activity.id), [activity.id]);
+  const pendingRequests = useRemote(loadPending, [], isHost, {
+    cacheKey: `activity-requests:${activity.id}`,
+    staleTimeMs: 15000,
+    tags: [`requests:${activity.id}`, `activity:${activity.id}`],
+  });
+  useLiveRefresh(pendingRequests.reload, isHost);
   const activeTab = tab === 'manage' && !isHost ? 'chat' : tab;
   const noticeTitle = current.backendStatus === 'cancelled' ? 'Hoạt động đã hủy' : current.backendStatus === 'expired' ? 'Hoạt động đã hết hạn' : current.backendStatus === 'completed' ? 'Hoạt động đã kết thúc' : current.backendStatus === 'in-progress' ? 'Hoạt động đã bắt đầu' : remote.data?.scheduleConfirmedAt ? 'Host đã chốt lịch đi' : 'Nhóm đang lên kế hoạch';
   const noticeBody = current.backendStatus === 'completed' ? 'Xem tổng kết trong mục Kế hoạch.' : remote.data?.scheduleConfirmedAt && current.backendStatus === 'published' ? `${current.time} · ${current.meetingPoint || current.location}` : '';
+  const openSharedLibrary = () => {
+    setHeaderError('');
+    const cached = getCachedGroupConversation(activity.id);
+    if (cached) { setSharedConversationId(cached.id); return; }
+    void createConversation({ type: 'group', activityId: activity.id }).then(row => {
+      setCachedGroupConversation(activity.id, row);
+      setSharedConversationId(row.id);
+    }).catch(reason => setHeaderError(reason.message));
+  };
   return <SafeAreaView style={styles.safe} edges={['top', 'left', 'right', 'bottom']}>
-    <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Quay lại" hitSlop={12} onPress={onBack}><Ionicons name="chevron-back" size={27} color={colors.text} /></Pressable><Image source={current.image} style={styles.avatar} /><View style={{ flex: 1, gap: 4 }}><Text numberOfLines={1} style={styles.title}>{current.title}</Text><Text style={styles.subtitle}>{current.members} thành viên · {current.backendStatus === 'cancelled' ? 'Đã hủy' : current.backendStatus === 'expired' ? 'Đã hết hạn' : current.backendStatus === 'completed' ? 'Đã kết thúc' : current.backendStatus === 'in-progress' ? 'Đang diễn ra' : remote.data?.scheduleConfirmedAt ? 'Đã chốt lịch đi' : 'Đang lên kế hoạch'}</Text></View><ChatHeaderActions sharePath={`/app/home/activityDetail/${activity.id}`} onShared={() => { setHeaderError(''); void createConversation({ type: 'group', activityId: activity.id }).then(row => setSharedConversationId(row.id)).catch(reason => setHeaderError(reason.message)); }} onRefresh={() => { void remote.reload(); setChatRefresh(value => value + 1); }} onPlan={() => setTab('plan')} onMembers={() => setTab('members')} onManage={isHost ? () => setTab('manage') : undefined} /></View>
+    <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Quay lại" hitSlop={12} onPress={onBack}><Ionicons name="chevron-back" size={27} color={colors.text} /></Pressable><Image source={current.image} style={styles.avatar} /><View style={{ flex: 1, gap: 4 }}><Text numberOfLines={1} style={styles.title}>{current.title}</Text><Text style={styles.subtitle}>{current.members} thành viên · {current.backendStatus === 'cancelled' ? 'Đã hủy' : current.backendStatus === 'expired' ? 'Đã hết hạn' : current.backendStatus === 'completed' ? 'Đã kết thúc' : current.backendStatus === 'in-progress' ? 'Đang diễn ra' : remote.data?.scheduleConfirmedAt ? 'Đã chốt lịch đi' : 'Đang lên kế hoạch'}</Text></View><ChatHeaderActions sharePath={`/app/home/activityDetail/${activity.id}`} onShared={openSharedLibrary} onRefresh={() => { void remote.reload(false, true); if (isHost) void pendingRequests.reload(true, true); setChatRefresh(value => value + 1); }} onPlan={() => setTab('plan')} onMembers={() => setTab('members')} onManage={isHost ? () => setTab('manage') : undefined} /></View>
     {isOfficial && (businessCollapsed ? (
       <Pressable accessibilityRole="button" accessibilityLabel="Mở rộng thẻ doanh nghiệp" onPress={() => setBusinessCollapsed(false)} style={styles.businessCollapsedBar}>
         <Ionicons name="shield-checkmark" size={14} color={colors.primary} />
@@ -78,15 +117,31 @@ export function GroupScreen({ activity, onBack, onStart, onLeft, initialTab = 'c
             <Ionicons name="chevron-up" size={14} color={colors.textSecondary} />
           </Pressable>
         </View>
-        {current.isBusinessManager ? <View style={styles.businessDetail}><Ionicons name="person-circle-outline" size={14} color={colors.primary} /><Text numberOfLines={1} style={styles.staffRoleLine}>Bạn là Nhân sự quản lý (Staff) của nhóm này · Điều hành nhóm tại tab Quản lý</Text></View> : isHost ? <View style={styles.businessDetail}><Ionicons name="business-outline" size={14} color={colors.primary} /><Text numberOfLines={1} style={styles.staffRoleLine}>Bạn là Chủ doanh nghiệp của nhóm này · Điều hành nhóm tại tab Quản lý</Text></View> : current.business?.offer ? <View style={styles.businessDetail}><Ionicons name="gift-outline" size={14} color={colors.textMuted} /><Text numberOfLines={1} style={styles.businessDetailText}>{current.business.offer}</Text></View> : null}
+        {!isHost && current.business?.offer ? <View style={styles.businessDetail}><Ionicons name="gift-outline" size={14} color={colors.textMuted} /><Text numberOfLines={1} style={styles.businessDetailText}>{current.business.offer}</Text></View> : null}
       </View>
     ))}
     <View style={styles.tabBar}>{tabs.filter(item => item.id !== 'manage' || isHost).map(item => <Pressable key={item.id} accessibilityRole="tab" accessibilityState={{ selected: activeTab === item.id }} accessibilityLabel={item.label} onPress={() => setTab(item.id)} style={[styles.tab, activeTab === item.id && styles.activeTab]}><Ionicons name={item.icon} size={19} color={activeTab === item.id ? colors.primary : colors.textMuted} /><Text style={[styles.tabText, activeTab === item.id && { color: colors.primary }]}>{item.label}{(item.id === 'members' || item.id === 'manage') && pendingRequests.data.length > 0 ? ` (${pendingRequests.data.length})` : ''}</Text></Pressable>)}</View>
-    {activeTab === 'chat' ? <><Pressable onPress={() => { if (current.backendStatus === 'completed') onStart(current); }} style={styles.notice}><Ionicons name="information-circle-outline" size={18} color={colors.primary} /><View style={{ flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}><Text accessibilityLiveRegion="polite" style={styles.noticeTitle}>{noticeTitle}</Text>{noticeBody ? <Text style={styles.noticeBody}>· {noticeBody}</Text> : null}</View></Pressable><ActivityChat activityId={activity.id} isHost={isHost} onBack={onBack} refreshKey={chatRefresh} /></> : <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
-      {activeTab === 'plan' && <ActivityPlanPanel activityId={activity.id} onChanged={remote.setData} onManage={isHost ? () => setTab('manage') : undefined} onProgress={row => onStart(toActivity(row))} />}
-      {activeTab === 'members' && <MembersPanel activity={current} onLeft={onLeft} onChanged={() => { void remote.reload(); void pendingRequests.reload(true); }} />}
-      {activeTab === 'manage' && isHost && <ActivityManagementPanel activityId={activity.id} onPlan={() => setTab('plan')} onMembers={() => setTab('members')} onProgress={onStart} onDeleted={onLeft} onChanged={fresh => { remote.setData(fresh); void pendingRequests.reload(true); }} />}
-    </ScrollView>}
+    {visitedTabs.includes('chat') && (
+      <View style={activeTab === 'chat' ? styles.tabPane : styles.hiddenPane}>
+        <Pressable onPress={() => { if (current.backendStatus === 'completed') onStart(current); }} style={styles.notice}><Ionicons name="information-circle-outline" size={18} color={colors.primary} /><View style={{ flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}><Text accessibilityLiveRegion="polite" style={styles.noticeTitle}>{noticeTitle}</Text>{noticeBody ? <Text style={styles.noticeBody}>· {noticeBody}</Text> : null}</View></Pressable>
+        <ActivityChat activityId={activity.id} isHost={isHost} onBack={onBack} refreshKey={chatRefresh} />
+      </View>
+    )}
+    {visitedTabs.includes('plan') && (
+      <ScrollView style={activeTab === 'plan' ? styles.tabPane : styles.hiddenPane} contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+        <ActivityPlanPanel activityId={activity.id} onChanged={remote.setData} onManage={isHost ? () => setTab('manage') : undefined} onProgress={row => onStart(toActivity(row))} />
+      </ScrollView>
+    )}
+    {visitedTabs.includes('members') && (
+      <ScrollView style={activeTab === 'members' ? styles.tabPane : styles.hiddenPane} contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+        <MembersPanel activity={current} onLeft={onLeft} onChanged={() => { void remote.reload(true, true); if (isHost) void pendingRequests.reload(true, true); }} />
+      </ScrollView>
+    )}
+    {isHost && visitedTabs.includes('manage') && (
+      <ScrollView style={activeTab === 'manage' ? styles.tabPane : styles.hiddenPane} contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+        <ActivityManagementPanel activityId={activity.id} onPlan={() => setTab('plan')} onMembers={() => setTab('members')} onProgress={onStart} onDeleted={onLeft} onChanged={fresh => { remote.setData(fresh); void pendingRequests.reload(true, true); }} />
+      </ScrollView>
+    )}
     {remote.error ? <Text accessibilityRole="alert" style={{ color: colors.danger, padding: 10 }}>{remote.error}</Text> : null}
     {headerError ? <Text accessibilityRole="alert" style={{ color: colors.danger, padding: 10 }}>{headerError}</Text> : null}
     {sharedConversationId ? <SharedChatLibrary conversationId={sharedConversationId} onClose={() => setSharedConversationId('')} /> : null}
@@ -99,23 +154,42 @@ export function GroupScreen({ activity, onBack, onStart, onLeft, initialTab = 'c
       onClose={() => setShowPaymentModal(false)}
       onSuccess={() => {
         setShowPaymentModal(false);
-        void remote.reload();
-        loadPayment();
+        void remote.reload(true, true);
+        void paymentRemote.reload(true, true);
       }}
     />
   </SafeAreaView>;
 }
 
 function ActivityChat({ activityId, isHost, onBack, refreshKey }: { activityId: string; isHost: boolean; onBack: () => void; refreshKey: number }) {
-  const load = useCallback(() => createConversation({ type: 'group', activityId }), [activityId]);
-  const remote = useRemote(load, null);
+  const load = useCallback(async () => {
+    const cached = getCachedGroupConversation(activityId);
+    if (cached) return cached;
+    try {
+      const created = await createConversation({ type: 'group', activityId });
+      setCachedGroupConversation(activityId, created);
+      return created;
+    } catch (reason) {
+      evictCachedGroupConversation(activityId);
+      throw reason;
+    }
+  }, [activityId]);
+  const remote = useRemote(load, null, true, {
+    cacheKey: `group-conversation:${activityId}`,
+    staleTimeMs: 5 * 60 * 1000,
+    tags: [`conversation-group:${activityId}`],
+  });
   if (!remote.data || remote.error) return <View style={{ flex: 1, justifyContent: 'center' }}><RemoteState {...remote} onRetry={remote.reload} /></View>;
   return <ChatScreen key={remote.data.id} embedded activityId={activityId} isHost={isHost} conversation={remote.data} onBack={onBack} refreshKey={refreshKey} />;
 }
 
 export function GroupChatEntry({ activityId, ...props }: Omit<Props, 'activity'> & { activityId: string }) {
   const load = useCallback(() => getActivity(activityId), [activityId]);
-  const remote = useRemote(load, null);
+  const remote = useRemote(load, null, true, {
+    cacheKey: `activity:${activityId}`,
+    staleTimeMs: 20000,
+    tags: ['activities', `activity:${activityId}`],
+  });
   if (!remote.data || remote.error) return <SafeAreaView style={styles.safe}><Pressable onPress={props.onBack} style={{ padding: 20 }}><Text style={{ color: colors.primary }}>Quay lại</Text></Pressable><RemoteState {...remote} onRetry={remote.reload} /></SafeAreaView>;
   return <GroupScreen {...props} activity={toActivity(remote.data)} />;
 }
@@ -133,5 +207,5 @@ const styles = StyleSheet.create({
   businessPayButton: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 7, backgroundColor: colors.primary }, businessPayText: { fontSize: 11, fontWeight: '700', color: '#FFF' },
   businessManageButton: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 4, paddingHorizontal: 9, borderRadius: 7, borderWidth: 1, borderColor: '#E1D8F4', backgroundColor: '#F7F4FD' }, businessManageText: { fontSize: 11, fontWeight: '700', color: colors.primary }, businessManagePressed: { backgroundColor: '#EEE7FA', borderColor: colors.primary },
   notice: { flexDirection: 'row', gap: 9, paddingVertical: 10, paddingHorizontal: 14, backgroundColor: colors.primarySoft }, noticeTitle: { color: colors.primary, fontSize: 12, fontWeight: '700', lineHeight: 18 }, noticeBody: { color: colors.textSecondary, fontSize: 11, lineHeight: 17 },
-  safe: { flex: 1, backgroundColor: colors.background }, header: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, backgroundColor: colors.surface }, avatar: { width: 43, height: 43, borderRadius: 16 }, title: { fontSize: 17, fontWeight: '800', color: colors.text }, subtitle: { fontSize: 12, color: colors.textMuted }, tabBar: { flexDirection: 'row', paddingHorizontal: 12, backgroundColor: colors.surface, borderBottomWidth: 1, borderColor: colors.border }, tab: { alignItems: 'center', justifyContent: 'center', flex: 1, gap: 5, paddingVertical: 12, borderBottomWidth: 3, borderBottomColor: 'transparent' }, activeTab: { borderBottomColor: colors.primary }, tabText: { fontSize: 12, fontWeight: '700', color: colors.textMuted }, page: { padding: 18, paddingBottom: 36, maxWidth: layout.maxWidth, width: '100%', alignSelf: 'center' },
+  safe: { flex: 1, backgroundColor: colors.background }, tabPane: { flex: 1 }, hiddenPane: { display: 'none' }, header: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, backgroundColor: colors.surface }, avatar: { width: 43, height: 43, borderRadius: 16 }, title: { fontSize: 17, fontWeight: '800', color: colors.text }, subtitle: { fontSize: 12, color: colors.textMuted }, tabBar: { flexDirection: 'row', paddingHorizontal: 12, backgroundColor: colors.surface, borderBottomWidth: 1, borderColor: colors.border }, tab: { alignItems: 'center', justifyContent: 'center', flex: 1, gap: 5, paddingVertical: 12, borderBottomWidth: 3, borderBottomColor: 'transparent' }, activeTab: { borderBottomColor: colors.primary }, tabText: { fontSize: 12, fontWeight: '700', color: colors.textMuted }, page: { padding: 18, paddingBottom: 36, maxWidth: layout.maxWidth, width: '100%', alignSelf: 'center' },
 });

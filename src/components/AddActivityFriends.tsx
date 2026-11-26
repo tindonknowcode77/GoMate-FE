@@ -11,7 +11,11 @@ export function AddActivityFriends({ activityId, onAdded }: { activityId: string
   const [open, setOpen] = useState(false), [ids, setIds] = useState<string[]>([]), [useReserved, setUseReserved] = useState(true), [busy, setBusy] = useState(false), [error, setError] = useState('');
   const lock = useRef(false);
   const loader = useCallback(async () => { const [friends, members, activity] = await Promise.all([listFriends(), listMembers(activityId), getActivity(activityId)]); return { friends: friends.filter(friend => !members.some(member => member.userId === friend.id)), activity }; }, [activityId]);
-  const remote = useRemote<{ friends: Friend[]; activity: ActivityDto | null }>(loader, { friends: [], activity: null });
+  const remote = useRemote<{ friends: Friend[]; activity: ActivityDto | null }>(loader, { friends: [], activity: null }, open, {
+    cacheKey: `add-friends:${activityId}`,
+    staleTimeMs: 20000,
+    tags: ['friends', `members:${activityId}`, `activity:${activityId}`],
+  });
   const add = async () => {
     if (lock.current || !ids.length) return;
     lock.current = true; setBusy(true); setError('');
@@ -19,7 +23,7 @@ export function AddActivityFriends({ activityId, onAdded }: { activityId: string
     catch (reason) { setError(reason instanceof Error ? reason.message : 'Không thêm được bạn'); }
     finally { lock.current = false; setBusy(false); }
   };
-  return <View style={{ gap: 12, paddingVertical: 12 }}><Pressable accessibilityRole="button" onPress={() => { setOpen(!open); if (!open) void remote.reload(); }}><Text style={{ color: colors.primary, fontWeight: '600' }}>Thêm bạn bè vào nhóm</Text></Pressable>
+  return <View style={{ gap: 12, paddingVertical: 12 }}><Pressable accessibilityRole="button" onPress={() => setOpen(value => !value)}><Text style={{ color: colors.primary, fontWeight: '600' }}>Thêm bạn bè vào nhóm</Text></Pressable>
     {open && (remote.loading || remote.error ? <RemoteState {...remote} onRetry={remote.reload} /> : <><SelectionField label="Chọn bạn bè thêm vào nhóm" options={remote.data.friends.map(friend => ({ value: friend.id, label: friend.name + ' · ' + (friend.username || friend.id.slice(0, 6)) }))} selected={ids} onChange={setIds} multiple searchable emptyLabel={remote.data.friends.length ? 'Chọn bạn' : 'Không có bạn bè ngoài nhóm'} />
       {(remote.data.activity?.reservedSeats ?? 0) > 0 && <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}><Text style={{ flex: 1 }}>Dùng chỗ đã giữ cho bạn đi cùng ({remote.data.activity?.reservedSeats})</Text><Switch accessibilityLabel="Dùng chỗ đã giữ" value={useReserved} onValueChange={setUseReserved} /></View>}
 

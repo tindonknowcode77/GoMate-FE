@@ -29,4 +29,4 @@ export async function catchUpChat(id: string, after: string, active: () => boole
   return items;
 }
 export const sendChatMessage = async (id: string, text: string, clientMessageId: string, content: { attachmentIds?: string[]; location?: ChatLocation | null } = {}) => (await post<{ message: ChatMessage }>(`/conversations/${encodeURIComponent(id)}/messages`, { text, clientMessageId, ...content })).message;
-export const markChatRead = (id: string, messageId: string) => api(`/conversations/${encodeURIComponent(id)}/read`, { method: 'PATCH', body: JSON.stringify({ messageId }) });
+export const markChatRead = (id: string, messageId: string) => api(`/conversations/${encodeURIComponent(id)}/read?summary=false`, { method: 'PATCH', body: JSON.stringify({ messageId }) });

@@ -3,11 +3,10 @@ import { UnreadDot } from '../UnreadDot';
 import { ComponentProps, useState } from 'react';
 import { Image, ImageBackground, Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useProfile } from '../../services/ProfileContext';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { Activity } from '../../data/activities';
-import { colors, radii, shadows, typography } from '../../theme';
+import { colors, radii, shadows } from '../../theme';
 import { UserAvatar } from '../UserAvatar';
 import { BrandLogo } from '../BrandLogo';
 import { Text } from '../LocalizedText';
@@ -25,17 +24,18 @@ export type HomeAction = {
   onPress: () => void;
 };
 
-export function HomeHeader({ activityCount, onCalendarPress, onNotificationsPress, onProfilePress, showGreeting = true }: { activityCount: number; onCalendarPress: () => void; onNotificationsPress: () => void; onProfilePress: () => void; showGreeting?: boolean }) {
-  const { profile } = useProfile();
+export function HomeHeader({ onNotificationsPress, onProfilePress, onScanQrPress }: { activityCount?: number; onCalendarPress?: () => void; onNotificationsPress: () => void; onProfilePress: () => void; onScanQrPress?: () => void; showGreeting?: boolean }) {
   return (
-    <View>
-      <View style={styles.headerRow}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}><UserAvatar onPress={onProfilePress} /><BrandLogo compact /></View>
-        <View style={styles.headerActions}>
-          <Pressable accessibilityLabel="Thông báo" onPress={onNotificationsPress} style={styles.notificationButton}><Ionicons color={colors.text} name="notifications-outline" size={23} /><UnreadDot kind="notifications" style={styles.notificationDot} /></Pressable>
-        </View>
+    <View style={styles.headerRow}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}><UserAvatar onPress={onProfilePress} /><BrandLogo compact /></View>
+      <View style={styles.headerActions}>
+        {onScanQrPress && (
+          <Pressable accessibilityRole="button" accessibilityLabel="Quét mã QR" onPress={onScanQrPress} style={styles.qrHeaderButton}>
+            <Ionicons color={colors.primary} name="scan-outline" size={21} />
+          </Pressable>
+        )}
+        <Pressable accessibilityLabel="Thông báo" onPress={onNotificationsPress} style={styles.notificationButton}><Ionicons color={colors.text} name="notifications-outline" size={23} /><UnreadDot kind="notifications" style={styles.notificationDot} /></Pressable>
       </View>
-      {showGreeting && <><Text style={styles.greetingLabel}>Xin chào,</Text><Text style={styles.greetingName}>{profile?.name || 'Bạn'} 👋</Text><View style={styles.greetingMetaRow}><Text style={styles.greetingMeta}>{activityCount > 0 ? `Bạn có ${activityCount} hoạt động sắp tới` : 'Bạn chưa có hoạt động nào'}</Text>{activityCount > 0 && <Pressable onPress={onCalendarPress}><Text style={styles.calendarLink}>Xem lịch</Text></Pressable>}</View></>}
     </View>
   );
 }
@@ -43,19 +43,23 @@ export function HomeHeader({ activityCount, onCalendarPress, onNotificationsPres
 export function NextActivityCard({ activity, onGroup, onPlan }: { activity: Activity; onGroup: () => void; onPlan: () => void }) {
   const [now] = useState(() => Date.now());
   const diffMs = activity.startsAt ? new Date(activity.startsAt).getTime() - now : 0;
-  const countdown = !activity.startsAt ? '' : diffMs <= 0 ? '◷ Đang diễn ra' : diffMs < 3600000 ? `◷ Còn ${Math.max(1, Math.ceil(diffMs / 60000))} phút` : diffMs < 86400000 ? `◷ Còn ${Math.ceil(diffMs / 3600000)} giờ` : `◷ Còn ${Math.ceil(diffMs / 86400000)} ngày`;
+  const countdown = !activity.startsAt ? '' : diffMs <= 0 ? 'Đang diễn ra' : diffMs < 3600000 ? `Còn ${Math.max(1, Math.ceil(diffMs / 60000))} phút` : diffMs < 86400000 ? `Còn ${Math.ceil(diffMs / 3600000)} giờ` : `Còn ${Math.ceil(diffMs / 86400000)} ngày`;
   const endTime = activity.endsAt ? ` – ${new Date(activity.endsAt).toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', hour12: false })}` : '';
+  const locationText = activity.distanceKm != null ? `${activity.location} · ${activity.distance}` : activity.location;
   return (
     <ImageBackground resizeMode="cover" source={activity.image} style={styles.nextCard}>
       <LinearGradient colors={[colors.overlaySubtle, colors.overlayMedium, colors.overlayHeavy]} locations={[0, 0.52, 1]} style={styles.nextOverlay}>
-        <View style={styles.nextTopRow}><View style={styles.nextPill}><Ionicons color={colors.primary} name="time-outline" size={15} /><Text style={styles.nextPillText}>Hoạt động tiếp theo</Text></View><Text style={styles.countdown}>{countdown}</Text></View>
+        <View style={styles.nextTopRow}>
+          <View style={styles.nextPill}><Ionicons color={colors.primary} name="time-outline" size={14} /><Text style={styles.nextPillText}>Hoạt động tiếp theo</Text></View>
+          {countdown ? <View style={styles.countdownPill}><Text style={styles.countdown}>{countdown}</Text></View> : null}
+        </View>
         <View>
-          <Text style={styles.nextTitle}>{activity.title}</Text>
+          <Text numberOfLines={2} style={styles.nextTitle}>{activity.title}</Text>
           <ActivityMeta icon="calendar-outline" text={`${activity.time}${endTime}`} />
-          <ActivityMeta icon="location" text={`${activity.location} • ${activity.distance}`} />
+          <ActivityMeta icon="location-outline" text={locationText} />
           <View style={styles.memberRow}><AvatarStack activity={activity} /><Text style={styles.memberText}>{activity.members} thành viên</Text></View>
           <View style={styles.nextActions}>
-            <Pressable onPress={onPlan} style={styles.secondaryAction}><Ionicons color={colors.primary} name="calendar-clear-outline" size={20} /><Text style={styles.secondaryActionText}>Xem kế hoạch</Text></Pressable>
+            <Pressable onPress={onPlan} style={styles.secondaryAction}><Ionicons color={colors.primary} name="calendar-clear-outline" size={19} /><Text style={styles.secondaryActionText}>Xem kế hoạch</Text></Pressable>
             <Pressable onPress={onGroup} style={styles.primaryAction}><Ionicons color={colors.white} name="chatbubble-ellipses-outline" size={19} /><Text style={styles.primaryActionText}>Vào nhóm</Text></Pressable>
           </View>
         </View>
@@ -108,7 +112,7 @@ export function HomeEmptyState({ onMatch }: { onMatch: () => void }) {
 }
 
 function ActivityMeta({ icon, text }: { icon: IconName; text: string }) {
-  return <View style={styles.nextMeta}><Ionicons color={colors.white} name={icon} size={17} /><Text style={styles.nextMetaText}>{text}</Text></View>;
+  return <View style={styles.nextMeta}><Ionicons color={colors.white} name={icon} size={16} style={{ marginTop: 1 }} /><Text numberOfLines={2} style={styles.nextMetaText}>{text}</Text></View>;
 }
 
 function AvatarStack({ activity, compact = false }: { activity: Activity; compact?: boolean }) {
@@ -119,23 +123,20 @@ function AvatarStack({ activity, compact = false }: { activity: Activity; compac
 const styles = StyleSheet.create({
   headerRow: { alignItems: 'center', flexDirection: 'row', height: 60, justifyContent: 'space-between' },
   headerActions: { alignItems: 'center', flexDirection: 'row', gap: 8 },
-  notificationButton: { alignItems: 'center', height: 42, justifyContent: 'center', position: 'relative', width: 42 },
+  qrHeaderButton: { alignItems: 'center', justifyContent: 'center', width: 42, height: 42, borderRadius: 14, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  notificationButton: { alignItems: 'center', height: 42, justifyContent: 'center', position: 'relative', width: 42, borderRadius: 14, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
   notificationDot: { backgroundColor: colors.danger, borderColor: colors.background, borderRadius: 5, borderWidth: 2, height: 10, position: 'absolute', right: 7, top: 6, width: 10 },
   avatar: { borderRadius: 23, height: 46, width: 46 },
-  greetingLabel: { color: colors.textSecondary, fontSize: 16, lineHeight: 22, marginTop: 4 },
-  greetingName: { color: colors.text, ...typography.display },
-  greetingMetaRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 },
-  greetingMeta: { color: colors.textSecondary, fontSize: 13 },
-  calendarLink: { color: colors.primary, fontSize: 13, fontWeight: '600' },
-  nextCard: { borderRadius: radii.card, height: 374, marginTop: 14, overflow: 'hidden' },
+  nextCard: { borderRadius: radii.largeCard, height: 368, marginTop: 10, overflow: 'hidden' },
   nextOverlay: { flex: 1, justifyContent: 'space-between', padding: 16 },
-  nextTopRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  nextTopRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
   nextPill: { alignItems: 'center', backgroundColor: colors.whiteStrong, borderRadius: radii.pill, flexDirection: 'row', gap: 6, paddingHorizontal: 12, paddingVertical: 7 },
   nextPillText: { color: colors.primary, fontSize: 11.5, fontWeight: '700' },
-  countdown: { color: colors.white, fontSize: 12.5, fontWeight: '600' },
-  nextTitle: { color: colors.white, fontSize: 26, fontWeight: '800', lineHeight: 32 },
-  nextMeta: { alignItems: 'center', flexDirection: 'row', gap: 8, marginTop: 8 },
-  nextMetaText: { color: colors.white, fontSize: 13 },
+  countdownPill: { backgroundColor: 'rgba(15,23,42,0.48)', borderRadius: radii.pill, paddingHorizontal: 11, paddingVertical: 6 },
+  countdown: { color: colors.white, fontSize: 12, fontWeight: '700' },
+  nextTitle: { color: colors.white, fontSize: 25, fontWeight: '800', lineHeight: 31 },
+  nextMeta: { alignItems: 'flex-start', flexDirection: 'row', gap: 7, marginTop: 8 },
+  nextMetaText: { color: colors.white, flex: 1, fontSize: 13, lineHeight: 18 },
   memberRow: { alignItems: 'center', flexDirection: 'row', marginTop: 13 },
   avatarStack: { alignItems: 'center', flexDirection: 'row' },
   memberAvatar: { borderColor: colors.white, borderRadius: 18, borderWidth: 2 },

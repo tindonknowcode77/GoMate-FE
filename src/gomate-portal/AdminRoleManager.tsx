@@ -78,7 +78,7 @@ export default function AdminRoleManager({ roles, onClose, onChanged }: Props) {
 
   return <div className="gm-modal-backdrop gm-admin-role-backdrop">
     <section ref={dialogRef} className="gm-user-modal gm-admin-modal gm-admin-role-modal" role="dialog" aria-modal="true" aria-labelledby="admin-role-title">
-      <header className="gm-modal-head"><div><h3 id="admin-role-title">Quản lý vai trò</h3><p className="gm-live-muted">Vai trò hệ thống được quản lý theo hoạt động và hồ sơ đã duyệt.</p></div><button type="button" className="gm-btn gm-btn--secondary" disabled={busy} onClick={onClose}>Đóng</button></header>
+      <header className="gm-modal-head"><div><h3 id="admin-role-title">Quản lý vai trò</h3></div><button type="button" className="gm-btn gm-btn--secondary" disabled={busy} onClick={onClose}>Đóng</button></header>
       {error && <p role="alert" className="gm-form-error">{error}</p>}
       {confirm ? <div className="gm-admin-role-confirm"><p>Xóa vai trò “{confirm.name}”?</p><p className="gm-live-muted">Nếu đang có thành viên được gán, hệ thống sẽ từ chối xóa.</p><div className="gm-live-actions"><button type="button" className="gm-btn gm-btn--secondary" disabled={busy} onClick={() => setConfirm(null)}>Hủy</button><button type="button" className="gm-btn gm-btn--danger" disabled={busy} onClick={() => void remove()}>{busy ? 'Đang xóa…' : 'Xóa vai trò'}</button></div></div> : <>
         <div className="gm-admin-role-list">{roles.map(role => <article className="gm-admin-role-row" key={role.id}>

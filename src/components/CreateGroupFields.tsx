@@ -24,7 +24,11 @@ export function CreateGroupFields({
   onChange: (patch: Partial<ActivityDraft>) => void;
   editing?: boolean;
 }) {
-  const friends = useRemote(listFriends, []);
+  const friends = useRemote(listFriends, [], true, {
+    cacheKey: 'friends-list',
+    staleTimeMs: 30000,
+    tags: ['friends'],
+  });
   const capacityFloor = Math.max(existingMembers, Number(draft.minParticipants || 2));
   const selectedIds = draft.initialFriendIds ?? [];
   const selectedFriends = friends.data.filter(f => selectedIds.includes(f.id));

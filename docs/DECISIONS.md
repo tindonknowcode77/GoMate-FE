@@ -1,5 +1,67 @@
 # Decision log
 
+## 2026-11-26 - Optimistic chat with explicit idempotent retry
+
+Render a local bubble and clear its captured draft before awaiting the send API.
+Keep delivery status on that bubble and permit subsequent drafts. Use the same
+clientMessageId on explicit retry, scoped by conversation and sender; confirmed
+server data wins over local status regardless of socket/HTTP arrival order.
+Do not automatically replay writes after a timeout. Pending/failed state remains
+in memory while the screen is mounted; durable offline delivery is a separate
+feature. Revoked access clears local messages and suppresses late acknowledgements.
+
+Message history is independently authorized by BE and can display before a slow
+conversation summary. Read receipts are background work using the optional
+`summary=false` response contract; callers needing the old summary retain it.
+Reduce server round trips rather than extending request timeout budgets or
+caching authentication/authorization decisions.
+
+## 2026-11-26 - GPS-to-event radius slider with region-scoped 50 km+
+
+The slider selects integer radii 1–49 km; 50 represents 50 km+, meaning no
+distance cap within the selected province/city and any district/ward restrictions.
+Selecting All regions explicitly permits all regions. Preserve the existing
+saved-filter contract: finite values use radiusEnabled=true; 50+ uses false.
+Normalize legacy disabled or larger radius settings to 50+ and default new users
+to 10 km. Use the Expo SDK 57-compatible native slider, included in Expo Go.
+
+Refresh the searcher's foreground GPS on Match entry and use it ahead of any
+older session point. Match filters offer GPS refresh rather than an arbitrary
+map point; creation/editing still selects the activity's actual event pin. This
+supersedes manual Match-origin precedence in the earlier foreground GPS decision.
+
+BE combines event coordinates and structured event-region fields before counting
+and paging. Host profile location is irrelevant. Legacy event display text is a
+fallback only if its corresponding structured region is absent. Finite radius
+requires an event pin; unlimited region search may include unpinned events and
+calculates card distance for pinned results from GPS. Keep numeric distances for
+filtering and round only the label. Distances are straight-line, not road routes.
+
+## 2026-11-26 - Foreground Match location and bounded read recovery
+
+Request foreground location automatically on Match entry when no manual filter
+point is selected. Show GPS acquisition status, share in-flight fixes, and keep
+manual coordinates authoritative. Do not persist precise coordinates or request
+background tracking. If acquisition fails, keep a manual selection path and allow
+non-geographic discovery when the selected filters do not require coordinates.
+
+Notify global feedback subscribers from a post-commit effect, never from a React
+state updater. Preserve repeated user errors with a revision and suppress effect
+replay duplicates. Retry only GET transport failures once, within the original
+timeout budget and current session; do not retry HTTP failures or mutations.
+
+## 2026-11-26 - Android development loopback API addresses
+
+Resolve loopback API hosts to `10.0.2.2` in Android development so the existing
+localhost configuration reaches the API on the PC without depending on an ADB
+reverse for port 3000. Keep explicit LAN/cloud URLs unchanged for physical-device
+development and leave web, iOS and production addresses unchanged. Physical
+Android devices must use an explicit reachable LAN/cloud API URL.
+
+Use separate API and Metro commands for native-only development. Retain the
+existing web-first `dev:all` command for web work; restarting that command replaces
+the API process and temporarily interrupts mobile clients.
+
 ## 2026-11-20 - Shared chat WebSocket and demand-driven data loading
 
 Use Socket.IO over a shared authenticated WebSocket for active conversation

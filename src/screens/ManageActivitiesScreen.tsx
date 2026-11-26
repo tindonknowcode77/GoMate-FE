@@ -17,7 +17,11 @@ export function ManageActivitiesScreen({ onBack, onOpenMembers, onOpenGroup, onP
     const managed = joined.filter(item => item.isBusinessManager && !owned.some(row => row.id === item.id));
     return [...owned, ...managed];
   }, []);
-  const hosted = useRemote(loader, []);
+  const hosted = useRemote(loader, [], true, {
+    cacheKey: 'manage-activities',
+    staleTimeMs: 20000,
+    tags: ['manage', 'my-activities', 'activities'],
+  });
   const [selectedId, setSelectedId] = useState('');
   const [revision, setRevision] = useState(0);
   const selected = hosted.data.find(row => row.id === selectedId) ?? hosted.data[0];

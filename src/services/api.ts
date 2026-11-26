@@ -52,6 +52,7 @@ export async function initializeSession() {
   try { value = JSON.parse(stored || 'null'); } catch { /* Discard damaged data. */ }
   if (!value || typeof value.accessToken !== 'string' || typeof value.user?.id !== 'string') { await persistSession(null); return; }
   session = value;
+  sessionListeners.forEach(listener => listener());
   // MainApp checks the restored session against BE; network failure keeps a retry path.
 }
 export const setUnauthorizedHandler = (handler?: () => void) => { onUnauthorized = handler; };
@@ -68,11 +69,23 @@ export class ApiError extends Error {
 }
 
 const pendingGets = new Map<string, Promise<unknown>>();
+const mutationListeners = new Set<(path: string, method: string) => void>();
+export function subscribeMutation(listener: (path: string, method: string) => void) {
+  mutationListeners.add(listener);
+  return () => { mutationListeners.delete(listener); };
+}
 export function api<T>(path: string, options: RequestInit & { timeoutMs?: number } = {}): Promise<T> {
   const method = (options.method ?? 'GET').toUpperCase();
   if (method !== 'GET') {
     pendingGets.clear();
-    return request<T>(path, options).finally(() => pendingGets.clear());
+    return request<T>(path, options).then(result => {
+      pendingGets.clear();
+      mutationListeners.forEach(listener => listener(path, method));
+      return result;
+    }, reason => {
+      pendingGets.clear();
+      throw reason;
+    });
   }
   if (options.signal || options.headers || options.body) return request<T>(path, options);
   const key = JSON.stringify([session?.accessToken ?? '', path, options]);
@@ -91,13 +104,23 @@ async function request<T>(path: string, options: RequestInit & { timeoutMs?: num
   const abort = () => controller.abort();
   if (options.signal?.aborted) controller.abort();
   else options.signal?.addEventListener('abort', abort, { once: true });
-  const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? (typeof options.body === 'string' && options.body.length > 1000000 ? 120000 : 15000));
+  const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? (typeof options.body === 'string' && options.body.length > 100000 ? 90000 : 30000));
   try {
-    const response = await fetch(`${apiBaseUrl}${path}`, {
+    const send = () => fetch(`${apiBaseUrl}${path}`, {
       ...options, cache: options.cache ?? 'no-store', signal: controller.signal,
       headers: { Accept: 'application/json', ...(options.body ? { 'Content-Type': 'application/json' } : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}), ...options.headers },
     });
+    let response: Response;
+    try { response = await send(); }
+    catch (reason) {
+      // A stale native connection can fail before a response. Retry reads once
+      // inside the same timeout budget; never replay a mutation or HTTP error.
+      if ((options.method ?? 'GET').toUpperCase() !== 'GET' || controller.signal.aborted || token !== session?.accessToken) throw reason;
+      await new Promise(resolve => setTimeout(resolve, 250));
+      if (controller.signal.aborted || token !== session?.accessToken) throw reason;
+      response = await send();
+    }
     if (token !== session?.accessToken) throw new ApiError('Phiên đăng nhập đã thay đổi. Vui lòng thử lại.', 409);
     if (response.status === 204) return undefined as T;
     const payload = await response.json().catch(() => null);
@@ -110,7 +133,7 @@ async function request<T>(path: string, options: RequestInit & { timeoutMs?: num
     return payload as T;
   } catch (error) {
     if (error instanceof ApiError) throw error;
-    throw new Error(error instanceof Error && error.name === 'AbortError'
+    throw new Error(controller.signal.aborted || (error instanceof Error && error.name === 'AbortError')
       ? 'Kết nối quá thời gian. Vui lòng thử lại.'
       : 'Không thể kết nối. Kiểm tra mạng và thử lại.');
   } finally { clearTimeout(timeout); options.signal?.removeEventListener('abort', abort); }

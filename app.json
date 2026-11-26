@@ -20,6 +20,12 @@
     "plugins": [
       "expo-font",
       [
+        "expo-camera",
+        {
+          "cameraPermission": "GoMate dùng camera để quét mã QR điểm danh hoặc tham gia nhóm."
+        }
+      ],
+      [
         "expo-image-picker",
         {
           "photosPermission": "GoMate uses your photos to build your profile and share your favorite moments.",

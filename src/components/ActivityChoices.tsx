@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Text } from './LocalizedText';
 import { SelectionField } from './SelectionField';
 import { profileLanguages } from '../data/profileOptions';
@@ -52,12 +53,19 @@ export function AdvancedPreferences({ value, onChange, filter = false }: { value
   const count = value.genders.length + value.languages.length + (value.minAge ? 1 : 0) + (value.maxAge ? 1 : 0);
   const patch = (fields: Partial<ParticipantPreferences>) => onChange({ ...value, ...fields });
   const ages = [{ value: '0', label: 'Không giới hạn' }, ...[16, 18, 20, 22, 25, 28, 30, 35, 40, 45, 50, 60].map(age => ({ value: String(age), label: `${age} tuổi` }))];
-  return <View style={styles.panel}><Pressable accessibilityRole="button" accessibilityLabel="Tùy chọn nâng cao" accessibilityState={{ expanded: open }} onPress={() => setOpen(!open)}><Text style={styles.title}>Tùy chọn nâng cao {count ? `(${count})` : ''} {open ? '−' : '+'}</Text><Text style={styles.hint}>Độ tuổi, giới tính và ngôn ngữ (không bắt buộc)</Text></Pressable>
-    {open && <View style={styles.group}><Text style={styles.hint}>{filter ? 'Nhóm không giới hạn vẫn được hiển thị. Khoảng tuổi lọc theo phần giao nhau.' : 'Để trống nếu không giới hạn. Điều kiện được đối chiếu với hồ sơ khi tham gia.'}</Text>
+  return <View style={styles.panel}>
+    <Pressable accessibilityRole="button" accessibilityLabel="Tùy chọn nâng cao" accessibilityState={{ expanded: open }} onPress={() => setOpen(!open)} style={styles.headerRow}>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.title}>Tùy chọn nâng cao {count ? `(${count})` : ''}</Text>
+        <Text style={styles.hint}>Độ tuổi, giới tính, ngôn ngữ</Text>
+      </View>
+      <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={18} color={colors.primary} />
+    </Pressable>
+    {open && <View style={styles.group}>
       <View style={{ flexDirection: 'row', gap: 12 }}><View style={{ flex: 1 }}><SelectionField label="Tuổi từ" options={ages} selected={[String(value.minAge || 0)]} onChange={values => patch({ minAge: Number(values[0] || 0) })} /></View><View style={{ flex: 1 }}><SelectionField label="Đến tuổi" options={ages} selected={[String(value.maxAge || 0)]} onChange={values => patch({ maxAge: Number(values[0] || 0) })} /></View></View>
       <OptionChips label="Giới tính tham gia" options={genderOptions} selected={value.genders} onChange={genders => patch({ genders })} single={filter} />
       <SelectionField label="Ngôn ngữ của nhóm" options={profileLanguages.map(label => ({ value: label, label }))} selected={value.languages} onChange={languages => patch({ languages })} multiple={!filter} searchable emptyLabel="Không giới hạn" />
-      <Pressable accessibilityRole="button" onPress={() => onChange({ ...emptyPreferences })}><Text style={styles.activeText}>Xóa tùy chọn nâng cao</Text></Pressable>
+      <Pressable accessibilityRole="button" onPress={() => onChange({ ...emptyPreferences })} style={styles.clearBtn}><Ionicons name="refresh-outline" size={15} color={colors.primary} /><Text style={styles.activeText}>Đặt lại tùy chọn</Text></Pressable>
     </View>}
   </View>;
 }
@@ -76,6 +84,8 @@ export function PreferencesSummary({ value }: { value?: ParticipantPreferences }
 
 const styles = StyleSheet.create({
   panel: { backgroundColor: colors.surface, borderRadius: 18, borderWidth: 1, borderColor: colors.border, padding: 16 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  clearBtn: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.primarySoft, borderRadius: 11, paddingHorizontal: 12, paddingVertical: 8, marginTop: 4 },
   group: { gap: 10, marginTop: 12 }, row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   label: { color: colors.text, fontSize: 14, fontWeight: '600' }, title: { color: colors.primary, fontSize: 16, fontWeight: '700' },
   chip: { paddingHorizontal: 12, paddingVertical: 10, backgroundColor: colors.background, borderRadius: 12, borderWidth: 1, borderColor: colors.border },

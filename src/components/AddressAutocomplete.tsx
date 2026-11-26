@@ -16,7 +16,11 @@ export function AddressAutocomplete({ value, bias, onChangeText, onSelect, onSug
   onSelect: (place: MapPlace) => void;
   onSuggestionsLayout?: () => void;
 }) {
-  const config = useRemote<MapsConfig | null>(getMapsConfig, null);
+  const config = useRemote<MapsConfig | null>(getMapsConfig, null, true, {
+    cacheKey: 'maps-config',
+    staleTimeMs: 5 * 60 * 1000,
+    tags: ['static'],
+  });
   const [query, setQuery] = useState(''), [retry, setRetry] = useState(0);
   const [results, setResults] = useState<{ items: PlacePrediction[]; session: string } | null>(null);
   const [busy, setBusy] = useState(false), [selecting, setSelecting] = useState(false), [error, setError] = useState('');

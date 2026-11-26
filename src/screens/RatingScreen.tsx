@@ -15,7 +15,11 @@ import { colors, layout } from '../theme';
 
 export function RatingScreen({ activity, onBack, onComplete }: { activity: Activity; onBack: () => void; onComplete: () => void }) {
   const load = useCallback(() => getRatingForm(activity.id), [activity.id]);
-  const remote = useRemote(load, null);
+  const remote = useRemote(load, null, true, {
+    cacheKey: `rating:${activity.id}`,
+    staleTimeMs: 30000,
+    tags: ['ratings', `activity:${activity.id}`],
+  });
   const [score, setScore] = useState(0);
   const [comment, setComment] = useState('');
   const [members, setMembers] = useState<Record<string, number>>({});
@@ -105,14 +109,7 @@ export function RatingScreen({ activity, onBack, onComplete }: { activity: Activ
                     <Text style={styles.note}>{comment.length}/1000</Text>
                   </View>
                 </>
-              ) : (
-                <View style={styles.hostBanner}>
-                  <Ionicons name="ribbon-outline" size={22} color={colors.primary} />
-                  <Text style={styles.hostBannerText}>
-                    Với vai trò Host, bạn chỉ cần đánh giá các thành viên đã tham gia (không cần đánh giá hoạt động do chính mình tạo).
-                  </Text>
-                </View>
-              )}
+              ) : null}
 
               <View style={styles.card}>
                 <Text style={styles.heading}>

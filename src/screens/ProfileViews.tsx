@@ -15,6 +15,7 @@ import { BirthDateField, InterestField, LanguageField, RegionField } from '../co
 import { ProfileCoverEditor } from '../components/ProfileCoverEditor';
 import { ProfilePhotoEditor } from '../components/ProfilePhotoEditor';
 import { useProfile } from '../services/ProfileContext';
+import { getCached } from '../services/remoteCache';
 import { imageUrl, missingFieldLabels, ProfileDraft, saveProfile, uploadAvatar, UserProfile } from '../services/profileService';
 import { birthDateDisplay, birthDateIso } from '../services/profileDate';
 import { availableTimes, companionGoals, educationOptions, normalizeRegion, profileRegions } from '../data/profileOptions';
@@ -80,7 +81,7 @@ function ProfileForm({ profile, required, onSaved }: { profile: UserProfile; req
     {step !== 'basic' && <View style={styles.tabs}><Pressable disabled={photoBusy || coverBusy || busy} accessibilityRole="tab" aria-selected={!preview} accessibilityState={{ selected: !preview }} onPress={() => setPreview(false)} style={[styles.tab, !preview && styles.activeTab]}><Text style={styles.link}>Chỉnh sửa hồ sơ</Text></Pressable><Pressable disabled={photoBusy || coverBusy || busy} accessibilityRole="tab" aria-selected={preview} accessibilityState={{ selected: preview }} onPress={() => setPreview(true)} style={[styles.tab, preview && styles.activeTab]}><Text style={styles.link}>Xem trước hồ sơ</Text></Pressable></View>}
     {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
     {preview ? <ProfilePreview profile={previewProfile} /> : <>
-      <View style={styles.avatarArea}>{avatar ? <Image source={{ uri: avatar }} style={styles.avatar} /> : <View style={styles.avatar}><Text style={styles.initial}>{draft.name.charAt(0)}</Text></View>}<Pressable disabled={busy} accessibilityRole="button" onPress={() => void choosePhoto()}><Text style={styles.link}>Chọn ảnh đại diện</Text></Pressable></View>
+      <View style={styles.avatarArea}>{avatar ? <Image source={{ uri: avatar }} style={styles.avatar} /> : <View style={styles.avatar}><Text style={styles.initial}>{draft.name.charAt(0)}</Text></View>}<Pressable disabled={busy} accessibilityRole="button" onPress={() => void choosePhoto()} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.primarySoft, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 8 }}><Ionicons name="camera-outline" size={16} color={colors.primary} /><Text style={styles.link}>Đổi ảnh đại diện</Text></Pressable></View>
       {step !== 'companion' && <View style={styles.card}><Text style={styles.title}>Thông tin cơ bản</Text>
         <FormField label="Họ và tên" value={draft.name} onChangeText={name => patch({ name })} />
         <FormField label="Nickname (không bắt buộc)" value={draft.username} onChangeText={username => patch({ username })} placeholder="" />
@@ -136,20 +137,22 @@ function InfoLine({ icon, text }: { icon: IconName; text: string }) { return tex
 export function UserProfileScreen({ onEdit, onPreview, onVerification, onReviews, onMyActivities, onNotifications, onSettings, onFriends, onWallet, onAttendance }: { onEdit: () => void; onPreview: () => void; onVerification: () => void; onReviews: () => void; onMyActivities: () => void; onFriends: () => void; onNotifications: () => void; onSettings: () => void; onWallet?: () => void; onAttendance?: () => void }) {
   const remote = useProfile(), profile = remote.profile;
   const reloadProfile = remote.reload;
-  useEffect(() => { void reloadProfile(true); }, [reloadProfile]);
+  useEffect(() => {
+    if (!getCached('profile-me')?.fresh) void reloadProfile(true);
+  }, [reloadProfile]);
   const menu: { label: string; icon: IconName; action: () => void }[] = [
     ...(onAttendance ? [{ label: 'Điểm danh & khiếu nại', icon: 'clipboard-outline' as IconName, action: onAttendance }] : []),
     ...(onWallet ? [{ label: 'Ví & Lịch sử thanh toán', icon: 'wallet-outline' as IconName, action: onWallet }] : []),
     { label: 'Xác minh tài khoản', icon: 'shield-checkmark-outline', action: onVerification }, { label: 'Điểm đánh giá của tôi', icon: 'star-outline', action: onReviews },
     { label: 'Bạn bè', icon: 'people-outline', action: onFriends }, { label: 'Hoạt động của tôi', icon: 'calendar-outline', action: onMyActivities }, { label: 'Thông báo', icon: 'notifications-outline', action: onNotifications }, { label: 'Cài đặt', icon: 'settings-outline', action: onSettings },
   ];
-  return <ScrollView contentContainerStyle={styles.page}><Text style={styles.title}>Hồ sơ của tôi</Text><RemoteState loading={remote.loading} error={remote.error} onRetry={remote.reload} />
-    {profile && !remote.loading && !remote.error && <>
-      <View style={styles.card}>{profile.coverUrl && <Image source={{ uri: imageUrl(profile.coverUrl) }} style={{ width: '100%', aspectRatio: 8 / 3, borderRadius: 16, marginBottom: 12 }} />}<View style={styles.avatarArea}>{profile.avatarUrl ? <Image source={{ uri: imageUrl(profile.avatarUrl) }} style={styles.avatar} /> : <View style={styles.avatar}><Text style={styles.initial}>{profile.name.charAt(0)}</Text></View>}<Text style={styles.profileName}>{profile.name}</Text>{profile.username ? <Text style={styles.note}>@{profile.username}</Text> : null}<Text>{profile.location || 'Chưa chọn khu vực'}</Text></View>
+  return <ScrollView contentContainerStyle={styles.page}><Text style={styles.title}>Hồ sơ của tôi</Text><RemoteState loading={remote.loading && !profile} error={profile ? '' : remote.error} onRetry={remote.reload} />
+    {profile && <>
+      <View style={styles.card}>{profile.coverUrl && <Image source={{ uri: imageUrl(profile.coverUrl) }} style={{ width: '100%', aspectRatio: 8 / 3, borderRadius: 16 }} />}<View style={[styles.avatarArea, profile.coverUrl ? { marginTop: -56 } : undefined]}>{profile.avatarUrl ? <Image source={{ uri: imageUrl(profile.avatarUrl) }} style={[styles.avatar, profile.coverUrl ? { borderWidth: 4, borderColor: colors.surface } : undefined]} /> : <View style={[styles.avatar, profile.coverUrl ? { borderWidth: 4, borderColor: colors.surface } : undefined]}><Text style={styles.initial}>{profile.name.charAt(0)}</Text></View>}<Text style={styles.profileName}>{profile.name}</Text>{profile.username ? <Text style={styles.note}>@{profile.username}</Text> : null}<Text>{profile.location || 'Chưa chọn khu vực'}</Text></View>
         <ReputationStats reputation={profile.reputation} />
         {!profile.profileComplete && <Text style={styles.note}>Cần bổ sung: {profile.missingFields.map(key => missingFieldLabels[key] || key).join(', ')}.</Text>}
         <Text style={styles.note}>{profile.bio || 'Chia sẻ một chút về bạn với người đồng hành.'}</Text>
-        <View style={{ flexDirection: 'row', gap: 10 }}>{([{ label: 'Chỉnh sửa hồ sơ', icon: 'create-outline', action: onEdit }, { label: 'Xem trước hồ sơ', icon: 'eye-outline', action: onPreview }] as const).map(item => <Pressable key={item.label} accessibilityRole="button" accessibilityLabel={item.label} onPress={item.action} style={{ flex: 1, backgroundColor: colors.primarySoft, borderRadius: 14, padding: 12, alignItems: 'center', gap: 7 }}><Ionicons name={item.icon} size={20} color={colors.primary} /><Text style={[styles.link, { textAlign: 'center' }]}>{item.label}</Text></Pressable>)}</View>
+        <View style={{ flexDirection: 'row', gap: 10 }}>{([{ label: 'Chỉnh sửa hồ sơ', icon: 'create-outline', action: onEdit }, { label: 'Xem trước hồ sơ', icon: 'eye-outline', action: onPreview }] as const).map(item => <Pressable key={item.label} accessibilityRole="button" accessibilityLabel={item.label} onPress={item.action} style={{ flex: 1, flexDirection: 'row', backgroundColor: colors.primarySoft, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center', gap: 7 }}><Ionicons name={item.icon} size={18} color={colors.primary} /><Text numberOfLines={1} style={[styles.link, { fontSize: 13 }]}>{item.label}</Text></Pressable>)}</View>
       </View>
       <View style={styles.menu}>{menu.map(item => <Pressable accessibilityRole="button" accessibilityLabel={item.label} key={item.label} onPress={item.action} style={styles.menuRow}><View style={styles.menuIcon}><Ionicons name={item.icon} size={22} color={colors.primary} /></View><Text style={styles.menuLabel}>{item.label}</Text><Ionicons name="chevron-forward" size={18} color={colors.textMuted} /></Pressable>)}</View>
     </>}

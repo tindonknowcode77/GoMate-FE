@@ -15,7 +15,11 @@ import { colors, layout } from '../theme';
 
 export function ActivityProgressScreen({ activity, onBack, onEnd }: { activity: Activity; onBack: () => void; onEnd: (activity: Activity) => void }) {
   const loader = useCallback(async () => { const [current, attendance, updates] = await Promise.all([getActivity(activity.id), listAttendance(activity.id), listUpdates(activity.id)]); return { current, attendance, updates }; }, [activity.id]);
-  const remote = useRemote(loader, null);
+  const remote = useRemote(loader, null, true, {
+    cacheKey: `progress:${activity.id}`,
+    staleTimeMs: 15000,
+    tags: [`progress:${activity.id}`, `activity:${activity.id}`],
+  });
   const [error, setError] = useFeedbackState('');
   const [busy, setBusy] = useState(false);
   const [confirmEnd, setConfirmEnd] = useState(false);

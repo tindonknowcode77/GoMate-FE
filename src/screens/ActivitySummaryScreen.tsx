@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Image, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -12,9 +12,29 @@ import { UserAvatar } from '../components/UserAvatar';
 import { Activity } from '../data/activities';
 import { getSession } from '../services/api';
 import { ActivityMemory, getActivitySummary, uploadActivityMemory } from '../services/activityApi';
+import { resolveProtectedMediaUri } from '../services/chatContent';
 import { imageUrl } from '../services/profileService';
 import { useRemote } from '../services/useRemote';
 import { colors, layout, radii } from '../theme';
+
+function MemoryPhoto({ rawUrl, style, resizeMode = 'cover' }: { rawUrl: string; style: object; resizeMode?: 'cover' | 'contain' }) {
+  const fullUrl = imageUrl(rawUrl);
+  const isProtectedChatAttachment = rawUrl.includes('/conversations/') && rawUrl.includes('/attachments/');
+  const [resolvedUri, setResolvedUri] = useState(isProtectedChatAttachment ? '' : fullUrl);
+  useEffect(() => {
+    if (!isProtectedChatAttachment) return;
+    let alive = true;
+    void resolveProtectedMediaUri(fullUrl, `summary:${rawUrl}`, 'image/jpeg')
+      .then(localUri => { if (alive) setResolvedUri(localUri); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [fullUrl, rawUrl, isProtectedChatAttachment]);
+
+  if (isProtectedChatAttachment) {
+    return resolvedUri ? <Image source={{ uri: resolvedUri }} style={style} resizeMode={resizeMode} /> : <View style={[style, { alignItems: 'center', justifyContent: 'center' }]}><ActivityIndicator size="small" color={colors.primary} /></View>;
+  }
+  return <Image source={{ uri: fullUrl }} style={style} resizeMode={resizeMode} />;
+}
 
 const statusBadge = {
   present: { label: 'Có mặt', fg: colors.successText, bg: colors.successSoft },
@@ -25,7 +45,11 @@ const statusBadge = {
 
 export function ActivitySummaryScreen({ activity, onBack, onRate }: { activity: Activity; onBack: () => void; onRate: () => void }) {
   const loader = useCallback(() => getActivitySummary(activity.id), [activity.id]);
-  const remote = useRemote(loader, null);
+  const remote = useRemote(loader, null, true, {
+    cacheKey: `summary:${activity.id}`,
+    staleTimeMs: 30000,
+    tags: [`summary:${activity.id}`, 'summary', `activity:${activity.id}`],
+  });
   const [showRoster, setShowRoster] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
@@ -144,7 +168,7 @@ export function ActivitySummaryScreen({ activity, onBack, onRate }: { activity: 
                   <View style={styles.memoryGrid}>
                     {summary.memories.map(item => (
                       <Pressable key={item.id} onPress={() => setLightbox(item)} style={styles.memoryTile}>
-                        <Image source={{ uri: imageUrl(item.imageUrl) }} style={styles.memoryImg} />
+                        <MemoryPhoto rawUrl={item.imageUrl} style={styles.memoryImg} />
                       </Pressable>
                     ))}
                   </View>
@@ -166,24 +190,19 @@ export function ActivitySummaryScreen({ activity, onBack, onRate }: { activity: 
                 </View>
               )}
 
-              {!summary.rating.canRate && !summary.rating.hasRated ? (
-                <Text style={{ color: colors.textSecondary, marginBottom: 10, fontSize: 13 }}>
-                  Đánh giá dành cho thành viên đã tham gia hoạt động.
-                </Text>
-              ) : null}
-
-              <GradientButton
-                disabled={!summary.rating.canRate}
-                label={
-                  summary.rating.hasRated
-                    ? 'Xem lại đánh giá của bạn'
-                    : summary.rating.isHost
-                      ? 'Đánh giá thành viên'
-                      : 'Đánh giá trải nghiệm'
-                }
-                onPress={onRate}
-                trailing={<Ionicons color={colors.white} name="star" size={18} />}
-              />
+              {summary.rating.canRate && (
+                <GradientButton
+                  label={
+                    summary.rating.hasRated
+                      ? 'Xem lại đánh giá của bạn'
+                      : summary.rating.isHost
+                        ? 'Đánh giá thành viên'
+                        : 'Đánh giá trải nghiệm'
+                  }
+                  onPress={onRate}
+                  trailing={<Ionicons color={colors.white} name="star" size={18} />}
+                />
+              )}
             </>
           )}
         </View>
@@ -196,7 +215,7 @@ export function ActivitySummaryScreen({ activity, onBack, onRate }: { activity: 
           </Pressable>
           {lightbox && (
             <View style={styles.lightboxCard}>
-              <Image source={{ uri: imageUrl(lightbox.imageUrl) }} style={styles.lightboxImg} resizeMode="contain" />
+              <MemoryPhoto rawUrl={lightbox.imageUrl} style={styles.lightboxImg} resizeMode="contain" />
               <Text style={styles.lightboxCaption}>
                 {lightbox.uploaderName}{lightbox.caption ? ` · ${lightbox.caption}` : ''}
               </Text>

@@ -174,16 +174,16 @@ export default function AdminFinance({ refreshVersion = 0 }) {
     {tab === 'disputes' && <section className="gm-panel gm-live-panel gm-finance-panel">
       {panelHeading('YÊU CẦU ĐANG TRANH CHẤP', 'Khiếu nại giữ tiền', 'Giữ nguyên khoản tiền cho đến khi có kết quả xử lý.', disputes.length)}
       {disputes.map(({ group, lot }) => <article className="gm-finance-card" key={lot.paymentId}>
-        <div className="gm-finance-card-heading"><div><strong>{group.title}</strong><small>Mã hoạt động {group.id}</small></div><StatusPill tone="orange">Đang giữ tiền</StatusPill></div>
+        <div className="gm-finance-card-heading"><div><strong>{group.title}</strong><small>#{String(group.id).slice(0, 8)}</small></div><StatusPill tone="orange">Đang giữ tiền</StatusPill></div>
         <div className="gm-finance-amount-row"><span>Tiền đang tranh chấp</span><strong>{money(lot.amount)}</strong></div>
-        <div className="gm-finance-facts"><div><span>Thành viên</span><strong>{lot.userId}</strong></div><div><span>Ghi chú xác nhận</span><strong>{lot.confirmation?.note || 'Chưa có ghi chú'}</strong></div></div>
+        <div className="gm-finance-facts"><div><span>Thành viên</span><strong>{lot.userName || `#${String(lot.userId).slice(0, 8)}`}</strong></div><div><span>Ghi chú xác nhận</span><strong>{lot.confirmation?.note || 'Chưa có ghi chú'}</strong></div></div>
         <div className="gm-finance-card-actions"><PillButton variant="secondary" disabled={busy} onClick={() => open({ kind: 'dispute', group, lot, action: 'release' })}>Ghi kết quả xử lý</PillButton><PillButton disabled={busy} onClick={() => open({ kind: 'dispute', group, lot, action: 'refund' })}>Chấp nhận & duyệt hoàn cọc</PillButton></div>
       </article>)}
       {!disputes.length && <div className="gm-finance-empty"><Icon name="check" size={18} /><span>Không có khiếu nại trong trang này.</span></div>}
     </section>}
     {tab === 'audit' && <section className="gm-panel gm-live-panel gm-finance-panel">
       {panelHeading('THEO DÕI THAY ĐỔI', 'Lịch sử đối soát', 'Các thao tác tài chính được ghi nhận theo từng hoạt động.', tabCounts.audit)}
-      {groups.map(group => <details className="gm-finance-audit-group" key={group.id}><summary><span><strong>{group.title}</strong><small>{group.audit.length} bản ghi · Mã hoạt động {group.id}</small></span><Icon name="arrow" size={15} /></summary><div>{[...group.audit].reverse().map(item => <article className="gm-finance-audit-entry" key={item.id}><time>{date(item.createdAt)}</time><strong>{item.action}</strong><span>{item.actorId}</span>{item.note && <p>{item.note}</p>}</article>)}</div></details>)}
+      {groups.map(group => <details className="gm-finance-audit-group" key={group.id}><summary><span><strong>{group.title}</strong><small>{group.audit.length} bản ghi · #{String(group.id).slice(0, 8)}</small></span><Icon name="arrow" size={15} /></summary><div>{[...group.audit].reverse().map(item => <article className="gm-finance-audit-entry" key={item.id}><time>{date(item.createdAt)}</time><strong>{item.action}</strong><span>{item.actorName || `#${String(item.actorId || '').slice(0, 8)}`}</span>{item.note && <p>{item.note}</p>}</article>)}</div></details>)}
       {!groups.some(group => group.audit.length) && <div className="gm-finance-empty"><Icon name="check" size={18} /><span>Chưa có lịch sử đối soát trong trang này.</span></div>}
     </section>}
     <div className="gm-live-actions gm-finance-pagination"><PillButton variant="secondary" disabled={page === 1 || loading} onClick={() => setPage(value => value - 1)}>Trang trước</PillButton><span>Trang {page} / {Math.max(1, Math.ceil(total / pageSize))}</span><PillButton variant="secondary" disabled={loading || page * pageSize >= total} onClick={() => setPage(value => value + 1)}>Trang sau</PillButton></div>

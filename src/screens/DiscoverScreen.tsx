@@ -56,8 +56,16 @@ export function DiscoverScreen({ filters, onBack, onFilterPress, context, onCont
         <TextInput accessibilityLabel="Tìm hoạt động" maxLength={100} placeholder="Tên hoạt động, địa điểm, từ khóa…" value={input} onChangeText={setInput} style={{ flex: 1, borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 8 }} />
         <Pressable disabled={loading} onPress={() => { setLoading(true); setPage(1); setItems([]); setQuery(input.trim()); onContextChange({ query: input.trim(), coords }); setRetry(value => value + 1); }}><Text>Tìm kiếm</Text></Pressable>
       </View>
-      <Pressable disabled={locating} onPress={() => void locate()}><Text>{locating ? 'Đang lấy vị trí…' : coords ? `Cập nhật vị trí · trong ${filters.distance} km` : 'Dùng vị trí của tôi để tìm gần đây'}</Text></Pressable>
-      {coords && <Pressable onPress={() => { setLoading(true); setPage(1); setItems([]); setCoords(undefined); onContextChange({ query }); }}><Text>Tìm mọi khu vực</Text></Pressable>}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+        <Pressable disabled={locating} onPress={() => void locate()} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, backgroundColor: '#F3EEFF' }}>
+          <Text style={{ color: '#6C47FF', fontWeight: '700', fontSize: 12.5 }}>{locating ? 'Đang định vị…' : coords ? `Định vị lại · trong ${filters.distance} km` : 'Tìm quanh tôi'}</Text>
+        </Pressable>
+        {coords && (
+          <Pressable onPress={() => { setLoading(true); setPage(1); setItems([]); setCoords(undefined); onContextChange({ query }); }} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, backgroundColor: '#F4F4F6' }}>
+            <Text style={{ color: '#4B5563', fontWeight: '600', fontSize: 12.5 }}>Mọi khu vực</Text>
+          </Pressable>
+        )}
+      </View>
       {!!locationError && <Text accessibilityRole="alert">{locationError}</Text>}
       {!!error && <Pressable onPress={() => { setLoading(true); setRetry(value => value + 1); }}><Text accessibilityRole="alert">{error} · Thử lại</Text></Pressable>}
     </View>

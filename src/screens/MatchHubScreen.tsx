@@ -5,6 +5,7 @@ import { Animated, Easing, Pressable, ScrollView, StyleSheet, View } from 'react
 
 import { UnreadDot } from '../components/UnreadDot';
 import { getActivityCounts } from '../services/activityApi';
+import { useLiveRefresh } from '../services/useLiveRefresh';
 import { useRemote } from '../services/useRemote';
 import { useProfile } from '../services/ProfileContext';
 import { UserAvatar } from '../components/UserAvatar';
@@ -36,7 +37,12 @@ export function MatchHubScreen({
   pendingCount,
   hostRequestCount,
 }: MatchHubScreenProps) {
-  const counts = useRemote(getActivityCounts, { pending: 0, hostRequests: 0 });
+  const counts = useRemote(getActivityCounts, { pending: 0, hostRequests: 0 }, true, {
+    cacheKey: 'activity-counts',
+    staleTimeMs: 20000,
+    tags: ['activity-counts', 'my-requests', 'activities'],
+  });
+  useLiveRefresh(counts.reload);
   const { profile } = useProfile();
   const isStaff = Boolean(profile?.isStaff);
   const effectivePending = pendingCount ?? counts.data.pending;

@@ -4,7 +4,11 @@ import { useRemote } from './useRemote';
 
 const ProfileContext = createContext<{ profile: UserProfile | null; loading: boolean; error: string; reload: (background?: boolean) => Promise<void>; update: (profile: UserProfile) => void } | null>(null);
 export function ProfileProvider({ children }: { children: ReactNode }) {
-  const remote = useRemote<UserProfile | null>(getProfile, null);
+  const remote = useRemote<UserProfile | null>(getProfile, null, true, {
+    cacheKey: 'profile-me',
+    staleTimeMs: 30000,
+    tags: ['profile'],
+  });
   const value = useMemo(() => ({
     profile: remote.data,
     loading: remote.loading,

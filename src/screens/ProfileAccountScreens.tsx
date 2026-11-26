@@ -27,9 +27,13 @@ export function VerificationStatusScreen({ onBack }: { onBack: () => void }) {
   </ScrollView></SafeAreaView>;
 }
 export function MyReviewsScreen({ onBack }: { onBack: () => void }) {
-  const remote = useRemote(getMyReviews, null);
-  return <SafeAreaView style={styles.safe}><ScreenHeader title="Điểm đánh giá của tôi" onBack={onBack} /><ScrollView contentContainerStyle={styles.page}><RemoteState {...remote} onRetry={remote.reload} />
-    {remote.data && !remote.loading && !remote.error && <><View style={styles.card}><Ionicons name="star" size={38} color={colors.primary} /><Text style={styles.score}>{remote.data.average === null ? 'Chưa có đánh giá' : `${remote.data.average.toFixed(1)} / 5`}</Text><Text style={styles.note}>{remote.data.count ? `${remote.data.count} đánh giá từ các hoạt động` : 'Đánh giá từ người đồng hành sẽ xuất hiện tại đây sau những hoạt động cùng nhau.'}</Text></View>
+  const remote = useRemote(getMyReviews, null, true, {
+    cacheKey: 'my-reviews',
+    staleTimeMs: 60000,
+    tags: ['reviews', 'profile'],
+  });
+  return <SafeAreaView style={styles.safe}><ScreenHeader title="Điểm đánh giá của tôi" onBack={onBack} /><ScrollView contentContainerStyle={styles.page}><RemoteState loading={remote.loading && !remote.data} error={remote.data ? '' : remote.error} onRetry={remote.reload} />
+    {remote.data && <><View style={styles.card}><Ionicons name="star" size={38} color={colors.primary} /><Text style={styles.score}>{remote.data.average === null ? 'Chưa có đánh giá' : `${remote.data.average.toFixed(1)} / 5`}</Text><Text style={styles.note}>{remote.data.count ? `${remote.data.count} đánh giá từ các hoạt động` : 'Đánh giá từ người đồng hành sẽ xuất hiện tại đây sau những hoạt động cùng nhau.'}</Text></View>
       {remote.data.items.map(item => <View key={item.id} style={styles.card}><Text style={styles.title}>{item.score} / 5 ★</Text>{item.activityTitle ? <Text>{item.activityTitle}</Text> : null}{item.comment ? <Text>{item.comment}</Text> : null}<Text style={styles.note}>{new Date(item.createdAt).toLocaleDateString('vi-VN')}</Text></View>)}</>}
   </ScrollView></SafeAreaView>;
 }

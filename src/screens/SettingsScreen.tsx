@@ -21,7 +21,11 @@ const titles: Record<SettingsPage, string> = { root: 'Cài đặt', account: 'T�
 export function SettingsScreen({ onBack, onLogout, page = 'root', onNavigate }: { onBack: () => void; onLogout: () => void; page?: SettingsPage; onNavigate: (page: SettingsPage) => void }) {
   const setPage = onNavigate;
   const [error, setError] = useState(''), [saving, setSaving] = useState(false);
-  const remote = useRemote(getAccountSettings, null);
+  const remote = useRemote(getAccountSettings, null, true, {
+    cacheKey: 'account-settings',
+    staleTimeMs: 60000,
+    tags: ['settings'],
+  });
   const locked = useRef(false), { profile } = useProfile();
   const save = async (patch: Partial<AccountSettings>) => {
     if (locked.current) return; locked.current = true; setSaving(true); setError('');
@@ -57,15 +61,23 @@ function PasswordForm({ onDone }: { onDone: () => void }) {
   const [current, setCurrent] = useState(''), [password, setPassword] = useState(''), [confirm, setConfirm] = useState(''), [error, setError] = useState(''), [busy, setBusy] = useState(false);
   const lock = useRef(false);
   const save = async () => { if (lock.current) return; setError(''); if (password.length < 6 || password.length > 128 || password !== confirm || !current || current === password) { setError('Nhập mật khẩu hiện tại và mật khẩu mới khác mật khẩu cũ, từ 6 đến 128 ký tự; xác nhận phải khớp.'); return; } lock.current = true; setBusy(true); try { await post('/auth/change-password', { currentPassword: current, newPassword: password }); await persistSession(null); onDone(); } catch (reason) { setError(reason instanceof Error ? reason.message : 'Chưa đổi được mật khẩu'); } finally { lock.current = false; setBusy(false); } };
-  return <View style={styles.card}><Text style={styles.note}>Sau khi đổi, hãy đăng nhập lại bằng mật khẩu mới trên các thiết bị.</Text><FormField label="Mật khẩu hiện tại" value={current} onChangeText={setCurrent} secureTextEntry /><FormField label="Mật khẩu mới" value={password} onChangeText={setPassword} secureTextEntry /><FormField label="Xác nhận mật khẩu mới" value={confirm} onChangeText={setConfirm} secureTextEntry />{error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}<GradientButton label={busy ? 'Đang cập nhật...' : 'Cập nhật mật khẩu'} disabled={busy} onPress={() => void save()} /></View>;
+  return <View style={styles.card}><FormField label="Mật khẩu hiện tại" value={current} onChangeText={setCurrent} secureTextEntry /><FormField label="Mật khẩu mới" value={password} onChangeText={setPassword} secureTextEntry /><FormField label="Xác nhận mật khẩu mới" value={confirm} onChangeText={setConfirm} secureTextEntry />{error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}<GradientButton label={busy ? 'Đang cập nhật...' : 'Cập nhật mật khẩu'} disabled={busy} onPress={() => void save()} /></View>;
 }
 function BlockedAccounts() {
-  const remote = useRemote(listBlockedUsers, []); const [error, setError] = useState(''), [busy, setBusy] = useState('');
+  const remote = useRemote(listBlockedUsers, [], true, {
+    cacheKey: 'blocked-users',
+    staleTimeMs: 30000,
+    tags: ['blocks'],
+  }); const [error, setError] = useState(''), [busy, setBusy] = useState('');
   const unblock = async (id: string) => { if (busy) return; setBusy(id); setError(''); try { await unblockUser(id); await remote.reload(); } catch (reason) { setError(reason instanceof Error ? reason.message : 'Không bỏ chặn được'); } finally { setBusy(''); } };
   return <><RemoteState {...remote} onRetry={remote.reload} />{!remote.loading && !remote.error && !remote.data.length && <Text style={styles.note}>Bạn chưa chặn tài khoản nào.</Text>}{remote.data.map(user => <View key={user.userId} style={styles.card}><Text style={styles.heading}>{user.name}</Text><Pressable accessibilityRole="button" accessibilityLabel={'Bỏ chặn ' + user.name} disabled={Boolean(busy)} onPress={() => void unblock(user.userId)}><Text style={{ color: colors.primary }}>{busy === user.userId ? 'Đang bỏ chặn...' : 'Bỏ chặn'}</Text></Pressable></View>)}{error ? <Text style={styles.error}>{error}</Text> : null}</>;
 }
 function MyReports() {
-  const remote = useRemote(listReports, []);
+  const remote = useRemote(listReports, [], true, {
+    cacheKey: 'my-reports',
+    staleTimeMs: 30000,
+    tags: ['reports'],
+  });
   return <><RemoteState {...remote} onRetry={remote.reload} />{!remote.loading && !remote.error && !remote.data.length && <Text style={styles.note}>Bạn chưa gửi báo cáo nào.</Text>}{remote.data.map(report => <View key={report.id} style={styles.card}><Text style={styles.heading}>{report.reason}</Text><Text>{report.detail}</Text><Text style={{ color: colors.primary }}>{report.status === 'pending' ? 'Đã tiếp nhận · Chờ xử lý' : report.status === 'resolved' ? 'Đã xử lý' : 'Đã xem xét'}</Text>{report.reviewNote && <Text>Phản hồi Admin: {report.reviewNote}</Text>}<Text style={styles.note}>{new Date(report.createdAt).toLocaleString('vi-VN')}</Text></View>)}</>;
 }
 function Row({ icon, title, onPress }: { icon: Icon; title: string; onPress: () => void }) { return <Pressable accessibilityRole="button" style={styles.row} onPress={onPress}><View style={styles.icon}><Ionicons name={icon} size={21} color={colors.primary} /></View><Text style={[styles.rowTitle, { flex: 1 }]}>{title}</Text><Ionicons name="chevron-forward" size={18} color={colors.textMuted} /></Pressable>; }
